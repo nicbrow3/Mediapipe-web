@@ -1,0 +1,25 @@
+/* Sidebar.css */
+.sidebar {
+  position: fixed;
+  top: 20px;
+  right: 0;
+  max-height: calc(100vh - 40px); /* 20px top + 20px bottom padding */
+  width: 280px; /* Adjust width as needed */
+  /* Match slider style */
+  background-color: rgba(0, 0, 0, 0.7); 
+  color: #fff;
+  border-radius: 8px; /* Round all corners */
+  padding: 15px; /* Match slider padding closer */
+  /* Remove or adjust previous border/shadow */
+  /* border-left: 1px solid #dee2e6; */ 
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2); /* Keep shadow or adjust */
+  transform: translateX(100%); /* Initially off-screen */
+  transition: transform 0.3s ease-in-out; /* Smooth slide */
+  z-index: 1000; /* Ensure it's above other content */
+  overflow-y: auto; /* Allow scrolling if content exceeds height */
+}
+
+.sidebar.open {
+  transform: translateX(0); /* Slide in */
+  margin-right: 20px; /* Add space between sidebar and viewport edge */
+}

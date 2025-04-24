@@ -1,0 +1,159 @@
+/* App.css */
+:root {
+  /* Font Sizes */
+  --font-size-small: 0.9em;
+  --font-size-normal: 1em;
+  --font-size-medium: 1.2em;
+  --font-size-large: 1.5em;
+
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+
+  /* Colors */
+  --text-color-primary: #dfdfdf;
+  --text-color-secondary: #e0e0e0;
+  --background-color-overlay: rgba(0, 0, 0, 0.5);
+  --background-color-dark: #33333312;
+  --border-color-medium: rgba(95, 95, 95, 0.585);
+  --accent-color: #6a55be;
+  --accent-color-2: rgb(60, 138, 211);
+  --accent-color-3: rgb(207, 145, 46);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #e9ecef; /* Slightly off-white background */
+}
+
+.app-container {
+  position: relative;
+  padding: 20px;
+  transition: padding-right 0.3s ease-in-out; /* Adjust padding when sidebar opens */
+}
+
+.app-container.sidebar-open {
+  /* Adjust padding or margin if needed when sidebar is open */
+  /* Example: Add padding to prevent content overlap */
+  padding-right: 300px; /* Sidebar width + some buffer */
+}
+
+.main-content {
+  /* Styles for the main content area */
+}
+
+/* Style the toggle button */
+.sidebar-toggle-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px; /* Position near the sidebar */
+  z-index: 1001; /* Above sidebar */
+  padding: 8px 12px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.sidebar-toggle-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Adjust toggle button position when sidebar is open */
+.app-container.sidebar-open .sidebar-toggle-btn {
+  right: 300px; /* Sidebar width (280px) + initial padding (20px) */
+}
+
+/* Remove the old .app style if it exists and isn't needed */
+/* 
+.app {
+  text-align: center;
+  padding: 20px;
+}
+*/
+
+/* Keep existing h1 styles or add new ones */
+h1 {
+  color: var(--text-color-primary);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+h2 {
+  color: var(--text-color-primary);
+  text-align: center;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 5px; /* padding below the text but above the border line */
+}
+
+/* --- Reusable Style Presets --- */
+.ui-text-preset {
+  font-size: var(--font-size-medium);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-color-primary);
+  /* Add any other common text styles here if needed later */
+}
+
+.ui-box-preset {
+  background-color: var(--background-color-overlay);
+  padding: 5px 10px;
+  border-radius: 5px;
+  /* Add any other common box styles here if needed later */
+}
+
+.ui-slider-preset {
+  background-color: var(--background-color-overlay);
+  padding: 5px 10px;
+  border-radius: 5px;
+  /* Add any other common box styles here if needed later */
+}
+
+/* --- Slider Styling --- */
+.slider-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* margin-bottom: 15px;  Remove margin for more general use */
+  width: 100%;
+  gap: 10px;
+}
+
+.slider-section label {
+  flex-shrink: 0; /* Prevent label from shrinking */
+  color: var(--text-color-primary); /* Added for visibility against dark backgrounds */
+}
+
+.slider-section input[type="range"] {
+  flex-grow: 1; /* Allow slider to take remaining space */
+  cursor: pointer;
+  accent-color: var(--accent-color); /* Keep or change to a variable? */
+}
+
+/* Optional: Style the thumb (handle) */
+.slider-section input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; /* Override default look */
+  appearance: none;
+  width: 18px; /* Set width */
+  height: 18px; /* Set height */
+  background: var(--accent-color); /* Keep or change to a variable? */
+  border-radius: 50%; /* Circular thumb */
+  cursor: pointer;
+}
+
+.slider-section input[type="range"]::-moz-range-thumb {
+  width: 18px; /* Set width */
+  height: 18px; /* Set height */
+  background: var(--accent-color); /* Keep or change to a variable? */
+  border-radius: 50%; /* Circular thumb */
+  cursor: pointer;
+  border: none; /* Remove Firefox default border */
+}
+/* --- End Slider Styling --- */
