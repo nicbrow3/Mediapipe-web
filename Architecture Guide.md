@@ -138,7 +138,7 @@ export const bicepCurls = {
 // export * from './bicepCurls';
 // export * from './squats';
 // ... etc.
-````
+```
 
 ## 5. Repetition Logic (Functions)
 
@@ -281,5 +281,16 @@ export function calculateAngleBasedRepState(
 - **Asynchronicity:** MediaPipe initialization and detection are asynchronous. Handle loading states and errors.
 	
 - **Coordinate System:** Be mindful of the coordinate system if calculating angles relative to vertical/horizontal planes.
+
+## Rep Counting Implementation Note (2024-06 Update)
+
+- The rep counting logic now uses a **per-side rep cycle** for maximum accuracy and robustness.
+    - For each side (left/right), the system tracks whether the user has been in the ready pose (after the required hold timer).
+    - A rep is only counted for a side if the user was in the ready pose, then left the ready pose and completed the rep movement, and was previously in the ready pose.
+    - After a rep is counted, the per-side ready state is reset for the next cycle.
+- For **single-sided exercises**, only the 'left' side is used for all rep tracking and state logic.
+- The global ready pose hold timer is still used for transitioning from IDLE to READY state, ensuring the user must hold the ready pose for a minimum duration before starting reps.
+
+This approach eliminates phantom reps and ensures accurate, robust rep counting for both single- and two-sided exercises.
 
 *This document details a data-driven architecture optimized for a React workout tracker using MediaPipe Pose, structured for clarity for both

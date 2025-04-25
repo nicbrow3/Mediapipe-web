@@ -4,6 +4,7 @@ import config from '../config';
 import './WorkoutTracker.css';
 import '../App.css'; // Import global styles
 import { Listbox } from '@headlessui/react';
+import RepHistoryGraph from './RepHistoryGraph';
 
 // MediaPipe Pose landmarks mapping (name to index)
 const LANDMARK_MAP = {
@@ -86,6 +87,9 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   const [trackingState, setTrackingState] = useState(TRACKING_STATES.IDLE);
   const trackingStateRef = useRef(TRACKING_STATES.IDLE);
 
+  // Smoothing factor state
+  const [smoothingFactor, setSmoothingFactor] = useState(15);
+
   // Store these values in refs to avoid re-renders
   const poseLandmarkerRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
@@ -103,42 +107,49 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   const readyPoseHoldStartRef = useRef({ left: null, right: null });
   const repInProgressRef = useRef({ left: false, right: false });
 
+  // Add a global ready pose hold timer and previous state ref
+  const readyPoseGlobalHoldStartRef = useRef(null);
+  const prevTrackingStateRef = useRef(TRACKING_STATES.IDLE);
+
+  // Add per-side wasInReadyPose ref for rep cycle
+  const wasInReadyPoseRef = useRef({ left: false, right: false });
+
+  // --- Rep History Buffer ---
+  const [repHistory, setRepHistory] = useState([]);
+  const repHistoryRef = useRef([]);
+  const REP_WINDOW_SECONDS = 10;
+  const EXTRA_BUFFER_SECONDS = 5; // Extra buffer for smoothing
+
+  // Smoothing function for rep history (exponential moving average)
+  function smoothRepHistoryEMA(history, smoothingFactor = 5) {
+    if (history.length === 0) return history;
+    // Convert smoothingFactor to alpha (typical formula for EMA window)
+    const alpha = 2 / (smoothingFactor + 1);
+    let smoothed = [];
+    let prevLeft = history[0].leftAngle;
+    let prevRight = history[0].rightAngle;
+    for (let i = 0; i < history.length; i++) {
+      const left = history[i].leftAngle;
+      const right = history[i].rightAngle;
+      const smoothLeft = (prevLeft === null || left === null) ? left : alpha * left + (1 - alpha) * prevLeft;
+      const smoothRight = (prevRight === null || right === null) ? right : alpha * right + (1 - alpha) * prevRight;
+      smoothed.push({
+        ...history[i],
+        leftAngle: smoothLeft,
+        rightAngle: smoothRight,
+      });
+      prevLeft = smoothLeft;
+      prevRight = smoothRight;
+    }
+    return smoothed;
+  }
+
   useEffect(() => {
     selectedExerciseRef.current = selectedExercise;
+    // Clear rep history when exercise changes
+    repHistoryRef.current = [];
+    setRepHistory([]);
   }, [selectedExercise]);
-
-  // Reset reps and stage when exercise changes
-  useEffect(() => {
-    setRepCount({ left: 0, right: 0 });
-    stageRef.current = {}; // Reset all stages
-    debugLog(`Exercise changed to: ${selectedExerciseRef.current.name}. Reps reset.`);
-
-    // Redraw highlighted landmarks for the new exercise if we have pose data
-    if (latestLandmarksRef.current) {
-      let highlightedIndices = [];
-      let secondaryIndices = [];
-      if (selectedExerciseRef.current?.landmarks) {
-        let primaryNames = [];
-        let secondaryNames = [];
-        if (selectedExerciseRef.current.isTwoSided) {
-          // Two-sided structure
-          const leftPrimary = selectedExerciseRef.current.landmarks.left?.primary || [];
-          const rightPrimary = selectedExerciseRef.current.landmarks.right?.primary || [];
-          const leftSecondary = selectedExerciseRef.current.landmarks.left?.secondary || [];
-          const rightSecondary = selectedExerciseRef.current.landmarks.right?.secondary || [];
-          primaryNames = [...leftPrimary, ...rightPrimary];
-          secondaryNames = [...leftSecondary, ...rightSecondary];
-        } else {
-          // Flat structure
-          primaryNames = selectedExerciseRef.current.landmarks.primary || [];
-          secondaryNames = selectedExerciseRef.current.landmarks.secondary || [];
-        }
-        highlightedIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-        secondaryIndices = secondaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-      }
-      drawLandmarks(latestLandmarksRef.current, highlightedIndices, secondaryIndices);
-    }
-  }, [selectedExercise]); // Depend on the selectedExercise prop
 
   const debugLog = (msg) => {
     if (!showDebug) return;
@@ -251,16 +262,11 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
     return secondaryIndices.every(idx => (landmarks[idx]?.visibility ?? 1) > threshold);
   }
 
-  function getAngle(landmarks, points) {
-    // points: [shoulder, elbow, wrist] (generic names)
-    // Map to correct side and MediaPipe names
+  function getAngle(landmarks, points, side) {
     if (!landmarks) return null;
     let indices = points.map(name => {
-      // Try left then right
-      let leftName = `left_${name}`;
-      let rightName = `right_${name}`;
-      if (LANDMARK_MAP[leftName] !== undefined) return LANDMARK_MAP[leftName];
-      if (LANDMARK_MAP[rightName] !== undefined) return LANDMARK_MAP[rightName];
+      let sideName = `${side}_${name}`;
+      if (LANDMARK_MAP[sideName] !== undefined) return LANDMARK_MAP[sideName];
       // fallback to just the name
       return LANDMARK_MAP[name];
     });
@@ -321,19 +327,19 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
 
     // Per-side ready pose and rep logic
     let newSideStatus = { ...sideStatus };
-    let anyRepCompleted = false;
     let repCompletedSides = [];
     let allReady = true;
     let anyReady = false;
     let anyActive = false;
 
     for (const side of sides) {
-      // Ready pose hold logic
+      // Ready pose hold logic (per side)
       if (inReadyPoseSide(landmarks, exercise, side)) {
         if (!readyPoseHoldStartRef.current[side]) readyPoseHoldStartRef.current[side] = now;
         const holdTime = (exercise?.startPosition?.holdTime || 0) * 1000;
         if (now - readyPoseHoldStartRef.current[side] >= holdTime) {
           newSideStatus[side].inReadyPose = true;
+          wasInReadyPoseRef.current[side] = true; // Mark that this side has been in ready pose
         } else {
           newSideStatus[side].inReadyPose = false;
         }
@@ -342,16 +348,20 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
         newSideStatus[side].inReadyPose = false;
       }
 
-      // Rep start logic
+      // Rep start logic (track if user leaves ready pose and starts movement)
       if (!newSideStatus[side].inReadyPose && repStartedSide(landmarks, exercise, side)) {
         repInProgressRef.current[side] = true;
       }
 
-      // Rep complete logic
-      if (repInProgressRef.current[side] && repCompletedSide(landmarks, exercise, side)) {
+      // Rep complete logic (only count if was in ready pose before this rep cycle)
+      if (
+        repInProgressRef.current[side] &&
+        repCompletedSide(landmarks, exercise, side) &&
+        wasInReadyPoseRef.current[side]
+      ) {
         repCompletedSides.push(side);
         repInProgressRef.current[side] = false;
-        anyRepCompleted = true;
+        wasInReadyPoseRef.current[side] = false; // Reset for next cycle
       }
 
       if (newSideStatus[side].inReadyPose) anyReady = true;
@@ -361,20 +371,32 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
 
     setSideStatus(newSideStatus);
 
-    // Determine next global state before rep counting
+    // --- GLOBAL READY POSE HOLD LOGIC ---
     let nextTrackingState = trackingStateRef.current;
-    if (!requiredVisible || !secondaryVisible) {
-      nextTrackingState = TRACKING_STATES.IDLE;
-    } else if (allReady) {
-      nextTrackingState = TRACKING_STATES.READY;
-    } else if (anyActive) {
-      nextTrackingState = TRACKING_STATES.ACTIVE;
-    } else if (!anyReady && anyRepCompleted) {
-      nextTrackingState = TRACKING_STATES.PAUSED;
+    const readyHoldTime = (exercise?.startPosition?.holdTime || 0) * 1000;
+    // Only start the global hold timer if all required landmarks are visible and all sides are in ready pose
+    if (requiredVisible && secondaryVisible && allReady) {
+      if (!readyPoseGlobalHoldStartRef.current) readyPoseGlobalHoldStartRef.current = now;
+      if (now - readyPoseGlobalHoldStartRef.current >= readyHoldTime) {
+        nextTrackingState = TRACKING_STATES.READY;
+      } else {
+        // Not enough hold time yet, stay in IDLE
+        nextTrackingState = TRACKING_STATES.IDLE;
+      }
+    } else {
+      // Reset the global hold timer if not in ready pose or not visible
+      readyPoseGlobalHoldStartRef.current = null;
+      if (!requiredVisible || !secondaryVisible) {
+        nextTrackingState = TRACKING_STATES.IDLE;
+      } else if (anyActive) {
+        nextTrackingState = TRACKING_STATES.ACTIVE;
+      } else if (!anyReady && repCompletedSides.length > 0) {
+        nextTrackingState = TRACKING_STATES.PAUSED;
+      }
     }
 
-    // Use functional update for repCount, only if next state is ACTIVE or READY
-    if (repCompletedSides.length > 0 && (nextTrackingState === TRACKING_STATES.ACTIVE || nextTrackingState === TRACKING_STATES.READY)) {
+    // --- REP COUNTING: Only count reps for sides that completed a full cycle ---
+    if (repCompletedSides.length > 0 && nextTrackingState !== TRACKING_STATES.IDLE) {
       setRepCount(prev => {
         const updated = { ...prev };
         repCompletedSides.forEach(side => {
@@ -385,6 +407,8 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
       });
     }
 
+    // Update previous state ref
+    prevTrackingStateRef.current = trackingStateRef.current;
     // Now update the global state
     setTrackingStateBoth(nextTrackingState);
   }
@@ -399,6 +423,55 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
       const landmarks = results.landmarks[0];
       latestLandmarksRef.current = landmarks; // Store for redraw on exercise change
       
+      // --- Rep History Buffer Logic ---
+      let leftAngle = null;
+      let rightAngle = null;
+      // For two-sided, get both; for one-sided, just left
+      if (selectedExerciseRef.current?.isTwoSided) {
+        // Try to get the first angle config for each side
+        const leftConfig = selectedExerciseRef.current.logicConfig?.anglesToTrack?.find(a => a.side === 'left');
+        const rightConfig = selectedExerciseRef.current.logicConfig?.anglesToTrack?.find(a => a.side === 'right');
+        if (leftConfig) {
+          leftAngle = getAngle(landmarks, leftConfig.points, 'left');
+        }
+        if (rightConfig) {
+          rightAngle = getAngle(landmarks, rightConfig.points, 'right');
+        }
+      } else if (selectedExerciseRef.current?.logicConfig?.anglesToTrack?.length > 0) {
+        // One-sided: just use the first config
+        const config = selectedExerciseRef.current.logicConfig.anglesToTrack[0];
+        leftAngle = getAngle(landmarks, config.points, 'left');
+      }
+      // Add to buffer if at least one angle is present
+      if (leftAngle !== null || rightAngle !== null) {
+        const now = Date.now();
+        // Compute required landmark visibility for this frame
+        let requiredVisibility = 1;
+        if (selectedExerciseRef.current?.landmarks) {
+          let requiredIndices = [];
+          let primaryNames = [];
+          if (selectedExerciseRef.current.isTwoSided) {
+            const leftPrimary = selectedExerciseRef.current.landmarks.left?.primary || [];
+            const rightPrimary = selectedExerciseRef.current.landmarks.right?.primary || [];
+            primaryNames = [...leftPrimary, ...rightPrimary];
+          } else {
+            primaryNames = selectedExerciseRef.current.landmarks.primary || [];
+          }
+          requiredIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
+          if (requiredIndices.length > 0) {
+            requiredVisibility = Math.min(...requiredIndices.map(idx => (landmarks[idx]?.visibility ?? 1)));
+          }
+        }
+        const newEntry = { timestamp: now, leftAngle, rightAngle, requiredVisibility };
+        // Keep REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS worth of data
+        const maxAge = (REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS) * 1000;
+        repHistoryRef.current = [
+          ...repHistoryRef.current.filter(d => now - d.timestamp <= maxAge),
+          newEntry
+        ];
+        setRepHistory(repHistoryRef.current);
+      }
+
       // Extract landmark indices to highlight from the selected exercise's landmarks config
       let highlightedIndices = [];
       let secondaryIndices = [];
@@ -596,6 +669,17 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
         </div>
         <video ref={videoRef} className="input_video" autoPlay playsInline style={{ opacity: videoOpacity / 100 }}></video>
         <canvas ref={canvasRef} className="output_canvas"></canvas>
+        {/* --- Rep History Graph --- */}
+        <div style={{ position: 'absolute', top: 10, right: 10, width: '40%', minWidth: 320, zIndex: 3 }}>
+          <RepHistoryGraph
+            data={smoothRepHistoryEMA(repHistory, smoothingFactor)
+              .filter(d => d.requiredVisibility === undefined || d.requiredVisibility >= 0.7)
+              .filter(d => Date.now() - d.timestamp <= REP_WINDOW_SECONDS * 1000)}
+            showLeft={selectedExercise.isTwoSided || (!selectedExercise.isTwoSided && repHistory.some(d => d.leftAngle !== null))}
+            showRight={selectedExercise.isTwoSided && repHistory.some(d => d.rightAngle !== null)}
+            windowSeconds={REP_WINDOW_SECONDS}
+          />
+        </div>
         <div className="rep-counter ui-text-preset ui-box-preset">
           {selectedExercise.isTwoSided ? (
             <>
@@ -663,14 +747,28 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
           />
           <span>{Math.round(videoOpacity)}%</span>
         </div>
-
+        {/* Smoothing Factor Slider */}
+        <div className="slider-section ui-text-preset ui-box-preset">
+          <label htmlFor="smoothingFactor">Smoothing Factor:</label>
+          <input
+            type="range"
+            id="smoothingFactor"
+            name="smoothingFactor"
+            min="1"
+            max="30"
+            step="1"
+            value={smoothingFactor}
+            onChange={e => setSmoothingFactor(Number(e.target.value))}
+          />
+          <span>{smoothingFactor}</span>
+        </div>
         <div className="debug-section">
           <div className="debug-toggle">
             <input type="checkbox" id="debugToggle" checked={showDebug} onChange={handleDebugToggle} />
             <label htmlFor="debugToggle">Show Debug Logs</label>
           </div>
           {showDebug && (
-            <div className="debug-window">
+            <div className="debug-window" style={{ background: 'black', color: 'white', padding: '8px', borderRadius: '4px', maxHeight: '200px', overflowY: 'auto' }}>
               <pre>{debugLogs}</pre>
             </div>
           )}

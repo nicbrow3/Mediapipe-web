@@ -59,7 +59,16 @@ export const tricepKickbacks = {
         type: 'angle',
         anglesToTrack: [
              {
-                id: 'elbowExtensionAngle',
+                id: 'leftElbowExtensionAngle',
+                side: 'left',
+                points: ['shoulder', 'elbow', 'wrist'],
+                minThreshold: 90,
+                maxThreshold: 170,
+                isRepCounter: true
+             },
+             {
+                id: 'rightElbowExtensionAngle',
+                side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'],
                 minThreshold: 90,
                 maxThreshold: 170,

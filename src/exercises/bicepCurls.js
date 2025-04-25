@@ -50,7 +50,16 @@ export const bicepCurls = {
         type: 'angle',
         anglesToTrack: [
              {
-                id: 'elbowCurlAngle',
+                id: 'leftElbowCurlAngle',
+                side: 'left',
+                points: ['shoulder', 'elbow', 'wrist'], // Generic points
+                minThreshold: 45,
+                maxThreshold: 160,
+                isRepCounter: true
+             },
+             {
+                id: 'rightElbowCurlAngle',
+                side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
                 minThreshold: 45,
                 maxThreshold: 160,
