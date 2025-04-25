@@ -5,67 +5,8 @@ import './WorkoutTracker.css';
 import '../App.css'; // Import global styles
 import { Listbox } from '@headlessui/react';
 import RepHistoryGraph from './RepHistoryGraph';
-
-// MediaPipe Pose landmarks mapping (name to index)
-const LANDMARK_MAP = {
-  nose: 0,
-  left_eye_inner: 1,
-  left_eye: 2,
-  left_eye_outer: 3,
-  right_eye_inner: 4,
-  right_eye: 5,
-  right_eye_outer: 6,
-  left_ear: 7,
-  right_ear: 8,
-  mouth_left: 9,
-  mouth_right: 10,
-  left_shoulder: 11,
-  right_shoulder: 12,
-  left_elbow: 13,
-  right_elbow: 14,
-  left_wrist: 15,
-  right_wrist: 16,
-  left_pinky: 17,
-  right_pinky: 18,
-  left_index: 19,
-  right_index: 20,
-  left_thumb: 21,
-  right_thumb: 22,
-  left_hip: 23,
-  right_hip: 24,
-  left_knee: 25,
-  right_knee: 26,
-  left_ankle: 27,
-  right_ankle: 28,
-  left_heel: 29,
-  right_heel: 30,
-  left_foot_index: 31,
-  right_foot_index: 32
-};
-
-const POSE_CONNECTIONS = [
-  // Torso
-  [11, 12], // shoulders
-  [11, 23], // left shoulder to left hip
-  [12, 24], // right shoulder to right hip
-  [23, 24], // hips
-
-  // Left arm
-  [11, 13], // left shoulder to left elbow
-  [13, 15], // left elbow to left wrist
-
-  // Right arm
-  [12, 14], // right shoulder to right elbow
-  [14, 16], // right elbow to right wrist
-
-  // Left leg
-  [23, 25], // left hip to left knee
-  [25, 27], // left knee to left ankle
-
-  // Right leg
-  [24, 26], // right hip to right knee
-  [26, 28], // right knee to right ankle
-];
+import { LANDMARK_MAP, POSE_CONNECTIONS } from '../logic/landmarkUtils';
+import { runRepStateEngine } from '../logic/repStateEngine';
 
 const TRACKING_STATES = {
   IDLE: 'IDLE',
@@ -120,6 +61,10 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   const REP_WINDOW_SECONDS = 10;
   const EXTRA_BUFFER_SECONDS = 5; // Extra buffer for smoothing
 
+  // Add a ref to track when visibility was lost for grace period
+  const lostVisibilityTimestampRef = useRef(null);
+  const VISIBILITY_GRACE_PERIOD_MS = 300;
+
   // Smoothing function for rep history (exponential moving average)
   function smoothRepHistoryEMA(history, smoothingFactor = 5) {
     if (history.length === 0) return history;
@@ -131,15 +76,30 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
     for (let i = 0; i < history.length; i++) {
       const left = history[i].leftAngle;
       const right = history[i].rightAngle;
-      const smoothLeft = (prevLeft === null || left === null) ? left : alpha * left + (1 - alpha) * prevLeft;
-      const smoothRight = (prevRight === null || right === null) ? right : alpha * right + (1 - alpha) * prevRight;
+      let smoothLeft, smoothRight;
+      if (left === null) {
+        smoothLeft = null;
+      } else if (prevLeft === null) {
+        smoothLeft = left;
+        prevLeft = left; // resume smoothing from here
+      } else {
+        smoothLeft = alpha * left + (1 - alpha) * prevLeft;
+        prevLeft = smoothLeft;
+      }
+      if (right === null) {
+        smoothRight = null;
+      } else if (prevRight === null) {
+        smoothRight = right;
+        prevRight = right; // resume smoothing from here
+      } else {
+        smoothRight = alpha * right + (1 - alpha) * prevRight;
+        prevRight = smoothRight;
+      }
       smoothed.push({
         ...history[i],
         leftAngle: smoothLeft,
         rightAngle: smoothRight,
       });
-      prevLeft = smoothLeft;
-      prevRight = smoothRight;
     }
     return smoothed;
   }
@@ -217,7 +177,59 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
         ctx.stroke();
       }
     });
+
+    // Draw the arc for the left arm (shoulder, elbow, wrist)
+    const leftShoulder = landmarks[LANDMARK_MAP.left_shoulder];
+    const leftElbow = landmarks[LANDMARK_MAP.left_elbow];
+    const leftWrist = landmarks[LANDMARK_MAP.left_wrist];
+    if (leftShoulder && leftElbow && leftWrist) {
+      drawRepArc(ctx, leftShoulder, leftElbow, leftWrist);
+    }
   };
+
+  // Draw an arc from the midpoint of the upper arm to the midpoint of the forearm (left arm only for now)
+  function drawRepArc(ctx, a, b, c) {
+    // a, b, c are {x, y} in normalized coordinates (0-1)
+    // b is the elbow, a is shoulder, c is wrist
+
+    // Calculate midpoints
+    const midUpperArm = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const midForearm = { x: (b.x + c.x) / 2, y: (b.y + c.y) / 2 };
+
+    // Convert to canvas coordinates
+    const toCanvas = (pt) => ({
+      x: pt.x * ctx.canvas.width,
+      y: pt.y * ctx.canvas.height,
+    });
+    const p1 = toCanvas(midUpperArm);
+    const p3 = toCanvas(midForearm);
+
+    // Calculate the vector from p1 to p3
+    const vx = p3.x - p1.x;
+    const vy = p3.y - p1.y;
+
+    // Find the midpoint between p1 and p3
+    const mx = (p1.x + p3.x) / 2;
+    const my = (p1.y + p3.y) / 2;
+
+    // Calculate a perpendicular vector (normalize and scale)
+    const perpLength = Math.sqrt(vx * vx + vy * vy);
+    const perpNorm = { x: -vy / perpLength, y: vx / perpLength };
+    // Move the control point farther away from the elbow, outward from the arm
+    const arcHeight = 0.5 * perpLength; // adjust 0.5 for more/less curve
+    const cx = mx + perpNorm.x * arcHeight;
+    const cy = my + perpNorm.y * arcHeight;
+
+    // Draw arc from p1 to p3 with (cx, cy) as the control point
+    ctx.save();
+    ctx.strokeStyle = '#3a8ad3'; // Simple blue for now
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.quadraticCurveTo(cx, cy, p3.x, p3.y);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   const setTrackingStateBoth = (newState) => {
     setTrackingState(newState);
@@ -318,6 +330,10 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
     });
   }
 
+  // Add a ref to store the previous state for the rep engine
+  const repEnginePrevStateRef = useRef(null);
+  const [repEngineState, setRepEngineState] = useState(null);
+
   function updateTrackingState(landmarks, exercise) {
     const requiredVisible = checkRequiredLandmarksVisible(landmarks, 0.7);
     const secondaryVisible = checkSecondaryLandmarksVisible(landmarks, 0.4);
@@ -374,37 +390,36 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
     // --- GLOBAL READY POSE HOLD LOGIC ---
     let nextTrackingState = trackingStateRef.current;
     const readyHoldTime = (exercise?.startPosition?.holdTime || 0) * 1000;
-    // Only start the global hold timer if all required landmarks are visible and all sides are in ready pose
-    if (requiredVisible && secondaryVisible && allReady) {
-      if (!readyPoseGlobalHoldStartRef.current) readyPoseGlobalHoldStartRef.current = now;
-      if (now - readyPoseGlobalHoldStartRef.current >= readyHoldTime) {
-        nextTrackingState = TRACKING_STATES.READY;
-      } else {
-        // Not enough hold time yet, stay in IDLE
-        nextTrackingState = TRACKING_STATES.IDLE;
+
+    // Visibility grace period logic
+    if (!requiredVisible || !secondaryVisible) {
+      if (!lostVisibilityTimestampRef.current) {
+        lostVisibilityTimestampRef.current = now;
       }
-    } else {
-      // Reset the global hold timer if not in ready pose or not visible
+      if (now - lostVisibilityTimestampRef.current >= VISIBILITY_GRACE_PERIOD_MS) {
+        nextTrackingState = TRACKING_STATES.PAUSED;
+      } else {
+        // Remain in previous state during grace period
+        nextTrackingState = trackingStateRef.current;
+      }
+      // Reset global ready pose hold timer
       readyPoseGlobalHoldStartRef.current = null;
-      if (!requiredVisible || !secondaryVisible) {
-        nextTrackingState = TRACKING_STATES.IDLE;
+    } else {
+      // Visibility restored, reset lost visibility timer
+      lostVisibilityTimestampRef.current = null;
+      if (allReady) {
+        if (!readyPoseGlobalHoldStartRef.current) readyPoseGlobalHoldStartRef.current = now;
+        if (now - readyPoseGlobalHoldStartRef.current >= readyHoldTime) {
+          nextTrackingState = TRACKING_STATES.READY;
+        } else {
+          // Not enough hold time yet, stay in previous state
+          nextTrackingState = trackingStateRef.current;
+        }
       } else if (anyActive) {
         nextTrackingState = TRACKING_STATES.ACTIVE;
       } else if (!anyReady && repCompletedSides.length > 0) {
         nextTrackingState = TRACKING_STATES.PAUSED;
       }
-    }
-
-    // --- REP COUNTING: Only count reps for sides that completed a full cycle ---
-    if (repCompletedSides.length > 0 && nextTrackingState !== TRACKING_STATES.IDLE) {
-      setRepCount(prev => {
-        const updated = { ...prev };
-        repCompletedSides.forEach(side => {
-          updated[side] = prev[side] + 1;
-          debugLog(`Rep incremented for ${side}: ${prev[side]} -> ${updated[side]}`);
-        });
-        return updated;
-      });
     }
 
     // Update previous state ref
@@ -423,6 +438,23 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
       const landmarks = results.landmarks[0];
       latestLandmarksRef.current = landmarks; // Store for redraw on exercise change
       
+      // --- Rep Engine Integration ---
+      // Run the rep state engine pipeline
+      const repState = runRepStateEngine(
+        landmarks,
+        selectedExerciseRef.current,
+        repEnginePrevStateRef.current
+      );
+      repEnginePrevStateRef.current = repState;
+      setRepEngineState(repState);
+      // Update rep count from repState
+      if (repState && repState.angleLogic) {
+        setRepCount({
+          left: repState.angleLogic.left?.repCount || 0,
+          right: repState.angleLogic.right?.repCount || 0,
+        });
+      }
+
       // --- Rep History Buffer Logic ---
       let leftAngle = null;
       let rightAngle = null;
@@ -498,7 +530,7 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
 
       // --- State Tracking Logic ---
       updateTrackingState(landmarks, selectedExerciseRef.current);
-      // Rep counting is now handled in state logic
+      // Rep counting is now handled by rep engine state
     }
   };
 
@@ -673,7 +705,9 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
         <div style={{ position: 'absolute', top: 10, right: 10, width: '40%', minWidth: 320, zIndex: 3 }}>
           <RepHistoryGraph
             data={smoothRepHistoryEMA(repHistory, smoothingFactor)
-              .filter(d => d.requiredVisibility === undefined || d.requiredVisibility >= 0.7)
+              .map(d => (d.requiredVisibility === undefined || d.requiredVisibility >= 0.7
+                ? d
+                : { ...d, leftAngle: null, rightAngle: null }))
               .filter(d => Date.now() - d.timestamp <= REP_WINDOW_SECONDS * 1000)}
             showLeft={selectedExercise.isTwoSided || (!selectedExercise.isTwoSided && repHistory.some(d => d.leftAngle !== null))}
             showRight={selectedExercise.isTwoSided && repHistory.some(d => d.rightAngle !== null)}

@@ -1,9 +1,9 @@
 // Placeholder for Bicep Curls exercise configuration
-// Based on Architecture Guide.md
+// Now uses pluggable logic system
 
 // Import logic functions (placeholders for now)
-// import { calculateAngleBasedRepState } from '../logic/repCounterLogic';
-// import * as LandmarkUtils from '../logic/landmarkUtils';
+import { calculateAngle } from '../logic/landmarkUtils';
+import { angleBasedRepLogic } from '../logic/angleBasedRepLogic';
 
 export const bicepCurls = {
     // --- Basic Info ---
@@ -66,11 +66,9 @@ export const bicepCurls = {
                 isRepCounter: true
              }
         ],
-        // Placeholder: Assign the actual function when defined
-        stateCalculationFunction: null, // calculateAngleBasedRepState,
-        // Placeholder: Assign actual functions when defined
+        pipeline: [angleBasedRepLogic],
         utilityFunctions: {
-            calculateAngle: null // LandmarkUtils.calculateAngle,
+            calculateAngle,
         }
     },
 
