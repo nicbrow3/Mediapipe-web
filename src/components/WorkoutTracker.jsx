@@ -3,10 +3,10 @@ import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import config from '../config';
 import './WorkoutTracker.css';
 import '../App.css'; // Import global styles
-import { Listbox } from '@headlessui/react';
 import RepHistoryGraph from './RepHistoryGraph';
-import { LANDMARK_MAP, POSE_CONNECTIONS } from '../logic/landmarkUtils';
+import { LANDMARK_MAP, POSE_CONNECTIONS, calculateAngle } from '../logic/landmarkUtils';
 import { runRepStateEngine } from '../logic/repStateEngine';
+import { Select } from '@mantine/core';
 
 const TRACKING_STATES = {
   IDLE: 'IDLE',
@@ -15,21 +15,31 @@ const TRACKING_STATES = {
   PAUSED: 'PAUSED',
 };
 
-// Accept props: onPoseResultUpdate, availableExercises, selectedExercise, onExerciseChange
-const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExercise, onExerciseChange }) => {
+// Accept props: onPoseResultUpdate, availableExercises, selectedExercise, onExerciseChange, 
+// Settings props: videoOpacity, smoothingFactor, strictLandmarkVisibility, showDebug
+const WorkoutTracker = ({
+  onPoseResultUpdate,
+  availableExercises,
+  selectedExercise,
+  onExerciseChange,
+  videoOpacity, // Received from App
+  smoothingFactor, // Received from App
+  strictLandmarkVisibility, // Received from App
+  showDebug, // Received from App
+  repDebounceDuration, // New prop
+  useSmoothedRepCounting, // New prop
+}) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [repCount, setRepCount] = useState({ left: 0, right: 0 });
-  const [showDebug, setShowDebug] = useState(false);
-  const [debugLogs, setDebugLogs] = useState('');
+  const [debugLogs, setDebugLogs] = useState(''); // Debug logs remain local
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [videoOpacity, setVideoOpacity] = useState(5);
   const [trackingState, setTrackingState] = useState(TRACKING_STATES.IDLE);
   const trackingStateRef = useRef(TRACKING_STATES.IDLE);
 
-  // Smoothing factor state
-  const [smoothingFactor, setSmoothingFactor] = useState(15);
+  // Visibility threshold state (single source of truth)
+  const [visibilityThreshold, setVisibilityThreshold] = useState(0.7); // Keep this local for now, could be lifted if needed
 
   // Store these values in refs to avoid re-renders
   const poseLandmarkerRef = useRef(null);
@@ -65,9 +75,36 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   const lostVisibilityTimestampRef = useRef(null);
   const VISIBILITY_GRACE_PERIOD_MS = 300;
 
+  const [cameraStarted, setCameraStarted] = useState(false);
+
+  const strictLandmarkVisibilityRef = useRef(strictLandmarkVisibility);
+  const visibilityThresholdRef = useRef(visibilityThreshold);
+
+  const repDebounceDurationRef = useRef(repDebounceDuration);
+  const useSmoothedRepCountingRef = useRef(useSmoothedRepCounting);
+
+
+  // --- Effect Hooks --- Needed to track the values during the lifecycle of the component, not just on initial render
+  useEffect(() => {
+    strictLandmarkVisibilityRef.current = strictLandmarkVisibility;
+  }, [strictLandmarkVisibility]);
+
+  useEffect(() => {
+    visibilityThresholdRef.current = visibilityThreshold;
+  }, [visibilityThreshold]);
+
+  useEffect(() => {
+    repDebounceDurationRef.current = repDebounceDuration;
+  }, [repDebounceDuration]);
+
+  useEffect(() => {
+    useSmoothedRepCountingRef.current = useSmoothedRepCounting;
+  }, [useSmoothedRepCounting]);
+
   // Smoothing function for rep history (exponential moving average)
   function smoothRepHistoryEMA(history, smoothingFactor = 5) {
     if (history.length === 0) return history;
+    if (smoothingFactor === 0) return history; // No smoothing if 0
     // Convert smoothingFactor to alpha (typical formula for EMA window)
     const alpha = 2 / (smoothingFactor + 1);
     let smoothed = [];
@@ -114,16 +151,6 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   const debugLog = (msg) => {
     if (!showDebug) return;
     setDebugLogs(prev => prev + msg + '\n');
-  };
-
-  const calculateAngle = (a, b, c) => {
-    const vectorBA = { x: a.x - b.x, y: a.y - b.y };
-    const vectorBC = { x: c.x - b.x, y: c.y - b.y };
-    const dotProduct = vectorBA.x * vectorBC.x + vectorBA.y * vectorBC.y;
-    const magnitudeBA = Math.sqrt(vectorBA.x ** 2 + vectorBA.y ** 2);
-    const magnitudeBC = Math.sqrt(vectorBC.x ** 2 + vectorBC.y ** 2);
-    const angle = Math.acos(dotProduct / (magnitudeBA * magnitudeBC));
-    return angle * (180 / Math.PI);
   };
 
   const drawLandmarks = (landmarks, highlightedLandmarkIndices = [], secondaryLandmarkIndices = []) => {
@@ -232,13 +259,20 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   }
 
   const setTrackingStateBoth = (newState) => {
+    if (showDebug) {
+      console.log('[DEBUG] setTrackingStateBoth: newState =', newState);
+    }
     setTrackingState(newState);
     trackingStateRef.current = newState;
   };
 
   // Placeholder helpers for visibility and pose logic
-  function checkRequiredLandmarksVisible(landmarks, threshold) {
+  function checkRequiredLandmarksVisible(landmarks, threshold, requireAll) {
     if (!landmarks) return false;
+    if (requireAll) {
+      // Require ALL pose landmarks to be visible above threshold
+      return landmarks.every(lm => (lm?.visibility ?? 1) > threshold);
+    }
     // Get required indices for current exercise
     let requiredIndices = [];
     if (selectedExerciseRef.current?.landmarks) {
@@ -334,9 +368,12 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   const repEnginePrevStateRef = useRef(null);
   const [repEngineState, setRepEngineState] = useState(null);
 
-  function updateTrackingState(landmarks, exercise) {
-    const requiredVisible = checkRequiredLandmarksVisible(landmarks, 0.7);
-    const secondaryVisible = checkSecondaryLandmarksVisible(landmarks, 0.4);
+  function updateTrackingState(landmarks, exercise, strictLandmarkVisibilityArg, visibilityThresholdArg) {
+    const requiredVisible = checkRequiredLandmarksVisible(landmarks, visibilityThresholdArg, strictLandmarkVisibilityArg);
+    const secondaryVisible = checkSecondaryLandmarksVisible(landmarks, visibilityThresholdArg);
+    if (showDebug) {
+      console.log('[DEBUG] updateTrackingState: requiredVisible =', requiredVisible, 'secondaryVisible =', secondaryVisible, 'strictLandmarkVisibility =', strictLandmarkVisibilityArg, 'visibilityThreshold =', visibilityThresholdArg);
+    }
     const now = Date.now();
     let isTwoSided = exercise?.isTwoSided;
     let sides = isTwoSided ? ['left', 'right'] : ['left'];
@@ -352,8 +389,8 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
       // Ready pose hold logic (per side)
       if (inReadyPoseSide(landmarks, exercise, side)) {
         if (!readyPoseHoldStartRef.current[side]) readyPoseHoldStartRef.current[side] = now;
-        const holdTime = (exercise?.startPosition?.holdTime || 0) * 1000;
-        if (now - readyPoseHoldStartRef.current[side] >= holdTime) {
+        const readyPositionHoldTime = (exercise?.startPosition?.readyPositionHoldTime || 0) * 1000;
+        if (now - readyPoseHoldStartRef.current[side] >= readyPositionHoldTime) {
           newSideStatus[side].inReadyPose = true;
           wasInReadyPoseRef.current[side] = true; // Mark that this side has been in ready pose
         } else {
@@ -389,7 +426,7 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
 
     // --- GLOBAL READY POSE HOLD LOGIC ---
     let nextTrackingState = trackingStateRef.current;
-    const readyHoldTime = (exercise?.startPosition?.holdTime || 0) * 1000;
+    const readyPositionHoldTime = (exercise?.startPosition?.readyPositionHoldTime || 0) * 1000;
 
     // Visibility grace period logic
     if (!requiredVisible || !secondaryVisible) {
@@ -409,7 +446,7 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
       lostVisibilityTimestampRef.current = null;
       if (allReady) {
         if (!readyPoseGlobalHoldStartRef.current) readyPoseGlobalHoldStartRef.current = now;
-        if (now - readyPoseGlobalHoldStartRef.current >= readyHoldTime) {
+        if (now - readyPoseGlobalHoldStartRef.current >= readyPositionHoldTime) {
           nextTrackingState = TRACKING_STATES.READY;
         } else {
           // Not enough hold time yet, stay in previous state
@@ -425,10 +462,16 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
     // Update previous state ref
     prevTrackingStateRef.current = trackingStateRef.current;
     // Now update the global state
+    if (showDebug) {
+      console.log('[DEBUG] updateTrackingState: nextTrackingState =', nextTrackingState);
+    }
     setTrackingStateBoth(nextTrackingState);
   }
 
   const processResults = (results) => {
+    if (showDebug) {
+      console.log('[DEBUG] processResults called: strictLandmarkVisibility=', strictLandmarkVisibilityRef.current, 'visibilityThreshold=', visibilityThresholdRef.current);
+    }
     // Call the callback prop with the raw results
     if (onPoseResultUpdate) {
       onPoseResultUpdate(results);
@@ -438,23 +481,6 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
       const landmarks = results.landmarks[0];
       latestLandmarksRef.current = landmarks; // Store for redraw on exercise change
       
-      // --- Rep Engine Integration ---
-      // Run the rep state engine pipeline
-      const repState = runRepStateEngine(
-        landmarks,
-        selectedExerciseRef.current,
-        repEnginePrevStateRef.current
-      );
-      repEnginePrevStateRef.current = repState;
-      setRepEngineState(repState);
-      // Update rep count from repState
-      if (repState && repState.angleLogic) {
-        setRepCount({
-          left: repState.angleLogic.left?.repCount || 0,
-          right: repState.angleLogic.right?.repCount || 0,
-        });
-      }
-
       // --- Rep History Buffer Logic ---
       let leftAngle = null;
       let rightAngle = null;
@@ -474,27 +500,43 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
         const config = selectedExerciseRef.current.logicConfig.anglesToTrack[0];
         leftAngle = getAngle(landmarks, config.points, 'left');
       }
-      // Add to buffer if at least one angle is present
-      if (leftAngle !== null || rightAngle !== null) {
-        const now = Date.now();
-        // Compute required landmark visibility for this frame
-        let requiredVisibility = 1;
-        if (selectedExerciseRef.current?.landmarks) {
-          let requiredIndices = [];
-          let primaryNames = [];
-          if (selectedExerciseRef.current.isTwoSided) {
-            const leftPrimary = selectedExerciseRef.current.landmarks.left?.primary || [];
-            const rightPrimary = selectedExerciseRef.current.landmarks.right?.primary || [];
-            primaryNames = [...leftPrimary, ...rightPrimary];
-          } else {
-            primaryNames = selectedExerciseRef.current.landmarks.primary || [];
-          }
-          requiredIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-          if (requiredIndices.length > 0) {
-            requiredVisibility = Math.min(...requiredIndices.map(idx => (landmarks[idx]?.visibility ?? 1)));
-          }
+      // Compute required landmark visibility for this frame (primary)
+      let requiredVisibility = 1;
+      let secondaryVisibility = 1;
+      if (selectedExerciseRef.current?.landmarks) {
+        let requiredIndices = [];
+        let primaryNames = [];
+        let secondaryIndices = [];
+        let secondaryNames = [];
+        if (selectedExerciseRef.current.isTwoSided) {
+          const leftPrimary = selectedExerciseRef.current.landmarks.left?.primary || [];
+          const rightPrimary = selectedExerciseRef.current.landmarks.right?.primary || [];
+          primaryNames = [...leftPrimary, ...rightPrimary];
+          const leftSecondary = selectedExerciseRef.current.landmarks.left?.secondary || [];
+          const rightSecondary = selectedExerciseRef.current.landmarks.right?.secondary || [];
+          secondaryNames = [...leftSecondary, ...rightSecondary];
+        } else {
+          primaryNames = selectedExerciseRef.current.landmarks.primary || [];
+          secondaryNames = selectedExerciseRef.current.landmarks.secondary || [];
         }
-        const newEntry = { timestamp: now, leftAngle, rightAngle, requiredVisibility };
+        requiredIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
+        secondaryIndices = secondaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
+        if (requiredIndices.length > 0) {
+          requiredVisibility = Math.min(...requiredIndices.map(idx => (landmarks[idx]?.visibility ?? 1)));
+        }
+        if (secondaryIndices.length > 0) {
+          secondaryVisibility = Math.min(...secondaryIndices.map(idx => (landmarks[idx]?.visibility ?? 1)));
+        }
+      }
+      // --- State Tracking Logic ---
+      updateTrackingState(landmarks, selectedExerciseRef.current, strictLandmarkVisibilityRef.current, visibilityThresholdRef.current);
+      // Only add to buffer and count reps if trackingState is not PAUSED
+      if (
+        (leftAngle !== null || rightAngle !== null) &&
+        trackingStateRef.current !== TRACKING_STATES.PAUSED
+      ) {
+        const now = Date.now();
+        const newEntry = { timestamp: now, leftAngle, rightAngle, requiredVisibility, secondaryVisibility, trackingState: trackingStateRef.current };
         // Keep REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS worth of data
         const maxAge = (REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS) * 1000;
         repHistoryRef.current = [
@@ -502,6 +544,38 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
           newEntry
         ];
         setRepHistory(repHistoryRef.current);
+        // --- Rep Engine Integration ---
+        // Use smoothed or raw data for rep counting
+        let repEngineInputHistory = useSmoothedRepCountingRef.current ? smoothRepHistoryEMA(repHistoryRef.current, smoothingFactor) : repHistoryRef.current;
+        // Use the most recent entry for landmarks, but run rep logic over the smoothed/latest data
+        // We'll simulate the rep logic as if it was running frame-by-frame on the chosen data
+        let lastRepState = repEnginePrevStateRef.current;
+        let finalRepState = null;
+        for (const entry of repEngineInputHistory) {
+          // Patch debounce duration into config for this run
+          const patchedConfig = {
+            ...selectedExerciseRef.current,
+            logicConfig: {
+              ...selectedExerciseRef.current.logicConfig,
+              repDebounceDuration: repDebounceDurationRef.current,
+            },
+          };
+          finalRepState = runRepStateEngine(
+            landmarks, // still pass current landmarks for utility functions
+            patchedConfig,
+            lastRepState
+          );
+          lastRepState = finalRepState;
+        }
+        repEnginePrevStateRef.current = finalRepState;
+        setRepEngineState(finalRepState);
+        // Update rep count from repState
+        if (finalRepState && finalRepState.angleLogic) {
+          setRepCount({
+            left: finalRepState.angleLogic.left?.repCount || 0,
+            right: finalRepState.angleLogic.right?.repCount || 0,
+          });
+        }
       }
 
       // Extract landmark indices to highlight from the selected exercise's landmarks config
@@ -527,10 +601,6 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
         secondaryIndices = secondaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
       }
       drawLandmarks(landmarks, highlightedIndices, secondaryIndices);
-
-      // --- State Tracking Logic ---
-      updateTrackingState(landmarks, selectedExerciseRef.current);
-      // Rep counting is now handled by rep engine state
     }
   };
 
@@ -562,110 +632,128 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
 
         lastVideoTimeRef.current = video.currentTime;
       } catch (error) {
-        console.error('Error in detectForVideo:', error);
-        debugLog('Error in detectForVideo: ' + error.message);
+        console.error('Error in detectForVideo:', error); // Log the full error object
+        debugLog('Error in detectForVideo: ' + (error?.message || 'Unknown error'));
+        // Optionally log stack trace if available
+        if (error?.stack) {
+          debugLog('Stack trace: ' + error.stack);
+        }
+        // Consider adding logic to potentially pause or stop the loop if errors persist
       }
     }
     requestAnimationFrame(renderLoop);
   };
 
-  // Initialize webcam and MediaPipe
-  useEffect(() => {
-    const setupMediaPipe = async () => {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
+  // --- Camera and MediaPipe Setup ---
+  const setupMediaPipe = async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
 
-      try {
-        setIsLoading(true);
-        // Access webcam
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        debugLog('Webcam access successful');
-
-        // Wait for video metadata to be loaded
-        await new Promise((resolve) => {
-          if (video.readyState >= 2) {
-            resolve();
-          } else {
-            video.addEventListener('loadedmetadata', resolve);
-          }
-        });
-
-        // Adjust canvas size to match video dimensions
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        // Initialize MediaPipe
-        debugLog('Setting up MediaPipe...');
-        debugLog(`Using WASM path: ${config.mediapipe.wasmPath}`);
-        const vision = await FilesetResolver.forVisionTasks(
-          config.mediapipe.wasmPath
-        );
-
-        // Check if vision was successfully created
-        if (!vision) {
-          throw new Error('Failed to initialize FilesetResolver');
+    try {
+      setIsLoading(true);
+      // Polyfill for getUserMedia (for iOS/Safari/legacy support)
+      const getUserMediaCompat = (constraints) => {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          return navigator.mediaDevices.getUserMedia(constraints);
         }
-
-        debugLog('FilesetResolver initialized successfully');
-
-        // First try with GPU
-        try {
-          debugLog('Attempting to initialize with GPU delegate...');
-          poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: config.mediapipe.modelPath,
-              delegate: 'GPU'
-            },
-            runningMode: 'VIDEO',
-            numPoses: config.pose.numPoses,
-            minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
-            minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
-            minTrackingConfidence: config.pose.minTrackingConfidence,
-            outputSegmentationMasks: false
+        const getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+        if (getUserMedia) {
+          // Promisify the legacy getUserMedia
+          return new Promise((resolve, reject) => {
+            getUserMedia.call(navigator, constraints, resolve, reject);
           });
-          debugLog('Successfully initialized with GPU delegate');
-        } catch (gpuError) {
-          // If GPU fails, try with CPU
-          debugLog('GPU initialization failed: ' + gpuError.message);
-          debugLog('Falling back to CPU delegate...');
-
-          poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: config.mediapipe.modelPath,
-              delegate: 'CPU'
-            },
-            runningMode: 'VIDEO',
-            numPoses: config.pose.numPoses,
-            minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
-            minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
-            minTrackingConfidence: config.pose.minTrackingConfidence,
-            outputSegmentationMasks: false
-          });
-          debugLog('Successfully initialized with CPU delegate');
         }
+        return Promise.reject(new Error('getUserMedia is not supported in this browser.'));
+      };
 
-        if (!poseLandmarkerRef.current) {
-          throw new Error('Failed to initialize PoseLandmarker');
+      // Access webcam
+      const stream = await getUserMediaCompat({ video: true });
+      video.srcObject = stream;
+      debugLog('Webcam access successful');
+
+      // Wait for video metadata to be loaded
+      await new Promise((resolve) => {
+        if (video.readyState >= 2) {
+          resolve();
+        } else {
+          video.addEventListener('loadedmetadata', resolve, { once: true });
         }
+      });
 
-        debugLog('MediaPipe setup complete!');
-        debugLog(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+      // Adjust canvas size to match video dimensions
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-        // Start the render loop
-        requestAnimationFrame(renderLoop);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error during setup:', error);
-        debugLog('Error during setup: ' + error.message);
-        setErrorMessage(`Setup error: ${error.message}`);
-        setIsLoading(false);
+      // Initialize MediaPipe
+      debugLog('Setting up MediaPipe...');
+      debugLog(`Using WASM path: ${config.mediapipe.wasmPath}`);
+      const vision = await FilesetResolver.forVisionTasks(
+        config.mediapipe.wasmPath
+      );
+
+      // Check if vision was successfully created
+      if (!vision) {
+        throw new Error('Failed to initialize FilesetResolver');
       }
-    };
 
-    setupMediaPipe();
+      debugLog('FilesetResolver initialized successfully');
 
-    // Cleanup function
+      // First try with GPU
+      try {
+        debugLog('Attempting to initialize with GPU delegate...');
+        poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: config.mediapipe.modelPath,
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          numPoses: config.pose.numPoses,
+          minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
+          minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
+          minTrackingConfidence: config.pose.minTrackingConfidence,
+          outputSegmentationMasks: false
+        });
+        debugLog('Successfully initialized with GPU delegate');
+      } catch (gpuError) {
+        // If GPU fails, try with CPU
+        debugLog('GPU initialization failed: ' + gpuError.message);
+        debugLog('Falling back to CPU delegate...');
+
+        poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: config.mediapipe.modelPath,
+            delegate: 'CPU'
+          },
+          runningMode: 'VIDEO',
+          numPoses: config.pose.numPoses,
+          minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
+          minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
+          minTrackingConfidence: config.pose.minTrackingConfidence,
+          outputSegmentationMasks: false
+        });
+        debugLog('Successfully initialized with CPU delegate');
+      }
+
+      if (!poseLandmarkerRef.current) {
+        throw new Error('Failed to initialize PoseLandmarker');
+      }
+
+      debugLog('MediaPipe setup complete!');
+      debugLog(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+
+      // Start the render loop
+      requestAnimationFrame(renderLoop);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error during setup:', error);
+      debugLog('Error during setup: ' + error.message);
+      setErrorMessage(`Setup error: ${error.message}`);
+      setIsLoading(false);
+    }
+  };
+
+  // Cleanup webcam stream on unmount
+  useEffect(() => {
     return () => {
       const video = videoRef.current;
       if (video && video.srcObject) {
@@ -676,138 +764,119 @@ const WorkoutTracker = ({ onPoseResultUpdate, availableExercises, selectedExerci
   }, []);
 
   // --- Handlers ---
-  const handleDebugToggle = (e) => {
-    setShowDebug(e.target.checked);
-    if (e.target.checked) {
-      setDebugLogs("Debug logging enabled.\n");
-    } else {
-      setDebugLogs("Debug logging disabled.\n");
-    }
+  const handleStartCamera = () => {
+    setCameraStarted(true);
+    setupMediaPipe();
   };
 
-  const handleOpacityChange = (e) => {
-    setVideoOpacity(e.target.value);
-  };
+  useEffect(() => {
+    // Debug log to confirm effect fires
+    if (showDebug) {
+      console.log('[DEBUG] useEffect fired: strictLandmarkVisibility=', strictLandmarkVisibility, 'visibilityThreshold=', visibilityThreshold, 'latestLandmarksRef.current=', !!latestLandmarksRef.current);
+    }
+    // When strictLandmarkVisibility or visibilityThreshold changes, re-check state logic
+    if (latestLandmarksRef.current) {
+      updateTrackingState(latestLandmarksRef.current, selectedExerciseRef.current, strictLandmarkVisibility, visibilityThreshold);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strictLandmarkVisibility, visibilityThreshold]);
 
   return (
     <div className="workout-tracker-container">
       {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
       {errorMessage && <div className="error-message">{errorMessage}</div>}
 
+      {/* Show Start Camera button if not started */}
+      {!cameraStarted && (
+        <button onClick={handleStartCamera} className="start-camera-btn" style={{ zIndex: 10, position: 'absolute', left: '50%', top: '40%', transform: 'translate(-50%, -50%)', fontSize: 24, padding: '1em 2em', borderRadius: 8, background: '#6a55be', color: 'white', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+          Start Camera
+        </button>
+      )}
+
       <div className="video-canvas-container">
         {/* State Indicator */}
-        <div className="tracking-state-indicator ui-text-preset ui-box-preset">
+        <div className={`tracking-state-indicator ui-text-preset ui-box-preset state-${trackingState.toLowerCase()}`}>
           State: {trackingState}
         </div>
-        <video ref={videoRef} className="input_video" autoPlay playsInline style={{ opacity: videoOpacity / 100 }}></video>
+        <video ref={videoRef} className="input_video" autoPlay playsInline muted style={{ opacity: videoOpacity / 100 }}></video>
         <canvas ref={canvasRef} className="output_canvas"></canvas>
         {/* --- Rep History Graph --- */}
         <div style={{ position: 'absolute', top: 10, right: 10, width: '40%', minWidth: 320, zIndex: 3 }}>
           <RepHistoryGraph
             data={smoothRepHistoryEMA(repHistory, smoothingFactor)
-              .map(d => (d.requiredVisibility === undefined || d.requiredVisibility >= 0.7
-                ? d
-                : { ...d, leftAngle: null, rightAngle: null }))
+              .filter(d => d.trackingState === TRACKING_STATES.ACTIVE || d.trackingState === TRACKING_STATES.READY)
               .filter(d => Date.now() - d.timestamp <= REP_WINDOW_SECONDS * 1000)}
             showLeft={selectedExercise.isTwoSided || (!selectedExercise.isTwoSided && repHistory.some(d => d.leftAngle !== null))}
             showRight={selectedExercise.isTwoSided && repHistory.some(d => d.rightAngle !== null)}
             windowSeconds={REP_WINDOW_SECONDS}
+            exerciseConfig={selectedExercise}
+            visibilityThreshold={visibilityThreshold}
           />
         </div>
-        <div className="rep-counter ui-text-preset ui-box-preset">
-          {selectedExercise.isTwoSided ? (
-            <>
-              <span>Left Reps: {repCount.left}</span> <br />
-              <span>Right Reps: {repCount.right}</span>
-            </>
-          ) : (
-            <>Reps: {repCount.left}</>
-          )}
+        <div className="rep-goal ui-text-preset ui-box-preset">
+          Rep Goal: 12
         </div>
+        {/* --- Rep Counters --- */}
+        {selectedExercise.isTwoSided ? (
+          <div style={{ position: 'absolute', bottom: 'var(--overlay-padding)', right: 'var(--overlay-padding)', display: 'flex', flexDirection: 'column', gap: 'var(--overlay-padding)', zIndex: 2 }}>
+            <div className="rep-counter-box ui-text-preset ui-box-preset">
+              <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                <div
+                  className="rep-progress-outline"
+                  style={{ width: `${Math.min(100, (repCount.left / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
+                />
+                <span>Left Reps: {repCount.left}</span>
+              </div>
+            </div>
+            <div className="rep-counter-box ui-text-preset ui-box-preset">
+              <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                <div
+                  className="rep-progress-outline"
+                  style={{ width: `${Math.min(100, (repCount.right / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
+                />
+                <span>Right Reps: {repCount.right}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rep-counter ui-text-preset ui-box-preset">
+            <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+              <div
+                className="rep-progress-outline"
+                style={{ width: `${Math.min(100, (repCount.left / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
+              />
+              Reps: {repCount.left}
+            </div>
+          </div>
+        )}
         {/* --- Exercise Selector --- */}
         <div className="exercise-selector-container ui-text-preset ui-box-preset">
-          <label htmlFor="exercise-select">Exercise:</label>
-          <Listbox
-            value={selectedExercise}
-            onChange={exercise => {
-              // Synthesize a change event for compatibility
-              const event = { target: { value: exercise.id } };
-              onExerciseChange(event);
+          <Select
+            label="Exercise"
+            placeholder="Pick exercise"
+            searchable
+            data={availableExercises.map(ex => ({ value: ex.id, label: ex.name }))}
+            value={selectedExercise.id}
+            onChange={value => {
+              if (value) {
+                onExerciseChange({ target: { value } });
+              }
             }}
-          >
-            {({ open }) => (
-              <div className="custom-listbox-wrapper">
-                <Listbox.Button className="custom-listbox-button">
-                  {selectedExercise.name}
-                  <span className="custom-listbox-arrow" aria-hidden>
-                    {/* Modern chevron-down SVG icon */}
-                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M6 8L10 12L14 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </span>
-                </Listbox.Button>
-                <Listbox.Options className="custom-listbox-options">
-                  {availableExercises.map(exercise => (
-                    <Listbox.Option
-                      key={exercise.id}
-                      value={exercise}
-                      className={({ active, selected }) =>
-                        `custom-listbox-option${active ? ' active' : ''}${selected ? ' selected' : ''}`
-                      }
-                    >
-                      {exercise.name}
-                    </Listbox.Option>
-                  ))}
-                </Listbox.Options>
-              </div>
-            )}
-          </Listbox>
+            nothingFoundMessage="No exercises found"
+            styles={{ dropdown: { zIndex: 1000 } }}
+            radius="md"
+            color="grape.6"
+          />
         </div>
         {/* --- End Exercise Selector --- */}
       </div>
 
-      <div className="controls">
-        <div className="slider-section ui-text-preset ui-box-preset">
-          <label htmlFor="videoOpacity">Camera Feed Visibility:</label>
-          <input
-            type="range"
-            id="videoOpacity"
-            name="videoOpacity"
-            min="0.0"
-            max="100.0"
-            step="0.5"
-            value={videoOpacity}
-            onChange={handleOpacityChange}
-          />
-          <span>{Math.round(videoOpacity)}%</span>
+      {/* Optionally keep the debug window if needed, controlled by showDebug prop */}
+      {showDebug && (
+        <div className="debug-window" style={{ background: 'black', color: 'white', padding: '8px', borderRadius: '4px', maxHeight: '200px', overflowY: 'auto', marginTop: '15px' }}>
+          <pre>{debugLogs}</pre>
         </div>
-        {/* Smoothing Factor Slider */}
-        <div className="slider-section ui-text-preset ui-box-preset">
-          <label htmlFor="smoothingFactor">Smoothing Factor:</label>
-          <input
-            type="range"
-            id="smoothingFactor"
-            name="smoothingFactor"
-            min="1"
-            max="30"
-            step="1"
-            value={smoothingFactor}
-            onChange={e => setSmoothingFactor(Number(e.target.value))}
-          />
-          <span>{smoothingFactor}</span>
-        </div>
-        <div className="debug-section">
-          <div className="debug-toggle">
-            <input type="checkbox" id="debugToggle" checked={showDebug} onChange={handleDebugToggle} />
-            <label htmlFor="debugToggle">Show Debug Logs</label>
-          </div>
-          {showDebug && (
-            <div className="debug-window" style={{ background: 'black', color: 'white', padding: '8px', borderRadius: '4px', maxHeight: '200px', overflowY: 'auto' }}>
-              <pre>{debugLogs}</pre>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 };

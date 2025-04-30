@@ -11,6 +11,13 @@ export const bicepCurls = {
     name: 'Bicep Curls',
     isTwoSided: true,
 
+    // --- Visibility Strictness Option ---
+    /**
+     * If true, ALL pose landmarks must have visibility >= threshold to exit paused state.
+     * If false, only required/primary/secondary landmarks are checked.
+     */
+    requireAllLandmarksVisible: false,
+
     // --- Landmark Requirements ---
     landmarks: {
         left: {
@@ -42,7 +49,7 @@ export const bicepCurls = {
                 tolerance: 15
             },
         ],
-        holdTime: 0.5
+        readyPositionHoldTime: 1.5
     },
 
     // --- Repetition Logic Configuration ---
@@ -55,7 +62,8 @@ export const bicepCurls = {
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
                 minThreshold: 45,
                 maxThreshold: 160,
-                isRepCounter: true
+                isRepCounter: true,
+                relaxedIsHigh: true
              },
              {
                 id: 'rightElbowCurlAngle',
@@ -63,7 +71,8 @@ export const bicepCurls = {
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
                 minThreshold: 45,
                 maxThreshold: 160,
-                isRepCounter: true
+                isRepCounter: true,
+                relaxedIsHigh: true
              }
         ],
         pipeline: [angleBasedRepLogic],

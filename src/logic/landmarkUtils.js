@@ -11,20 +11,20 @@
  * @returns {number | null} Angle in degrees, or null if calculation is not possible.
  */
 export function calculateAngle(p1, p2, p3) {
-    // TODO: Implement the actual angle calculation
-    // Consider visibility/presence of points
+    // Robust 2D angle calculation using the dot product formula
     if (!p1 || !p2 || !p3) {
         return null; // Cannot calculate if points are missing
     }
-    console.log('[calculateAngle] Called with:', { p1, p2, p3 });
-    // Basic 2D angle calculation (ignoring Z for simplicity in placeholder)
-    const angleRad = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
+    // Vectors from p2 to p1 and p2 to p3
+    const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+    const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
+    const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
+    if (mag1 === 0 || mag2 === 0) return null; // Avoid division by zero
+    let angleRad = Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))); // Clamp for safety
     let angleDeg = angleRad * (180 / Math.PI);
-    angleDeg = Math.abs(angleDeg);
-    if (angleDeg > 180) {
-        angleDeg = 360 - angleDeg;
-    }
-    return angleDeg;
+    return angleDeg; // Always in [0, 180]
 }
 
 /**

@@ -37,6 +37,8 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
   }
 
   // Track rep count and phase per side
+  const DEBOUNCE_DURATION_MS = (config?.logicConfig?.repDebounceDuration ?? 200); // Use dynamic debounce duration
+  const now = Date.now();
   sides.forEach(side => {
     // Find the angle config for this side
     const angleConfig = anglesToTrack.find(a => (a.side ? a.side === side : true) && a.isRepCounter);
@@ -47,29 +49,58 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
     // Get thresholds
     const min = angleConfig.minThreshold;
     const max = angleConfig.maxThreshold;
+    const relaxedIsHigh = angleConfig.relaxedIsHigh !== undefined ? angleConfig.relaxedIsHigh : true; // default true for backward compatibility
 
     // Get previous phase and repCount
-    const prev = angleLogic[side] || { phase: 'idle', repCount: 0, lastAngle: null };
+    const prev = angleLogic[side] || { phase: 'idle', repCount: 0, lastAngle: null, debounceStart: null };
     let phase = prev.phase;
     let repCount = prev.repCount;
+    let debounceStart = prev.debounceStart || null;
 
-    // Phase logic:
-    // idle: waiting for angle to go below min (start of rep)
-    // active: angle is below min (rep in progress)
-    // completed: angle goes above max (rep completed)
-    // Only count rep when transitioning from active to completed
-    if (phase === 'idle') {
-      if (angle < min) {
-        phase = 'active';
+    // Phase logic with debounce, now using relaxedIsHigh:
+    if (relaxedIsHigh) {
+      // Relaxed = angle > max, Contracted = angle < min (e.g., bicep curls)
+      if (phase === 'idle') {
+        if (angle < min) {
+          phase = 'active';
+          debounceStart = now;
+        } else {
+          debounceStart = null;
+        }
+      } else if (phase === 'active') {
+        if (angle < min) {
+          if (!debounceStart) {
+            debounceStart = now;
+          } else if (now - debounceStart >= DEBOUNCE_DURATION_MS) {
+            repCount += 1;
+            debounceStart = now; // reset debounce for next rep
+          }
+        } else {
+          phase = 'idle';
+          debounceStart = null;
+        }
       }
-    } else if (phase === 'active') {
-      if (angle > max) {
-        phase = 'completed';
-        repCount += 1;
-      }
-    } else if (phase === 'completed') {
-      if (angle >= min) {
-        phase = 'idle';
+    } else {
+      // Relaxed = angle < min, Contracted = angle > max (e.g., shoulder abduction)
+      if (phase === 'idle') {
+        if (angle > max) {
+          phase = 'active';
+          debounceStart = now;
+        } else {
+          debounceStart = null;
+        }
+      } else if (phase === 'active') {
+        if (angle > max) {
+          if (!debounceStart) {
+            debounceStart = now;
+          } else if (now - debounceStart >= DEBOUNCE_DURATION_MS) {
+            repCount += 1;
+            debounceStart = now; // reset debounce for next rep
+          }
+        } else {
+          phase = 'idle';
+          debounceStart = null;
+        }
       }
     }
 
@@ -77,6 +108,7 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
       phase,
       repCount,
       lastAngle: angle,
+      debounceStart,
     };
   });
 

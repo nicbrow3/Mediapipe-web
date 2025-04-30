@@ -10,15 +10,28 @@
   --font-weight-normal: 400;
   --font-weight-bold: 700;
 
-  /* Colors */
-  --text-color-primary: #dfdfdf;
-  --text-color-secondary: #e0e0e0;
-  --background-color-overlay: rgba(0, 0, 0, 0.5);
-  --background-color-dark: #33333312;
-  --border-color-medium: rgba(95, 95, 95, 0.585);
+  /* Colors - Light Theme Default */
+  --text-color-primary: #333;
+  --text-color-secondary: #555;
+  --background-color: #e9ecef;
+  --background-color-overlay: rgba(255, 255, 255, 0.7);
+  --background-color-dark: rgba(200, 200, 200, 0.12);
+  --button-hover-color: rgba(235, 235, 235, 0.423);
+  --border-color-medium: rgba(120, 120, 120, 0.585);
   --accent-color: #6a55be;
   --accent-color-2: rgb(60, 138, 211);
   --accent-color-3: rgb(207, 145, 46);
+}
+
+/* Dark theme overrides */
+[data-mantine-color-scheme="dark"] {
+  --text-color-primary: #dfdfdf;
+  --text-color-secondary: #e0e0e0;
+  --background-color: #1a1b1e;
+  --background-color-overlay: rgba(0, 0, 0, 0.5);
+  --background-color-dark: rgba(51, 51, 51, 0.12);
+  --button-hover-color: rgba(19, 15, 24, 0.423);
+  --border-color-medium: rgba(95, 95, 95, 0.585);
 }
 
 body {
@@ -28,7 +41,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #e9ecef; /* Slightly off-white background */
+  background-color: var(--background-color);
+  color: var(--text-color-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .app-container {

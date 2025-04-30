@@ -232,7 +232,7 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
 - **Asynchronicity:** MediaPipe initialization and detection are asynchronous. Handle loading states and errors.
 - **Coordinate System:** Be mindful of the coordinate system if calculating angles relative to vertical/horizontal planes.
 
-## Rep Counting Implementation Note (2024-06 Update)
+## Rep Counting Implementation Note
 
 - The rep counting logic now uses a **per-side rep cycle** for maximum accuracy and robustness.
     - For each side (left/right), the system tracks whether the user has been in the ready pose (after the required hold timer).
@@ -242,5 +242,21 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
 - The global ready pose hold timer is still used for transitioning from IDLE to READY state, ensuring the user must hold the ready pose for a minimum duration before starting reps.
 
 This approach eliminates phantom reps and ensures accurate, robust rep counting for both single- and two-sided exercises.
+
+## State-Driven Rep Counting and Graph Display
+
+- **Single Source of Truth:**
+  Rep counting and the rep history graph are now driven by the global tracking state (`ACTIVE`, `READY`, `PAUSED`, etc).
+  - **Reps and graph data are only recorded when the tracking state is not `PAUSED` (i.e., only during `ACTIVE` or `READY`).**
+  - The tracking state is determined by all relevant logic, including landmark visibility, strict mode, and grace periods.
+  - This ensures that all user-facing features (UI, rep counting, graph) are always in sync and respect the user's settings.
+
+- **Implementation:**
+  - Each rep history entry stores the tracking state at the time it was recorded.
+  - The graph only displays data from times when the state was `ACTIVE` or `READY`.
+  - Rep counting is only performed in these states as well.
+
+- **Benefits:**
+  - This approach eliminates duplicated logic, reduces bugs, and makes the system easier to maintain and extend.
 
 *This document details a data-driven architecture optimized for a React workout tracker using MediaPipe Pose, structured for clarity for both*

@@ -27,19 +27,73 @@ video, canvas {
   object-fit: cover;
 }
 
+/* --- Rep Counter & Progress Styles --- */
 .rep-counter {
   position: absolute;
   bottom: var(--overlay-padding);
   right: var(--overlay-padding);
   z-index: 2; /* Above canvas */
 }
+.rep-counter span {
+  position: relative;
+  z-index: 2;
+}
+.rep-progress-outline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-color-2, #3a8ad3) 80%, var(--accent-color-3, #cf912e) 100%);
+  opacity: 0.25;
+  border-radius: 8px;
+  pointer-events: none;
+  transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
+  z-index: 1;
+}
+.rep-progress-outline.left {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.rep-progress-outline.right {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 8px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
 
+/* --- Tracking State Indicator Styling --- */
 .tracking-state-indicator {
   position: absolute;
   top: var(--overlay-padding);
   left: var(--overlay-padding);
   z-index: 2; /* Above canvas */
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
 }
+
+.tracking-state-indicator.state-idle {
+  background-color: #3a8ad3; /* blue */
+  color: #fff;
+}
+
+.tracking-state-indicator.state-active {
+  background-color: #2ecc40; /* green */
+  color: #fff;
+}
+
+.tracking-state-indicator.state-paused {
+  background-color: #333; /* dark gray */
+  color: #fff;
+}
+
+.tracking-state-indicator.state-ready {
+  background-color: #f1c40f; /* yellow/gold for ready */
+  color: #222;
+}
+/* --- End Tracking State Indicator Styling --- */
 
 .debug-section {
   display: flex;
@@ -315,3 +369,33 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
   border-radius: 8px;
 }
 /* --- End Custom Listbox Styling --- */ 
+
+.rep-goal {
+  position: absolute;
+  bottom: var(--overlay-padding);
+  right: calc(var(--overlay-padding) + 140px); /* Offset to the left of rep-counter, adjust as needed */
+  z-index: 2;
+  margin-right: 12px;
+  /* Match rep-counter style */
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--background-color-dark, #22243a);
+  color: var(--text-color-primary, #fff);
+  font-size: var(--font-size-normal, 1.1em);
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  border: 1px solid var(--border-color-medium, #444);
+  text-align: center;
+}
+
+/* --- Rep Counter & Progress Styles --- */
+.rep-counter-box {
+  min-width: 120px;
+  margin: 0;
+  box-sizing: border-box;
+  /* Inherit from ui-box-preset, but can add more if needed */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+} 

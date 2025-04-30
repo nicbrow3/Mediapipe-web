@@ -107,12 +107,13 @@ export const exerciseName = {
 - **Metadata**: Displayed in the UI for user guidance.
 
 ## Example Files
-- See [`bicepCurls.js`](./bicepCurls.js) and [`tricepKickbacks.js`](./tricepKickbacks.js) for working examples.
+- See [`bicepCurls.js`](./bicepCurls.js), [`tricepKickbacks.js`](./tricepKickbacks.js), and [`jumpingJacks.js`](./jumpingJacks.js) for working examples.
 
 ## Tips
 - Keep field names and structure consistent.
 - Use descriptive `id` values for angles and logic.
 - When new logic or utility functions are implemented, update the placeholders accordingly.
+- **After creating a new exercise file, always update [`index.js`](./index.js) to export your new exercise configuration.**
 
 ---
 

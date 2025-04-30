@@ -1,5 +1,9 @@
 // Configuration for Tricep Kickbacks exercise
 
+// Import logic functions
+import { calculateAngle } from '../logic/landmarkUtils';
+import { angleBasedRepLogic } from '../logic/angleBasedRepLogic';
+
 export const tricepKickbacks = {
     // --- Basic Info ---
     id: 'tricep-kickbacks',
@@ -51,7 +55,7 @@ export const tricepKickbacks = {
                 tolerance: 20
             }
         ],
-        holdTime: 0.5
+        readyPositionHoldTime: 1.5
     },
 
     // --- Repetition Logic Configuration ---
@@ -64,7 +68,8 @@ export const tricepKickbacks = {
                 points: ['shoulder', 'elbow', 'wrist'],
                 minThreshold: 90,
                 maxThreshold: 170,
-                isRepCounter: true
+                isRepCounter: true,
+                relaxedIsHigh: false // relaxed at 90º (high is 170º)
              },
              {
                 id: 'rightElbowExtensionAngle',
@@ -72,14 +77,13 @@ export const tricepKickbacks = {
                 points: ['shoulder', 'elbow', 'wrist'],
                 minThreshold: 90,
                 maxThreshold: 170,
-                isRepCounter: true
+                isRepCounter: true,
+                relaxedIsHigh: false // relaxed at 90º (high is 170º)
              }
         ],
-        // Placeholder: Assign the actual function when defined
-        stateCalculationFunction: null,
-        // Placeholder: Assign actual functions when defined
+        pipeline: [angleBasedRepLogic],
         utilityFunctions: {
-            calculateAngle: null
+            calculateAngle,
         }
     },
 
