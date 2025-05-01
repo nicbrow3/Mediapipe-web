@@ -17,54 +17,64 @@ This approach promotes modularity, scalability, maintainability, and testability
     * **Data (`src/exercises/`):** What defines an exercise? (Using MediaPipe landmark names)
     * **Logic (`src/logic/`):** How are reps counted and form checked based on MediaPipe data? **Logic is composed as a pipeline of functions.**
     * **UI (`src/components/`):** How is information displayed and interacted with?
+    * **Hooks (`src/hooks/`):** Custom React hooks that encapsulate specific functionalities.
 * **Reusability:** Logic for common actions (like angle calculation or angle-based rep counting) is written once and reused by multiple exercises via their configuration.
 * **Scalability:** Adding new exercises primarily involves creating new configuration files. **Adding new logic types involves creating new logic files and adding them to the pipeline.**
 
 ## 3. Directory Structure
 
-A recommended directory structure to support this architecture:
+The application follows this directory structure:
 
 ```
 .
-├── public/                 # Or root, depending on Parcel setup
-│   └── index.html           # Main HTML file (Entry point for Parcel)
+├── public/                 # Static assets
+│   └── index.html           # Main HTML file
 │
 ├── src/
-│   ├── App.jsx              # Main application component (Planned)
-│   ├── index.js             # App entry point (Likely exists for Parcel)
+│   ├── App.jsx              # Main application component
+│   ├── index.js             # App entry point
 │   │
-│   ├── components/          # Reusable UI Components (Directory created)
-│   │   ├── WorkoutTracker.jsx    # Main component for workout session (Planned Example)
-│   │   ├── WebcamFeed.jsx        # Handles webcam and MediaPipe (Planned Example)
-│   │   ├── RepCounterDisplay.jsx # Displays rep counts (Planned Example)
-│   │   ├── StartPositionGuide.jsx# UI for start position (Planned Example)
+│   ├── components/          # Reusable UI Components
+│   │   ├── WorkoutTracker.jsx    # Main component for workout session
+│   │   ├── RepHistoryGraph.jsx   # Graph showing rep history
 │   │   ├── WorkoutSummary.jsx    # Displays workout statistics at the end of a session
-│   │   ├── DatabaseViewer.jsx    # Component for inspecting stored workout data
-│   │   └── ...                 # Other UI elements
+│   │   └── ...                   # Other UI elements
 │   │
-│   ├── exercises/           # Exercise Configuration Files (Planned)
-│   │   ├── index.js           # Exports all exercise configurations (Planned)
-│   │   ├── bicepCurls.js      # Example exercise config (Planned)
+│   ├── exercises/           # Exercise Configuration Files
+│   │   ├── index.js           # Exports all exercise configurations
+│   │   ├── bicepCurls.js      # Example exercise config
 │   │   └── ...
 │   │
-│   ├── logic/               # Reusable Business Logic (Planned)
-│   │   ├── angleBasedRepLogic.js   # Angle-based logic (NEW)
-│   │   ├── positionBasedRepLogic.js# Position-based logic (NEW)
+│   ├── hooks/               # Custom React Hooks
+│   │   ├── useMediaPipe.js      # MediaPipe initialization and camera setup
+│   │   ├── usePoseTracking.js   # Pose tracking and rep counting logic
+│   │   ├── useWorkoutSession.js # Workout session management
+│   │   ├── useLandmarkRenderer.js # Rendering landmarks on canvas
+│   │   ├── useDatabase.js       # Database operations and data formatting
+│   │   ├── useRepHistoryData.js # Processing rep history data for visualization
+│   │   ├── useSettingsStorage.js # Managing app settings persistence
+│   │   ├── useColorScheme.js    # Managing color scheme preferences
+│   │   └── ...
+│   │
+│   ├── logic/               # Reusable Business Logic
+│   │   ├── trackingStateManager.js # Manages tracking state transitions
+│   │   ├── repStateEngine.js   # Rep counting state machine
+│   │   ├── angleBasedRepLogic.js   # Angle-based logic
+│   │   ├── positionBasedRepLogic.js# Position-based logic
 │   │   ├── landmarkUtils.js       # Geometry helpers
+│   │   ├── drawingUtils.js        # Canvas drawing utilities
+│   │   ├── repHistoryProcessor.js # Processing rep history data
 │   │   └── ...
-│   │
-│   ├── hooks/               # Custom React Hooks (Optional, Planned)
-│   │   └── useMediaPipePose.js # Example hook (Planned)
 │   │
 │   ├── services/            # Service layer for data operations
 │   │   └── db.js              # Database operations using Dexie.js
 │   │
-│   └── styles/              # CSS, etc. (Planned)
+│   └── styles/              # CSS and style definitions
+│       ├── uiStyles.js        # Reusable style objects
 │       └── ...
 │
-├── package.json             # Project dependencies and scripts (Exists)
-├── node_modules/            # Installed dependencies (Exists)
-└── ...                      # Other config files (.gitignore, etc.)
+├── package.json             # Project dependencies and scripts
+└── ...                      # Other config files
 ```
 
 ## 4. Exercise Configuration (Data)
@@ -159,74 +169,210 @@ export const bicepCurls = {
 };
 ```
 
-## 5. Repetition Logic (Pipeline Functions)
+## 5. Custom React Hooks
+
+The application uses custom React hooks to encapsulate and reuse stateful logic across components. This approach greatly improves separation of concerns and maintainability by extracting functionality into focused, single-purpose hooks:
+
+- **Location:** `src/hooks/`
+- **Purpose:** Provide reusable, stateful logic that can be shared across components.
+- **Key Hooks:**
+
+### Core Functionality Hooks
+  - **`useMediaPipe.js`**: Handles MediaPipe initialization, webcam setup, and model loading.
+  - **`usePoseTracking.js`**: Manages pose detection, landmark processing, and rep counting logic.
+  - **`useWorkoutSession.js`**: Controls workout session lifecycle (start, end, stats).
+  - **`useLandmarkRenderer.js`**: Renders landmark points and connections on the canvas.
+
+### Data Management Hooks
+  - **`useDatabase.js`**: Manages database operations including fetching, formatting, and refreshing workout data.
+  - **`useRepHistoryData.js`**: Processes rep history data for visualization, including data normalization, series configuration, and threshold management.
+
+### Settings and Preferences Hooks
+  - **`useSettingsStorage.js`**: Manages application settings persistence, loading/saving from localStorage.
+  - **`useColorScheme.js`**: Handles color scheme (dark/light mode) preferences and persistence.
+
+**Example Hook Implementation (simplified):**
+
+```javascript
+// src/hooks/useMediaPipe.js
+import { useState, useRef, useCallback } from 'react';
+import { setupMediaPipeModel } from '../logic/mediaSetup';
+
+const useMediaPipe = (config, debugLog) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [cameraStarted, setCameraStarted] = useState(false);
+  
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const poseLandmarkerRef = useRef(null);
+  const lastVideoTimeRef = useRef(-1);
+  
+  const setupMediaPipe = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Initialize model and camera
+      const success = await setupMediaPipeModel({
+        videoRef,
+        poseLandmarkerRef,
+        config
+      });
+      
+      setCameraStarted(success);
+      return success;
+    } catch (error) {
+      setErrorMessage('Failed to initialize: ' + error.message);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [config]);
+  
+  return {
+    videoRef,
+    canvasRef,
+    isLoading,
+    errorMessage,
+    poseLandmarkerRef,
+    lastVideoTimeRef,
+    cameraStarted,
+    setCameraStarted,
+    setupMediaPipe
+  };
+};
+
+export default useMediaPipe;
+```
+
+## 6. Logic Layer (Backend Functionality)
 
 - **Location:** `src/logic/`
-- **Purpose:** Contains pure functions responsible for analyzing **MediaPipe landmark data** (passed in as an object mapping landmark names to `{x, y, z, visibility}` objects) based on an exercise's `logicConfig` and `startPosition` config.
-- **Pipeline Approach:**
-    - Each logic type (angle-based, position-based, etc.) is implemented in its own file (e.g., `angleBasedRepLogic.js`, `positionBasedRepLogic.js`).
-    - The `logicConfig.pipeline` array specifies the sequence of logic functions to run for each exercise.
-    - Each function receives `{ landmarks, config, prevState, utils, state }` and returns an updated `state` object.
-    - The engine (`runRepStateEngine`) runs each function in order, passing the evolving state object.
+- **Purpose:** Contains pure functions responsible for analyzing **MediaPipe landmark data** based on exercise configurations.
 - **Key Files:**
-    - `angleBasedRepLogic.js`: Angle-based logic.
-    - `positionBasedRepLogic.js`: Position-based logic.
-    - `landmarkUtils.js`: Geometry helpers (e.g., `calculateAngle`, `getDistance`).
+  - **`trackingStateManager.js`**: Manages tracking state transitions based on landmark visibility, user settings, and exercise status.
+  - **`repStateEngine.js`**: Core rep counting state machine that processes data and manages rep states.
+  - **`angleBasedRepLogic.js`**: Angle-based rep counting logic.
+  - **`positionBasedRepLogic.js`**: Position-based rep counting logic.
+  - **`landmarkUtils.js`**: Geometry helpers (e.g., `calculateAngle`, `getDistance`).
+  - **`drawingUtils.js`**: Canvas drawing utilities for landmark visualization.
+  - **`repHistoryProcessor.js`**: Processes and formats rep history data for display.
 
-**Example Logic Function Signature:**
+**Example Logic Implementation:**
 
 ```js
-/**
- * Angle-based rep logic for pipeline.
- * @param {Object} params
- * @param {Array} params.landmarks
- * @param {Object} params.config
- * @param {Object} params.prevState
- * @param {Object} params.utils
- * @param {Object} params.state
- * @returns {Object} Updated state
- */
-export function angleBasedRepLogic({ landmarks, config, prevState, utils, state }) {
-  // ...
-  return { ...state, angleLogic: {/* ... */} };
+// src/logic/trackingStateManager.js
+export function updateTrackingState({
+  landmarks,
+  exerciseConfig,
+  strictMode,
+  visibilityThreshold,
+  previousState
+}) {
+  // Check landmark visibility
+  const isVisible = checkLandmarkVisibility(landmarks, exerciseConfig, visibilityThreshold);
+  
+  if (!isVisible && strictMode) {
+    return 'PAUSED';
+  }
+  
+  // Determine state based on previous state and current conditions
+  switch (previousState) {
+    case 'IDLE':
+      return isVisible ? 'READY' : 'IDLE';
+    case 'READY':
+      return isVisible ? 'ACTIVE' : (strictMode ? 'PAUSED' : 'READY');
+    case 'ACTIVE':
+      return isVisible ? 'ACTIVE' : (strictMode ? 'PAUSED' : 'ACTIVE');
+    case 'PAUSED':
+      return isVisible ? 'ACTIVE' : 'PAUSED';
+    default:
+      return 'IDLE';
+  }
 }
 ```
 
-## 6. UI Components (`src/components/`)
+## 7. UI Components (`src/components/`)
 
 - **Purpose:** Render the UI, handle user input, display data from the logic layer.
 - **Key Components:**
-    - `App.jsx`: Top-level component. Selects exercise, passes config down.
-    - `WorkoutTracker.jsx`: Receives exercise config, manages workout state, renders `WebcamFeed`, receives MediaPipe landmark data, calls the pipeline logic, updates state, and renders display components.
-    - `WebcamFeed.jsx`: Encapsulates webcam access and MediaPipe Pose setup.
-    - `RepCounterDisplay.jsx`: Displays rep counts.
-    - `StartPositionGuide.jsx`: Guides user based on `startPositionConfig` and feedback.
-    - `WorkoutSummary.jsx`: Displays workout statistics when a session ends, including reps, duration, and session times.
-    - `DatabaseViewer.jsx`: Provides a UI for browsing stored workout data.
+  - **`WorkoutTracker.jsx`**: Main component that coordinates the workout experience. Uses custom hooks to manage pose detection, tracking, and workout session state.
+  - **`RepHistoryGraph.jsx`**: Visualizes rep angle history over time, using the useRepHistoryData hook for data processing.
+  - **`WorkoutSummary.jsx`**: Displays workout statistics when a session ends, including reps, duration, and session times.
+  - **`DatabaseViewer.jsx`**: Provides a user-friendly interface for exploring stored workout data.
 
-## 7. Data Flow Summary
+The components have been significantly refactored to use custom hooks for better separation of concerns:
+
+```jsx
+// Simplified DatabaseViewer.jsx example
+import React from 'react';
+import { Paper, Table, Title, Accordion } from '@mantine/core';
+import { glassStyle } from '/src/styles/uiStyles';
+import useDatabase from '../hooks/useDatabase';
+
+const DatabaseViewer = () => {
+  const { 
+    sessions, 
+    sessionSets, 
+    loading, 
+    error, 
+    formatDate, 
+    formatDuration 
+  } = useDatabase();
+
+  if (loading) return <div>Loading database contents...</div>;
+  if (error) return <div>Error loading database: {error}</div>;
+
+  return (
+    <Paper p="xl" shadow="md" radius="lg" style={glassStyle}>
+      <Title order={2} mb="xl">Database Contents</Title>
+      
+      {/* Render sessions and sets using data from the hook */}
+      {/* ... */}
+    </Paper>
+  );
+};
+```
+
+## 8. Data Flow Summary
 
 1. **`App.jsx`**: User selects exercise -> Retrieves config object.
 2. **`App.jsx` -> `WorkoutTracker.jsx`**: Renders `WorkoutTracker`, passes config prop.
-3. **`WorkoutTracker.jsx` -> `WebcamFeed.jsx`**: Renders `WebcamFeed`.
-4. **`WebcamFeed.jsx` -> `WorkoutTracker.jsx`**: `WebcamFeed` uses MediaPipe Pose to detect landmarks, sends the `poseLandmarks` object back to `WorkoutTracker`.
-5. **`WorkoutTracker.jsx`**: On receiving `poseLandmarks`:
-    - Gets `logicConfig.pipeline` and `utilityFunctions` from config prop.
-    - Gets current rep state(s).
-    - Calls the pipeline logic with `{ landmarks, config, prevState, utils, state }`.
-    - Receives result object.
-    - Updates React state.
-    - Re-renders display components.
+3. **Inside `WorkoutTracker.jsx`**:
+   - **`useMediaPipe` hook** initializes MediaPipe and camera.
+   - **`usePoseTracking` hook** processes landmarks and manages rep counting.
+   - **`useWorkoutSession` hook** manages workout session state.
+   - **`useLandmarkRenderer` hook** handles drawing landmarks on canvas.
+4. When new pose landmarks are detected, the pipeline processes them through:
+   - Landmark visibility checking (`trackingStateManager.js`)
+   - Rep state updates (`repStateEngine.js`)
+   - Exercise-specific logic (angle-based, position-based logic)
+5. UI components re-render to reflect updated state.
 
-## 8. Benefits of the Pipeline Architecture
+## 9. Benefits of the Refactored Architecture
 
-- **Maintainability:** Changes isolated to config, logic, or UI.
-- **Scalability:** Adding exercises is mainly adding config files. Adding new logic types is as simple as creating a new file and adding it to the pipeline.
-- **Testability:** Each logic function is testable in isolation with mock MediaPipe data.
-- **Reusability:** Logic functions are reused across exercises and can be composed in any order for compound movements.
-- **Extensibility:** Easily supports compound and novel movement logic by chaining logic types.
+- **Improved Maintainability:**
+  - Each hook focuses on a specific concern, making the code easier to understand and maintain.
+  - The original `WorkoutTracker.jsx` component has been reduced from over 1000 lines to about 300 lines.
+  - Logic is separated from UI rendering, making the codebase more testable and maintainable.
+  - Settings, data processing, and database operations are now in dedicated hooks.
 
-## 9. Styling and UI Theming
+- **Enhanced Reusability:**
+  - Custom hooks can be reused across different components.
+  - Logic functions are pure and can be tested in isolation.
+  - Separation of concerns makes it easier to replace or upgrade individual components.
+  - UI components like graphs and database viewers now only handle rendering, with data processing moved to hooks.
+
+- **Better Scalability:**
+  - Adding new exercise types or tracking methods requires minimal changes to existing code.
+  - The modular architecture allows for easy extension with new features.
+  - New settings can be added to the settings hooks without changing components.
+
+- **Testability:**
+  - Pure logic functions can be unit tested without rendering components.
+  - Hooks can be tested using React testing utilities.
+  - Separation of concerns makes it easier to mock dependencies during testing.
+
+## 10. Styling and UI Theming
 
 - **Location:** `src/styles/`
 - **Purpose:** Contains reusable style objects and CSS for consistent UI theming across components.
@@ -238,21 +384,20 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
     - Style objects are defined in `uiStyles.js` and imported by components.
     - The glass style uses CSS properties like `backdrop-filter`, `background-color` with alpha transparency, and subtle borders.
     - Style objects can be extended or modified by components for specific needs while maintaining the overall theme.
+    - Theme management is now handled by the useColorScheme hook.
 
-## 10. Implementation Considerations (MediaPipe Specific)
+## 11. Implementation Considerations (MediaPipe Specific)
 
-- **Build Tool:** This project appears to be using **Parcel** (`parcel index.html`). Ensure configurations (like paths in `index.html` or component imports) are compatible with Parcel's resolution and bundling mechanisms. Address any build errors, such as missing files (e.g., CSS imports) or internal Parcel errors.
-- **MediaPipe Pose Setup:** Integrate the `@mediapipe/pose` library correctly. Handle model loading, configuration (static vs. stream mode, model complexity), and running inference on the webcam stream.
-- **Landmark Coordinates:** MediaPipe provides normalized coordinates (0.0 to 1.0). Your `landmarkUtils.js` functions will work with these directly. `z` coordinate indicates depth relative to the hip center. `visibility` score indicates landmark confidence. Use visibility scores to ignore unreliable landmarks.
-- **Performance:** MediaPipe Pose can be resource-intensive.
-    - Choose appropriate model complexity (`0`, `1`, or `2`).
-    - Ensure efficient video frame handling.
-    - Use React optimizations (`React.memo`, `useCallback`, `useMemo`).
-    - Consider Web Workers to run MediaPipe off the main thread if performance issues arise.
-- **Asynchronicity:** MediaPipe initialization and detection are asynchronous. Handle loading states and errors.
-- **Coordinate System:** Be mindful of the coordinate system if calculating angles relative to vertical/horizontal planes.
+- **MediaPipe Pose Setup:** Encapsulated in the `useMediaPipe` hook and `mediaSetup.js` utility. This provides clean separation between MediaPipe integration and React components.
+- **Landmark Coordinates:** MediaPipe provides normalized coordinates (0.0 to 1.0). The `landmarkUtils.js` functions work with these directly. `z` coordinate indicates depth relative to the hip center. `visibility` score indicates landmark confidence.
+- **Performance:** Optimized through:
+    - Careful state management in custom hooks.
+    - Pure functions for computationally intensive operations.
+    - Separation of rendering logic from data processing.
+    - Use of React optimizations (`useCallback`, `useMemo`, `useRef`).
+- **Asynchronicity:** MediaPipe initialization and detection are asynchronous, handled through the `useMediaPipe` hook, providing clear loading and error states.
 
-## Rep Counting Implementation Note
+## 12. Rep Counting Implementation Note
 
 - The rep counting logic now uses a **per-side rep cycle** for maximum accuracy and robustness.
     - For each side (left/right), the system tracks whether the user has been in the ready pose (after the required hold timer).
@@ -263,7 +408,7 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
 
 This approach eliminates phantom reps and ensures accurate, robust rep counting for both single- and two-sided exercises.
 
-## State-Driven Rep Counting and Graph Display
+## 13. State-Driven Rep Counting and Graph Display
 
 - **Single Source of Truth:**
   Rep counting and the rep history graph are now driven by the global tracking state (`ACTIVE`, `READY`, `PAUSED`, etc).
@@ -275,15 +420,16 @@ This approach eliminates phantom reps and ensures accurate, robust rep counting 
   - Each rep history entry stores the tracking state at the time it was recorded.
   - The graph only displays data from times when the state was `ACTIVE` or `READY`.
   - Rep counting is only performed in these states as well.
+  - The `useRepHistoryData` hook now handles all data processing for the graph, including normalization of angles for visualization.
 
 - **Benefits:**
   - This approach eliminates duplicated logic, reduces bugs, and makes the system easier to maintain and extend.
 
-## 11. Data Persistence
+## 14. Data Persistence
 
 - **Technology:** The application uses **Dexie.js**, a minimalistic wrapper for IndexedDB, to provide client-side data persistence.
 - **Purpose:** Stores workout sessions and exercise sets locally in the browser, allowing users to track progress over time without requiring server storage.
-- **Location:** `src/services/db.js`
+- **Location:** `src/services/db.js` with data access handled by `useDatabase.js` hook.
 
 ### Database Schema
 
@@ -330,22 +476,7 @@ The database layer provides these key functions:
    - `getAllWorkoutSessions()`: Retrieves workout history, sorted by date (newest first)
    - `getSetsForSession(sessionId)`: Gets all sets performed in a specific session
 
-### Integration with Application Architecture
-
-- **Data Flow:** UI components trigger database operations during workout tracking:
-  1. Workout starts → `startNewWorkoutSession()`
-  2. Exercise completed → `addExerciseSet()`
-  3. Workout ends → `endWorkoutSession()`
-  4. History view → `getAllWorkoutSessions()` and `getSetsForSession()`
-
-- **Separation of Concerns:** Database operations are isolated in the services layer, making them reusable across components and keeping database logic separate from UI.
-
-- **Future Expansion:** The schema design allows for future additions such as:
-  - Storing MediaPipe landmark data for form analysis
-  - Adding workout templates and exercise library
-  - Implementing workout statistics and progress tracking
-
-## 12. Session Statistics and Data Visualization
+## 15. Session Statistics and Data Visualization
 
 The application includes components for visualizing workout data and providing feedback to users:
 
@@ -368,13 +499,50 @@ The application includes components for visualizing workout data and providing f
   - **Exercise Sets:** Shows all sets performed in each session with rep counts.
   - **Filtering and Organization:** Groups data by session with accordion UI for easy navigation.
   - **Data Formatting:** Presents timestamps and durations in human-readable format.
+  - **Hook Integration:** Now uses the `useDatabase` hook for clean separation of data fetching from presentation.
+
+### Rep History Graph Component
+
+- **Location:** `src/components/RepHistoryGraph.jsx`
+- **Purpose:** Visualizes rep angle history in real-time during workouts.
+- **Key Features:**
+  - **Real-time Visualization:** Shows angle progression over time for both sides of the body.
+  - **Threshold Indicators:** Displays target ranges for proper exercise form.
+  - **Hook Integration:** Now uses the `useRepHistoryData` hook for data processing and configuration.
+  - **Responsive Design:** Adapts to container size with consistent styling.
 
 ### Integration with Workout Flow
 
 - The WorkoutSummary appears automatically when a user ends a workout session through the "End Workout" button.
 - The DatabaseViewer is accessible through a dedicated database icon button, allowing users to browse their workout history at any time.
-- Both components access data through the db.js service, maintaining separation of concerns.
+- Both components access data through hooks, which in turn use the db.js service, maintaining clear separation of concerns.
 
-The combination of these components provides users with immediate feedback on their current workout and access to historical data, supporting motivation and progress tracking without requiring backend infrastructure.
+## 16. Settings and Preferences Management
 
-*This document details a data-driven architecture optimized for a React workout tracker using MediaPipe Pose, structured for clarity for both*
+- **Location:** 
+  - `src/hooks/useSettingsStorage.js`
+  - `src/hooks/useColorScheme.js`
+
+- **Purpose:** Manage user preferences and application settings with persistence.
+
+- **Key Features:**
+  - **Local Storage Persistence:** Settings are automatically saved to and loaded from the browser's localStorage.
+  - **Default Values:** Sensible defaults are provided for all settings.
+  - **Type Safety:** Settings are structured with clear types and validation.
+  - **Reset Capability:** Users can reset all settings to defaults.
+
+- **Settings Categories:**
+  - **Workout Tracking:** Controls for visibility thresholds, smoothing factors, and rep counting logic.
+  - **UI Settings:** Video opacity, debug information visibility.
+  - **Appearance:** Light/dark mode preference.
+
+- **Implementation:**
+  - Settings are managed in dedicated hooks, completely separate from the components that use them.
+  - Components receive only the settings they need, promoting modularity.
+  - Changes to settings are automatically persisted without requiring explicit save actions.
+
+This modular, hook-based approach to settings management makes the application more maintainable and provides a clean interface for components to access and update user preferences.
+
+The combination of these components and hooks provides users with immediate feedback on their current workout and access to historical data, supporting motivation and progress tracking without requiring backend infrastructure.
+
+*This document details a data-driven architecture optimized for a React workout tracker using MediaPipe Pose, structured for clarity for both developers and users.*
