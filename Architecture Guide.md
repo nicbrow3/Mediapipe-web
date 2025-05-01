@@ -38,6 +38,8 @@ A recommended directory structure to support this architecture:
 │   │   ├── WebcamFeed.jsx        # Handles webcam and MediaPipe (Planned Example)
 │   │   ├── RepCounterDisplay.jsx # Displays rep counts (Planned Example)
 │   │   ├── StartPositionGuide.jsx# UI for start position (Planned Example)
+│   │   ├── WorkoutSummary.jsx    # Displays workout statistics at the end of a session
+│   │   ├── DatabaseViewer.jsx    # Component for inspecting stored workout data
 │   │   └── ...                 # Other UI elements
 │   │
 │   ├── exercises/           # Exercise Configuration Files (Planned)
@@ -53,6 +55,9 @@ A recommended directory structure to support this architecture:
 │   │
 │   ├── hooks/               # Custom React Hooks (Optional, Planned)
 │   │   └── useMediaPipePose.js # Example hook (Planned)
+│   │
+│   ├── services/            # Service layer for data operations
+│   │   └── db.js              # Database operations using Dexie.js
 │   │
 │   └── styles/              # CSS, etc. (Planned)
 │       └── ...
@@ -196,6 +201,8 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
     - `WebcamFeed.jsx`: Encapsulates webcam access and MediaPipe Pose setup.
     - `RepCounterDisplay.jsx`: Displays rep counts.
     - `StartPositionGuide.jsx`: Guides user based on `startPositionConfig` and feedback.
+    - `WorkoutSummary.jsx`: Displays workout statistics when a session ends, including reps, duration, and session times.
+    - `DatabaseViewer.jsx`: Provides a UI for browsing stored workout data.
 
 ## 7. Data Flow Summary
 
@@ -271,5 +278,103 @@ This approach eliminates phantom reps and ensures accurate, robust rep counting 
 
 - **Benefits:**
   - This approach eliminates duplicated logic, reduces bugs, and makes the system easier to maintain and extend.
+
+## 11. Data Persistence
+
+- **Technology:** The application uses **Dexie.js**, a minimalistic wrapper for IndexedDB, to provide client-side data persistence.
+- **Purpose:** Stores workout sessions and exercise sets locally in the browser, allowing users to track progress over time without requiring server storage.
+- **Location:** `src/services/db.js`
+
+### Database Schema
+
+The database is structured around two primary tables:
+
+```javascript
+db.version(1).stores({
+  // Stores overall workout session information
+  workoutSessions: '++id, startTime, endTime',
+  
+  // Stores details of individual exercise sets within a session
+  exerciseSets: '++id, sessionId, exerciseId, startTime',
+});
+```
+
+- **workoutSessions:** Tracks overall workout sessions with automatically generated IDs.
+  - `id`: Auto-incrementing primary key
+  - `startTime`: When the session began (indexed for sorting)
+  - `endTime`: When the session ended
+  - `durationMillis`: Calculated session duration
+  - `notes`: User notes about the session
+
+- **exerciseSets:** Records individual exercise sets performed during a session.
+  - `id`: Auto-incrementing primary key
+  - `sessionId`: Foreign key to workoutSessions
+  - `exerciseId`: Identifies the type of exercise performed
+  - `startTime`, `endTime`: Timestamps for set duration
+  - `reps`: Repetition count
+  - `repsLeft`, `repsRight`: For exercises tracking sides separately
+  - `weight`: Optional weight used
+
+### Core Database Operations
+
+The database layer provides these key functions:
+
+1. **Session Management:**
+   - `startNewWorkoutSession()`: Creates a new workout session with the current timestamp
+   - `endWorkoutSession(sessionId)`: Marks a session as completed and calculates duration
+
+2. **Exercise Set Tracking:**
+   - `addExerciseSet(setData)`: Records completed exercise sets with rep counts
+
+3. **Data Retrieval:**
+   - `getAllWorkoutSessions()`: Retrieves workout history, sorted by date (newest first)
+   - `getSetsForSession(sessionId)`: Gets all sets performed in a specific session
+
+### Integration with Application Architecture
+
+- **Data Flow:** UI components trigger database operations during workout tracking:
+  1. Workout starts → `startNewWorkoutSession()`
+  2. Exercise completed → `addExerciseSet()`
+  3. Workout ends → `endWorkoutSession()`
+  4. History view → `getAllWorkoutSessions()` and `getSetsForSession()`
+
+- **Separation of Concerns:** Database operations are isolated in the services layer, making them reusable across components and keeping database logic separate from UI.
+
+- **Future Expansion:** The schema design allows for future additions such as:
+  - Storing MediaPipe landmark data for form analysis
+  - Adding workout templates and exercise library
+  - Implementing workout statistics and progress tracking
+
+## 12. Session Statistics and Data Visualization
+
+The application includes components for visualizing workout data and providing feedback to users:
+
+### Workout Summary Component
+
+- **Location:** `src/components/WorkoutSummary.jsx`
+- **Purpose:** Displays a summary of the completed workout session with key metrics.
+- **Key Features:**
+  - **Session Statistics:** Shows total reps performed, workout duration, and session time.
+  - **Visual Elements:** Uses Mantine UI components like RingProgress and SimpleGrid to present data in an attractive and readable format.
+  - **Animation:** Incorporates smooth animations for a polished user experience.
+  - **Responsive Design:** Adapts to different screen sizes with responsive layout.
+
+### Database Viewer Component
+
+- **Location:** `src/components/DatabaseViewer.jsx`
+- **Purpose:** Provides a user-friendly interface for exploring stored workout data.
+- **Key Features:**
+  - **Session Browser:** Lists all workout sessions with expandable details.
+  - **Exercise Sets:** Shows all sets performed in each session with rep counts.
+  - **Filtering and Organization:** Groups data by session with accordion UI for easy navigation.
+  - **Data Formatting:** Presents timestamps and durations in human-readable format.
+
+### Integration with Workout Flow
+
+- The WorkoutSummary appears automatically when a user ends a workout session through the "End Workout" button.
+- The DatabaseViewer is accessible through a dedicated database icon button, allowing users to browse their workout history at any time.
+- Both components access data through the db.js service, maintaining separation of concerns.
+
+The combination of these components provides users with immediate feedback on their current workout and access to historical data, supporting motivation and progress tracking without requiring backend infrastructure.
 
 *This document details a data-driven architecture optimized for a React workout tracker using MediaPipe Pose, structured for clarity for both*

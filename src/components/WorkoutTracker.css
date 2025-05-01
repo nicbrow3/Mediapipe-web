@@ -383,4 +383,63 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Workout Summary Styles */
+.workout-summary-overlay {
+  animation: fadeIn 0.3s ease-in-out;
+  width: 100%;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.summary-overlay {
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+  animation: backdropFadeIn 0.5s ease;
+}
+
+@keyframes backdropFadeIn {
+  from { backdrop-filter: blur(0px); background-color: rgba(0, 0, 0, 0); }
+  to { backdrop-filter: blur(8px); background-color: rgba(0, 0, 0, 0.7); }
+}
+
+/* Close Button Animation */
+.close-button {
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Animation for progress rings */
+.mantine-RingProgress-root {
+  animation: pulseIn 0.5s ease-in-out;
+}
+
+@keyframes pulseIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  70% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Staggered animations for stat items */
+.mantine-SimpleGrid-root > * {
+  animation: fadeInUp 0.5s ease-in-out backwards;
+}
+
+.mantine-SimpleGrid-root > *:nth-child(1) { animation-delay: 0.1s; }
+.mantine-SimpleGrid-root > *:nth-child(2) { animation-delay: 0.2s; }
+.mantine-SimpleGrid-root > *:nth-child(3) { animation-delay: 0.3s; }
+.mantine-SimpleGrid-root > *:nth-child(4) { animation-delay: 0.4s; }
+.mantine-SimpleGrid-root > *:nth-child(5) { animation-delay: 0.5s; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 } 

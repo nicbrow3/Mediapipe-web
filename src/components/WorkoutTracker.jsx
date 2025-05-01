@@ -4,10 +4,12 @@ import config from '../config';
 import './WorkoutTracker.css';
 import '../App.css'; // Import global styles
 import RepHistoryGraph from './RepHistoryGraph';
+import WorkoutSummary from './WorkoutSummary';
 import { LANDMARK_MAP, POSE_CONNECTIONS, calculateAngle } from '../logic/landmarkUtils';
 import { runRepStateEngine } from '../logic/repStateEngine';
-import { Select, Paper } from '@mantine/core';
+import { Select, Paper, Button } from '@mantine/core';
 import { glassStyle } from '/src/styles/uiStyles';
+import { startNewWorkoutSession, endWorkoutSession, addExerciseSet } from '../services/db';
 
 const TRACKING_STATES = {
   IDLE: 'IDLE',
@@ -38,6 +40,13 @@ const WorkoutTracker = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [trackingState, setTrackingState] = useState(TRACKING_STATES.IDLE);
   const trackingStateRef = useRef(TRACKING_STATES.IDLE);
+  
+  // Session tracking state
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const lastExerciseSetTimeRef = useRef(0);
+  const sessionStartTimeRef = useRef(null); // Store session start time
+  const SET_RECORDING_INTERVAL_MS = 60000; // Record a set every minute
 
   // Visibility threshold state (single source of truth)
   const [visibilityThreshold, setVisibilityThreshold] = useState(0.7); // Keep this local for now, could be lifted if needed
@@ -84,6 +93,9 @@ const WorkoutTracker = ({
   const repDebounceDurationRef = useRef(repDebounceDuration);
   const useSmoothedRepCountingRef = useRef(useSmoothedRepCounting);
 
+  // Add state for workout summary
+  const [showWorkoutSummary, setShowWorkoutSummary] = useState(false);
+  const [workoutStats, setWorkoutStats] = useState(null);
 
   // --- Effect Hooks --- Needed to track the values during the lifecycle of the component, not just on initial render
   useEffect(() => {
@@ -148,6 +160,50 @@ const WorkoutTracker = ({
     repHistoryRef.current = [];
     setRepHistory([]);
   }, [selectedExercise]);
+
+  // Record exercise set data to the database
+  const recordExerciseSet = async () => {
+    if (!currentSessionId || !isSessionActive) return;
+    
+    const now = Date.now();
+    if (now - lastExerciseSetTimeRef.current < SET_RECORDING_INTERVAL_MS) return;
+    
+    try {
+      const setData = {
+        sessionId: currentSessionId,
+        exerciseId: selectedExerciseRef.current.id,
+        startTime: lastExerciseSetTimeRef.current || now - 60000, // Default to 1 minute ago if no previous time
+        endTime: now,
+        reps: selectedExerciseRef.current.isTwoSided ? Math.max(repCount.left, repCount.right) : repCount.left,
+        repsLeft: selectedExerciseRef.current.isTwoSided ? repCount.left : null,
+        repsRight: selectedExerciseRef.current.isTwoSided ? repCount.right : null,
+      };
+      
+      await addExerciseSet(setData);
+      lastExerciseSetTimeRef.current = now;
+      
+      if (showDebug) {
+        console.log('[DEBUG] Recorded exercise set:', setData);
+      }
+    } catch (error) {
+      console.error('Failed to record exercise set:', error);
+    }
+  };
+
+  // Set up an interval to periodically record exercise sets
+  useEffect(() => {
+    let intervalId;
+    
+    if (isSessionActive && currentSessionId) {
+      intervalId = setInterval(() => {
+        recordExerciseSet();
+      }, SET_RECORDING_INTERVAL_MS);
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isSessionActive, currentSessionId]);
 
   const debugLog = (msg) => {
     if (!showDebug) return;
@@ -756,18 +812,92 @@ const WorkoutTracker = ({
   // Cleanup webcam stream on unmount
   useEffect(() => {
     return () => {
+      // End workout session if it's still active
+      if (isSessionActive && currentSessionId) {
+        endWorkoutSession(currentSessionId)
+          .catch(error => console.error('Error ending workout session:', error));
+      }
+      
       const video = videoRef.current;
       if (video && video.srcObject) {
         const tracks = video.srcObject.getTracks();
         tracks.forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [isSessionActive, currentSessionId]);
 
   // --- Handlers ---
-  const handleStartCamera = () => {
+  const handleStartCamera = async () => {
     setCameraStarted(true);
-    setupMediaPipe();
+    
+    try {
+      // Start a new workout session
+      const sessionId = await startNewWorkoutSession();
+      setCurrentSessionId(sessionId);
+      setIsSessionActive(true);
+      lastExerciseSetTimeRef.current = Date.now();
+      sessionStartTimeRef.current = new Date(); // Store start time as Date object
+      
+      if (showDebug) {
+        console.log('[DEBUG] Started new workout session:', sessionId);
+      }
+      
+      setupMediaPipe();
+    } catch (error) {
+      console.error('Failed to start workout session:', error);
+      setErrorMessage(`Failed to start workout session: ${error.message}`);
+    }
+  };
+  
+  const handleEndWorkout = async () => {
+    if (!isSessionActive || !currentSessionId) return;
+    
+    try {
+      // Record the final set
+      await recordExerciseSet();
+      
+      const endTime = new Date(); // Current time as end time
+      
+      // Calculate session stats
+      const sessionDuration = Math.round((Date.now() - lastExerciseSetTimeRef.current) / 1000);
+      
+      // Get exercise-specific data
+      const isTwoSided = selectedExercise.isTwoSided;
+      const totalReps = isTwoSided 
+        ? repCount.left + repCount.right
+        : repCount.left;
+      
+      // Create comprehensive stats object
+      const stats = {
+        totalReps,
+        duration: sessionDuration,
+        exercisesCompleted: 1, // For now just counting the current exercise
+        exerciseName: selectedExercise.name,
+        isTwoSided, // Keep this for future use
+        startTime: sessionStartTimeRef.current, // Add start time
+        endTime: endTime, // Add end time
+      };
+      
+      // End the workout session
+      await endWorkoutSession(currentSessionId);
+      setIsSessionActive(false);
+      
+      // Set stats and show summary
+      setWorkoutStats(stats);
+      setShowWorkoutSummary(true);
+      
+      if (showDebug) {
+        console.log('[DEBUG] Ended workout session:', currentSessionId);
+        console.log('[DEBUG] Workout stats:', stats);
+      }
+    } catch (error) {
+      console.error('Failed to end workout session:', error);
+    }
+  };
+
+  // Add handler to close the summary
+  const handleCloseSummary = () => {
+    setShowWorkoutSummary(false);
   };
 
   useEffect(() => {
@@ -804,6 +934,27 @@ const WorkoutTracker = ({
     <div className="workout-tracker-container">
       {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
       {errorMessage && <div className="error-message">{errorMessage}</div>}
+      
+      {/* Workout Summary Overlay */}
+      {showWorkoutSummary && (
+        <div className="summary-overlay" style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100
+        }}>
+          <WorkoutSummary 
+            workoutStats={workoutStats} 
+            onClose={handleCloseSummary} 
+          />
+        </div>
+      )}
 
       {/* Show Start Camera button if not started */}
       {!cameraStarted && (
@@ -813,10 +964,36 @@ const WorkoutTracker = ({
       )}
 
       <div className="video-canvas-container">
-        {/* State Indicator */}
-        <div className={`tracking-state-indicator ui-text-preset ui-box-preset state-${trackingState.toLowerCase()}`} style={getStateStyle(trackingState)}>
-          State: {trackingState}
+        {/* Top Left Controls Container */}
+        <div style={{ 
+          position: 'absolute', 
+          top: 'var(--mantine-spacing-md)', 
+          left: 'var(--mantine-spacing-md)', 
+          zIndex: 5, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 'var(--mantine-spacing-md)'
+        }}>
+          {/* State Indicator */}
+          <div className="ui-text-preset ui-box-preset" style={getStateStyle(trackingState)}>
+            <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+              <span>State: {trackingState}</span>
+            </div>
+          </div>
+          
+          {/* End Workout Button */}
+          {isSessionActive && (
+            <div className="ui-text-preset ui-box-preset" style={{ ...glassStyle, borderColor: '#e74c3c' }}>
+              <div 
+                style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%', cursor: 'pointer' }} 
+                onClick={handleEndWorkout}
+              >
+                End Workout
+              </div>
+            </div>
+          )}
         </div>
+
         <video ref={videoRef} className="input_video" autoPlay playsInline muted style={{ opacity: videoOpacity / 100 }}></video>
         <canvas ref={canvasRef} className="output_canvas"></canvas>
         {/* --- Rep History Graph --- */}
@@ -868,6 +1045,7 @@ const WorkoutTracker = ({
             </div>
           </div>
         )}
+        
         {/* --- Exercise Selector --- */}
         <div className="exercise-selector-container">
           <Paper 
@@ -876,6 +1054,7 @@ const WorkoutTracker = ({
             styles={{
               root: glassStyle
             }}
+            className="ui-text-preset"
           >
             <Select
               label="Exercise"

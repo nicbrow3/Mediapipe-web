@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import WorkoutTracker from './components/WorkoutTracker';
 import Sidebar from './components/Sidebar'; // Assuming Sidebar component exists
 import SettingsDrawer from './components/SettingsDrawer'; // New component for settings
+import DatabaseViewer from './components/DatabaseViewer'; // Import DatabaseViewer
 import * as exercises from './exercises'; // Import all exercises
 import './App.css'; // Add styles for layout and toggle button
 import { MantineProvider, Drawer, ActionIcon, Tooltip } from '@mantine/core';
-import { IconSettings, IconX } from '@tabler/icons-react'; // Icons for settings button and close
+import { IconSettings, IconX, IconDatabase } from '@tabler/icons-react'; // Icons for settings button and close, and database icon
 import '@mantine/core/styles.css';
 import { startNewWorkoutSession, endWorkoutSession } from './services/db'; // Import db functions
 
@@ -150,6 +151,9 @@ function App() {
   const openSettingsDrawer = () => setSettingsDrawerOpen(true);
   const closeSettingsDrawer = () => setSettingsDrawerOpen(false);
 
+  // Add state for database viewer
+  const [showDatabaseViewer, setShowDatabaseViewer] = useState(false);
+
   return (
     <MantineProvider theme={{ 
       colorScheme,
@@ -222,6 +226,35 @@ function App() {
         />
       </Drawer>
 
+      {/* Database Viewer Drawer */}
+      <Drawer
+        opened={showDatabaseViewer}
+        onClose={() => setShowDatabaseViewer(false)}
+        title="Database Contents"
+        position="right"
+        padding="md"
+        size="xl"
+        styles={{
+          body: { ...glassStyle, overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' }, 
+          header: glassStyle,
+          root: { 
+            zIndex: 1003, // Higher than settings drawer
+            backgroundColor: 'transparent',
+          },
+          inner: {
+            backgroundColor: 'transparent',
+          },
+          content: {
+            backgroundColor: 'transparent',
+          },
+          overlay: {
+            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          }
+        }}
+      >
+        <DatabaseViewer />
+      </Drawer>
+
       <div className={`app-container ${isSidebarOpen ? 'sidebar-open' : ''}`}>
         {/* Settings Button - Top Left */}
         <Tooltip label="Open Settings" position="right" withArrow>
@@ -234,6 +267,20 @@ function App() {
             style={{ position: 'fixed', top: '20px', left: '20px', zIndex: 1001 }}
           >
             <IconSettings size={20} />
+          </ActionIcon>
+        </Tooltip>
+
+        {/* Database Button - Bottom Left */}
+        <Tooltip label="View Database Contents" position="right" withArrow>
+          <ActionIcon
+            variant="filled"
+            color="teal.7"
+            size="lg"
+            radius="xl"
+            onClick={() => setShowDatabaseViewer(true)}
+            style={{ position: 'fixed', bottom: '20px', left: '20px', zIndex: 1001 }}
+          >
+            <IconDatabase size={20} />
           </ActionIcon>
         </Tooltip>
 
