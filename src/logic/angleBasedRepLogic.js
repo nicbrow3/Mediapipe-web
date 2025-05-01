@@ -1,6 +1,6 @@
 /**
  * Angle-based rep logic function for pipeline architecture.
- * Processes angle-based logic and updates the state accordingly.
+ * Now tracks detailed state: relaxed → concentric → peak → eccentric → relaxed.
  * @param {Object} params
  * @param {Array} params.landmarks - Current pose landmarks
  * @param {Object} params.config - Exercise config
@@ -23,9 +23,7 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
 
   // Helper to get angle for a config and side
   function getAngle(angleConfig, side) {
-    // If side is not specified in config, use as is (for one-sided)
     const points = angleConfig.points.map(pt => {
-      // If already has side prefix, use as is
       if (pt.startsWith('left_') || pt.startsWith('right_')) return pt;
       return isTwoSided ? `${side}_${pt}` : `left_${pt}`;
     });
@@ -36,11 +34,9 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
     return utils.calculateAngle(a, b, c);
   }
 
-  // Track rep count and phase per side
-  const DEBOUNCE_DURATION_MS = (config?.logicConfig?.repDebounceDuration ?? 200); // Use dynamic debounce duration
+  // Track detailed phase per side
   const now = Date.now();
   sides.forEach(side => {
-    // Find the angle config for this side
     const angleConfig = anglesToTrack.find(a => (a.side ? a.side === side : true) && a.isRepCounter);
     if (!angleConfig) return;
     const angle = getAngle(angleConfig, side);
@@ -49,66 +45,115 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
     // Get thresholds
     const min = angleConfig.minThreshold;
     const max = angleConfig.maxThreshold;
-    const relaxedIsHigh = angleConfig.relaxedIsHigh !== undefined ? angleConfig.relaxedIsHigh : true; // default true for backward compatibility
+    const relaxedIsHigh = angleConfig.relaxedIsHigh !== undefined ? angleConfig.relaxedIsHigh : true;
+    // Optionally allow for a peak threshold (default to min or max)
+    const peakThreshold = angleConfig.peakThreshold ?? (relaxedIsHigh ? min : max);
+    // Optionally allow for a peak hold time (not used yet)
+    // const peakHoldTime = angleConfig.peakHoldTime ?? 0;
 
-    // Get previous phase and repCount
-    const prev = angleLogic[side] || { phase: 'idle', repCount: 0, lastAngle: null, debounceStart: null };
+    // Get previous state
+    const prev = angleLogic[side] || {
+      phase: 'relaxed',
+      lastAngle: null,
+      lastTransitionTime: now,
+    };
     let phase = prev.phase;
-    let repCount = prev.repCount;
-    let debounceStart = prev.debounceStart || null;
+    let lastTransitionTime = prev.lastTransitionTime || now;
 
-    // Phase logic with debounce, now using relaxedIsHigh:
+    // State machine logic
     if (relaxedIsHigh) {
-      // Relaxed = angle > max, Contracted = angle < min (e.g., bicep curls)
-      if (phase === 'idle') {
-        if (angle < min) {
-          phase = 'active';
-          debounceStart = now;
-        } else {
-          debounceStart = null;
-        }
-      } else if (phase === 'active') {
-        if (angle < min) {
-          if (!debounceStart) {
-            debounceStart = now;
-          } else if (now - debounceStart >= DEBOUNCE_DURATION_MS) {
-            repCount += 1;
-            debounceStart = now; // reset debounce for next rep
+      // Relaxed = angle > max, Concentric = moving toward min, Peak = angle < min, Eccentric = moving back to relaxed
+      switch (phase) {
+        case 'relaxed':
+          if (angle < max && angle > min) {
+            phase = 'concentric';
+            lastTransitionTime = now;
+          } else if (angle <= min) {
+            phase = 'peak';
+            lastTransitionTime = now;
           }
-        } else {
-          phase = 'idle';
-          debounceStart = null;
-        }
+          break;
+        case 'concentric':
+          if (angle <= min) {
+            phase = 'peak';
+            lastTransitionTime = now;
+          } else if (angle >= max) {
+            phase = 'relaxed';
+            lastTransitionTime = now;
+          }
+          break;
+        case 'peak':
+          if (angle > min && angle < max) {
+            phase = 'eccentric';
+            lastTransitionTime = now;
+          } else if (angle >= max) {
+            phase = 'relaxed';
+            lastTransitionTime = now;
+          }
+          break;
+        case 'eccentric':
+          if (angle >= max) {
+            phase = 'relaxed';
+            lastTransitionTime = now;
+          } else if (angle <= min) {
+            phase = 'peak';
+            lastTransitionTime = now;
+          }
+          break;
+        default:
+          phase = 'relaxed';
+          lastTransitionTime = now;
       }
     } else {
-      // Relaxed = angle < min, Contracted = angle > max (e.g., shoulder abduction)
-      if (phase === 'idle') {
-        if (angle > max) {
-          phase = 'active';
-          debounceStart = now;
-        } else {
-          debounceStart = null;
-        }
-      } else if (phase === 'active') {
-        if (angle > max) {
-          if (!debounceStart) {
-            debounceStart = now;
-          } else if (now - debounceStart >= DEBOUNCE_DURATION_MS) {
-            repCount += 1;
-            debounceStart = now; // reset debounce for next rep
+      // Relaxed = angle < min, Concentric = moving toward max, Peak = angle > max, Eccentric = moving back to relaxed
+      switch (phase) {
+        case 'relaxed':
+          if (angle > min && angle < max) {
+            phase = 'concentric';
+            lastTransitionTime = now;
+          } else if (angle >= max) {
+            phase = 'peak';
+            lastTransitionTime = now;
           }
-        } else {
-          phase = 'idle';
-          debounceStart = null;
-        }
+          break;
+        case 'concentric':
+          if (angle >= max) {
+            phase = 'peak';
+            lastTransitionTime = now;
+          } else if (angle <= min) {
+            phase = 'relaxed';
+            lastTransitionTime = now;
+          }
+          break;
+        case 'peak':
+          if (angle < max && angle > min) {
+            phase = 'eccentric';
+            lastTransitionTime = now;
+          } else if (angle <= min) {
+            phase = 'relaxed';
+            lastTransitionTime = now;
+          }
+          break;
+        case 'eccentric':
+          if (angle <= min) {
+            phase = 'relaxed';
+            lastTransitionTime = now;
+          } else if (angle >= max) {
+            phase = 'peak';
+            lastTransitionTime = now;
+          }
+          break;
+        default:
+          phase = 'relaxed';
+          lastTransitionTime = now;
       }
     }
 
     angleLogic[side] = {
+      ...prev,
       phase,
-      repCount,
       lastAngle: angle,
-      debounceStart,
+      lastTransitionTime,
     };
   });
 

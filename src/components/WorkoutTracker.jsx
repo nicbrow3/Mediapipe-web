@@ -57,6 +57,7 @@ const WorkoutTracker = ({
     repCount,
     repHistory,
     latestLandmarksRef,
+    repEngineState,
     renderLoop
   } = usePoseTracking({
     selectedExercise,
@@ -120,6 +121,27 @@ const WorkoutTracker = ({
   // Handle ending the workout
   const handleEndWorkout = () => {
     endWorkout();
+  };
+  
+  // Add getPhaseStyle function to color-code different phases
+  const getPhaseStyle = (phase, baseStyle) => {
+    const styles = {
+      ...baseStyle,
+      borderWidth: '2px',
+    };
+
+    switch (phase) {
+      case 'relaxed':
+        return { ...styles, borderColor: '#3498db' }; // Blue for relaxed
+      case 'concentric':
+        return { ...styles, borderColor: '#f39c12' }; // Orange for concentric (contracting)
+      case 'peak':
+        return { ...styles, borderColor: '#27ae60' }; // Green for peak (max contraction)
+      case 'eccentric':
+        return { ...styles, borderColor: '#9b59b6' }; // Purple for eccentric (releasing)
+      default:
+        return styles;
+    }
   };
   
   return (
@@ -236,40 +258,149 @@ const WorkoutTracker = ({
           />
         </div>
         
-        <div className="rep-goal ui-text-preset ui-box-preset" style={glassStyle}>
+        {/* Rep Goal - positioned at bottom center */}
+        <div 
+          className="rep-goal ui-text-preset ui-box-preset" 
+          style={{
+            ...glassStyle,
+            position: 'absolute',
+            bottom: 'var(--mantine-spacing-md)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 2,
+            minWidth: '120px',
+            maxWidth: '200px',
+            textAlign: 'center'
+          }}
+        >
           Rep Goal: 12
         </div>
         
         {/* Rep Counters */}
         {selectedExercise.isTwoSided ? (
-          <div style={{ position: 'absolute', bottom: 'var(--mantine-spacing-md)', right: 'var(--mantine-spacing-md)', display: 'flex', flexDirection: 'column', gap: 'var(--mantine-spacing-md)', zIndex: 2 }}>
-            <div className="rep-counter-box ui-text-preset ui-box-preset" style={glassStyle}>
-              <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
-                <div
-                  className="rep-progress-outline"
-                  style={{ width: `${Math.min(100, (repCount.left / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
-                />
-                <span>Left Reps: {repCount.left}</span>
+          <div style={{ 
+            position: 'absolute', 
+            bottom: 'var(--mantine-spacing-md)', 
+            right: 'var(--mantine-spacing-md)', 
+            display: 'flex', 
+            flexDirection: 'row',
+            gap: 'var(--mantine-spacing-md)', 
+            zIndex: 2 
+          }}>
+            {/* Rep Counter Column */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: 'var(--mantine-spacing-md)'
+            }}>
+              {/* Left Rep Counter */}
+              <div className="rep-counter-box ui-text-preset ui-box-preset" style={{
+                ...glassStyle,
+                minWidth: '140px',
+                minHeight: '40px'
+              }}>
+                <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                  <div
+                    className="rep-progress-outline"
+                    style={{ width: `${Math.min(100, (repCount.left / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
+                  />
+                  <span>Left Reps: {repCount.left}</span>
+                </div>
+              </div>
+              
+              {/* Right Rep Counter */}
+              <div className="rep-counter-box ui-text-preset ui-box-preset" style={{
+                ...glassStyle,
+                minWidth: '140px',
+                minHeight: '40px'
+              }}>
+                <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                  <div
+                    className="rep-progress-outline"
+                    style={{ width: `${Math.min(100, (repCount.right / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
+                  />
+                  <span>Right Reps: {repCount.right}</span>
+                </div>
               </div>
             </div>
-            <div className="rep-counter-box ui-text-preset ui-box-preset" style={glassStyle}>
-              <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
-                <div
-                  className="rep-progress-outline"
-                  style={{ width: `${Math.min(100, (repCount.right / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
-                />
-                <span>Right Reps: {repCount.right}</span>
+            
+            {/* State Indicator Column */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: 'var(--mantine-spacing-md)'
+            }}>
+              {/* Left State Indicator */}
+              <div className="rep-counter-box ui-text-preset ui-box-preset" style={{
+                ...getPhaseStyle(repEngineState?.angleLogic?.left?.phase || 'relaxed', glassStyle),
+                minWidth: '185px',
+                minHeight: '40px'
+              }}>
+                <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                  <span>Left: {repEngineState?.angleLogic?.left?.phase || 'relaxed'}</span>
+                </div>
+              </div>
+              
+              {/* Right State Indicator */}
+              <div className="rep-counter-box ui-text-preset ui-box-preset" style={{
+                ...getPhaseStyle(repEngineState?.angleLogic?.right?.phase || 'relaxed', glassStyle),
+                minWidth: '185px',
+                minHeight: '40px'
+              }}>
+                <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                  <span>Right: {repEngineState?.angleLogic?.right?.phase || 'relaxed'}</span>
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="rep-counter ui-text-preset ui-box-preset" style={glassStyle}>
-            <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
-              <div
-                className="rep-progress-outline"
-                style={{ width: `${Math.min(100, (repCount.left / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
-              />
-              Reps: {repCount.left}
+          <div style={{ 
+            position: 'absolute', 
+            bottom: 'var(--mantine-spacing-md)', 
+            right: 'var(--mantine-spacing-md)', 
+            display: 'flex', 
+            flexDirection: 'row',
+            gap: 'var(--mantine-spacing-md)', 
+            zIndex: 2 
+          }}>
+            {/* Rep Counter Column */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: 'var(--mantine-spacing-md)'
+            }}>
+              {/* Rep Counter */}
+              <div className="rep-counter-box ui-text-preset ui-box-preset" style={{
+                ...glassStyle,
+                minWidth: '105px',
+                minHeight: '40px'
+              }}>
+                <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                  <div
+                    className="rep-progress-outline"
+                    style={{ width: `${Math.min(100, (repCount.left / 12) * 100)}%`, top: 0, height: '100%', left: 0 }}
+                  />
+                  <span>Reps: {repCount.left}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* State Indicator Column */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: 'var(--mantine-spacing-md)'
+            }}>
+              {/* State Indicator for Single-sided Exercises */}
+              <div className="rep-counter-box ui-text-preset ui-box-preset" style={{
+                ...getPhaseStyle(repEngineState?.angleLogic?.left?.phase || 'relaxed', glassStyle),
+                minWidth: '185px',
+                minHeight: '40px'
+              }}>
+                <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                  <span>State: {repEngineState?.angleLogic?.left?.phase || 'relaxed'}</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
