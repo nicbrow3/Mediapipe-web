@@ -219,7 +219,20 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
 - **Reusability:** Logic functions are reused across exercises and can be composed in any order for compound movements.
 - **Extensibility:** Easily supports compound and novel movement logic by chaining logic types.
 
-## 9. Implementation Considerations (MediaPipe Specific)
+## 9. Styling and UI Theming
+
+- **Location:** `src/styles/`
+- **Purpose:** Contains reusable style objects and CSS for consistent UI theming across components.
+- **Key Features:**
+    - **Glass UI Style:** A reusable style object (`glassStyle`) providing a consistent transparent glass-like appearance for UI elements.
+    - **Consistent Theming:** Shared style objects ensure visual consistency across components.
+    - **Adaptive UI:** Transparent elements allow the webcam feed to remain visible through UI overlays.
+- **Implementation:**
+    - Style objects are defined in `uiStyles.js` and imported by components.
+    - The glass style uses CSS properties like `backdrop-filter`, `background-color` with alpha transparency, and subtle borders.
+    - Style objects can be extended or modified by components for specific needs while maintaining the overall theme.
+
+## 10. Implementation Considerations (MediaPipe Specific)
 
 - **Build Tool:** This project appears to be using **Parcel** (`parcel index.html`). Ensure configurations (like paths in `index.html` or component imports) are compatible with Parcel's resolution and bundling mechanisms. Address any build errors, such as missing files (e.g., CSS imports) or internal Parcel errors.
 - **MediaPipe Pose Setup:** Integrate the `@mediapipe/pose` library correctly. Handle model loading, configuration (static vs. stream mode, model complexity), and running inference on the webcam stream.

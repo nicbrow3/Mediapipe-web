@@ -7,6 +7,10 @@ import './App.css'; // Add styles for layout and toggle button
 import { MantineProvider, Drawer, ActionIcon, Tooltip } from '@mantine/core';
 import { IconSettings, IconX } from '@tabler/icons-react'; // Icons for settings button and close
 import '@mantine/core/styles.css';
+import { startNewWorkoutSession, endWorkoutSession } from './services/db'; // Import db functions
+
+// Import glassStyle from the styles utility file
+import { glassStyle } from '/src/styles/uiStyles';
 
 // --- Settings Persistence Logic (Moved from WorkoutTracker) ---
 const SETTINGS_KEY = 'workoutAppSettings';
@@ -38,6 +42,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [latestPoseData, setLatestPoseData] = useState(null); // State for pose data
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false); // State for settings drawer
+  const [currentSessionId, setCurrentSessionId] = useState(null); // State for active session ID
 
   // --- Lifted Exercise State ---
   const availableExercises = useRef(Object.values(exercises)); // Get all exercises
@@ -82,6 +87,44 @@ function App() {
   }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, useSmoothedRepCounting]);
   // --- End Lifted Settings State ---
 
+  // --- NEW: Workout Session Handlers ---
+  const handleStartWorkout = async () => {
+    // This might be called from WorkoutTracker when the camera *successfully* starts
+    // We assume WorkoutTracker will handle the actual start process and call this
+    try {
+      const sessionId = await startNewWorkoutSession();
+      setCurrentSessionId(sessionId);
+      console.log("Workout session started, ID:", sessionId);
+      // Potentially trigger other actions needed when workout starts
+    } catch (error) {
+      console.error("Failed to start workout session:", error);
+      // TODO: Show user feedback (e.g., notification)
+    }
+  };
+
+  const handleEndWorkout = async () => {
+    if (currentSessionId) {
+      try {
+        await endWorkoutSession(currentSessionId);
+        console.log("Workout session ended, ID:", currentSessionId);
+        const endedSessionId = currentSessionId; // Store before resetting
+        setCurrentSessionId(null); // Reset session ID state
+
+        // TODO: Add any other cleanup needed after ending a session
+        // e.g., potentially stop camera if not stopped already, clear workout state in WorkoutTracker?
+        // Maybe show a summary or confirmation?
+        alert(`Workout Session ${endedSessionId} ended.`); // Simple feedback for now
+
+      } catch (error) {
+        console.error("Failed to end workout session:", error);
+        // TODO: Show user feedback
+      }
+    } else {
+      console.warn("Attempted to end workout, but no active session ID found.");
+    }
+  };
+  // --- End Workout Session Handlers ---
+
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
@@ -125,6 +168,23 @@ function App() {
         padding="md"
         size="md"
         withCloseButton={false}
+        styles={{
+          body: glassStyle, // Apply glass style to drawer body
+          header: glassStyle, // Apply glass style to drawer header
+          root: { 
+            zIndex: 1002, // Ensure proper stacking
+            backgroundColor: 'transparent', // Make the root background transparent
+          },
+          inner: {
+            backgroundColor: 'transparent', // Make the inner container transparent
+          },
+          content: {
+            backgroundColor: 'transparent', // Make the content container transparent
+          },
+          overlay: {
+            backgroundColor: 'rgba(0, 0, 0, 0.3)', // Lighter overlay to see through
+          }
+        }}
       >
         <SettingsDrawer
           colorScheme={colorScheme}
@@ -177,6 +237,22 @@ function App() {
           </ActionIcon>
         </Tooltip>
 
+        {/* <<< ADDED: End Workout Button - Top Right >>> */}
+        {currentSessionId && (
+          <Tooltip label="End Current Workout Session" position="left" withArrow>
+            <ActionIcon
+              variant="filled"
+              color="red.7" // Use a distinct color
+              size="lg"
+              radius="xl"
+              onClick={handleEndWorkout}
+              style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1001 }}
+            >
+              <IconX size={20} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+
         <button className="sidebar-toggle-btn" onClick={toggleSidebar}>
           {/* Simple toggle icon, adjust as needed */}
           {isSidebarOpen ? '>' : '<'}
@@ -197,6 +273,8 @@ function App() {
             showDebug={showDebug}
             repDebounceDuration={repDebounceDuration}
             useSmoothedRepCounting={useSmoothedRepCounting}
+            currentSessionId={currentSessionId} // Pass current ID (needed for addExerciseSet)
+            onWorkoutStart={handleStartWorkout} // Pass the start handler
           />
         </div>
 

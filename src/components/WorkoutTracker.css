@@ -30,8 +30,8 @@ video, canvas {
 /* --- Rep Counter & Progress Styles --- */
 .rep-counter {
   position: absolute;
-  bottom: var(--overlay-padding);
-  right: var(--overlay-padding);
+  bottom: var(--mantine-spacing-md);
+  right: var(--mantine-spacing-md);
   z-index: 2; /* Above canvas */
 }
 .rep-counter span {
@@ -45,20 +45,20 @@ video, canvas {
   height: 100%;
   background: linear-gradient(90deg, var(--accent-color-2, #3a8ad3) 80%, var(--accent-color-3, #cf912e) 100%);
   opacity: 0.25;
-  border-radius: 8px;
+  border-radius: var(--mantine-radius-md);
   pointer-events: none;
   transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
   z-index: 1;
 }
 .rep-progress-outline.left {
-  border-top-left-radius: 8px;
+  border-top-left-radius: var(--mantine-radius-md);
   border-bottom-left-radius: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 .rep-progress-outline.right {
   border-top-left-radius: 0;
-  border-bottom-left-radius: 8px;
+  border-bottom-left-radius: var(--mantine-radius-md);
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -66,32 +66,19 @@ video, canvas {
 /* --- Tracking State Indicator Styling --- */
 .tracking-state-indicator {
   position: absolute;
-  top: var(--overlay-padding);
-  left: var(--overlay-padding);
-  z-index: 2; /* Above canvas */
-  padding: 8px 16px;
-  border-radius: 6px;
+  top: var(--mantine-spacing-md);
+  left: var(--mantine-spacing-md);
+  z-index: 3; /* Ensure it's above the canvas */
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-sm);
   font-weight: bold;
 }
 
-.tracking-state-indicator.state-idle {
-  background-color: #3a8ad3; /* blue */
-  color: #fff;
-}
-
-.tracking-state-indicator.state-active {
-  background-color: #2ecc40; /* green */
-  color: #fff;
-}
-
-.tracking-state-indicator.state-paused {
-  background-color: #333; /* dark gray */
-  color: #fff;
-}
-
+.tracking-state-indicator.state-idle,
+.tracking-state-indicator.state-active,
+.tracking-state-indicator.state-paused,
 .tracking-state-indicator.state-ready {
-  background-color: #f1c40f; /* yellow/gold for ready */
-  color: #222;
+  /* Color is now controlled by the glassStyle */
 }
 /* --- End Tracking State Indicator Styling --- */
 
@@ -153,7 +140,7 @@ video, canvas {
   width: 100%;
   max-width: 1800px; /* Optional: limit max width */
   margin: 0 auto;
-  padding: 0 32px; /* Add horizontal padding */
+  padding: 0 var(--mantine-spacing-xl); /* Add horizontal padding */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -166,7 +153,7 @@ video, canvas {
   aspect-ratio: 16/9;
   max-width: 100%; /* Prevent overflow */
   height: auto; /* Let aspect-ratio control height */
-  margin-bottom: 20px;
+  margin-bottom: var(--mantine-spacing-md);
 }
 
 .input_video,
@@ -190,11 +177,12 @@ video, canvas {
 /* --- Exercise Selector Container Styling --- */
 .exercise-selector-container {
   position: absolute;
-  bottom: var(--overlay-padding);
-  left: var(--overlay-padding);
-  z-index: 2; /* Above canvas */
+  bottom: var(--mantine-spacing-md);
+  left: var(--mantine-spacing-md);
+  z-index: 3; /* Ensure it's above the canvas */
   display: flex;
   align-items: center;
+  max-width: 280px;
 }
 
 .exercise-selector-container label {
@@ -282,8 +270,8 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
   background-color: var(--background-color-dark);
   color: var(--text-color-primary);
   border: 1px solid var(--border-color-medium);
-  border-radius: 7px;
-  padding: 7px 36px 7px 12px;
+  border-radius: var(--mantine-radius-sm);
+  padding: var(--mantine-spacing-xs) calc(var(--mantine-spacing-sm) + var(--mantine-spacing-xl)) var(--mantine-spacing-xs) var(--mantine-spacing-sm);
   font-size: var(--font-size-normal);
   font-weight: var(--font-weight-normal);
   text-align: left;
@@ -307,7 +295,7 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
 
 .custom-listbox-arrow { /* the arrow on the right side of the exercise selector */
   position: absolute;
-  right: 12px;
+  right: var(--mantine-spacing-sm);
   top: 55%;
   transform: translateY(-55%) scale(1.35); 
   pointer-events: none;
@@ -321,31 +309,31 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
 .custom-listbox-options { /* options inside the listbox */
   position: absolute;
   z-index: 10;
-  margin-top: 6px;
+  margin-top: var(--mantine-spacing-xs);
   left: 0;
   width: 100%;
   min-width: 160px; /* Match button min-width */
   background: var(--background-color-dark);
   border: 1px solid var(--border-color-medium);
-  border-radius: 8px; /* More rounded for menu */
+  border-radius: var(--mantine-radius-md); /* More rounded for menu */
   box-shadow: 0 4px 24px rgba(0,0,0,0.35);
-  padding: 4px; /* Padding inside the menu */
+  padding: var(--mantine-spacing-xs); /* Padding inside the menu */
   max-height: 240px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--mantine-spacing-xs);
 }
 
 .custom-listbox-option { /* each option inside the listbox */
-  padding: 4px 12px;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
   cursor: pointer;
   font-size: var(--font-size-normal);
   color: var(--text-color-primary);
   background: none;
   border: none;
   outline: none;
-  border-radius: 8px; /* Rounded corners for each option */
+  border-radius: var(--mantine-radius-md); /* Rounded corners for each option */
   transition: background 0.2s, color 0.2s, box-shadow 0.2s;
   /* margin: 0 2px;  let the above section handle the spacing*/
   position: relative;
@@ -372,19 +360,16 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
 
 .rep-goal {
   position: absolute;
-  bottom: var(--overlay-padding);
-  right: calc(var(--overlay-padding) + 140px); /* Offset to the left of rep-counter, adjust as needed */
+  bottom: var(--mantine-spacing-md);
+  right: calc(var(--mantine-spacing-md) + 140px); /* Offset to the left of rep-counter, adjust as needed */
   z-index: 2;
-  margin-right: 12px;
+  margin-right: var(--mantine-spacing-sm);
   /* Match rep-counter style */
-  padding: 8px 16px;
-  border-radius: 8px;
-  background: var(--background-color-dark, #22243a);
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-md);
   color: var(--text-color-primary, #fff);
   font-size: var(--font-size-normal, 1.1em);
   font-weight: bold;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
-  border: 1px solid var(--border-color-medium, #444);
   text-align: center;
 }
 

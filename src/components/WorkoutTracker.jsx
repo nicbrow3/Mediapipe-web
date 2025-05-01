@@ -6,7 +6,8 @@ import '../App.css'; // Import global styles
 import RepHistoryGraph from './RepHistoryGraph';
 import { LANDMARK_MAP, POSE_CONNECTIONS, calculateAngle } from '../logic/landmarkUtils';
 import { runRepStateEngine } from '../logic/repStateEngine';
-import { Select } from '@mantine/core';
+import { Select, Paper } from '@mantine/core';
+import { glassStyle } from '/src/styles/uiStyles';
 
 const TRACKING_STATES = {
   IDLE: 'IDLE',
@@ -781,6 +782,24 @@ const WorkoutTracker = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strictLandmarkVisibility, visibilityThreshold]);
 
+  // Tracking state indicator styles
+  const getStateStyle = (state) => {
+    const baseStyle = { ...glassStyle };
+    
+    switch (state) {
+      case TRACKING_STATES.IDLE:
+        return { ...baseStyle, borderLeft: '4px solid #3a8ad3' }; // Blue for idle
+      case TRACKING_STATES.ACTIVE:
+        return { ...baseStyle, borderLeft: '4px solid #2ecc40' }; // Green for active
+      case TRACKING_STATES.PAUSED:
+        return { ...baseStyle, borderLeft: '4px solid #e74c3c' }; // Red for paused
+      case TRACKING_STATES.READY:
+        return { ...baseStyle, borderLeft: '4px solid #f1c40f' }; // Yellow for ready, keeping white text
+      default:
+        return baseStyle;
+    }
+  };
+
   return (
     <div className="workout-tracker-container">
       {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
@@ -795,7 +814,7 @@ const WorkoutTracker = ({
 
       <div className="video-canvas-container">
         {/* State Indicator */}
-        <div className={`tracking-state-indicator ui-text-preset ui-box-preset state-${trackingState.toLowerCase()}`}>
+        <div className={`tracking-state-indicator ui-text-preset ui-box-preset state-${trackingState.toLowerCase()}`} style={getStateStyle(trackingState)}>
           State: {trackingState}
         </div>
         <video ref={videoRef} className="input_video" autoPlay playsInline muted style={{ opacity: videoOpacity / 100 }}></video>
@@ -813,13 +832,13 @@ const WorkoutTracker = ({
             visibilityThreshold={visibilityThreshold}
           />
         </div>
-        <div className="rep-goal ui-text-preset ui-box-preset">
+        <div className="rep-goal ui-text-preset ui-box-preset" style={glassStyle}>
           Rep Goal: 12
         </div>
         {/* --- Rep Counters --- */}
         {selectedExercise.isTwoSided ? (
-          <div style={{ position: 'absolute', bottom: 'var(--overlay-padding)', right: 'var(--overlay-padding)', display: 'flex', flexDirection: 'column', gap: 'var(--overlay-padding)', zIndex: 2 }}>
-            <div className="rep-counter-box ui-text-preset ui-box-preset">
+          <div style={{ position: 'absolute', bottom: 'var(--mantine-spacing-md)', right: 'var(--mantine-spacing-md)', display: 'flex', flexDirection: 'column', gap: 'var(--mantine-spacing-md)', zIndex: 2 }}>
+            <div className="rep-counter-box ui-text-preset ui-box-preset" style={glassStyle}>
               <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
                 <div
                   className="rep-progress-outline"
@@ -828,7 +847,7 @@ const WorkoutTracker = ({
                 <span>Left Reps: {repCount.left}</span>
               </div>
             </div>
-            <div className="rep-counter-box ui-text-preset ui-box-preset">
+            <div className="rep-counter-box ui-text-preset ui-box-preset" style={glassStyle}>
               <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
                 <div
                   className="rep-progress-outline"
@@ -839,7 +858,7 @@ const WorkoutTracker = ({
             </div>
           </div>
         ) : (
-          <div className="rep-counter ui-text-preset ui-box-preset">
+          <div className="rep-counter ui-text-preset ui-box-preset" style={glassStyle}>
             <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
               <div
                 className="rep-progress-outline"
@@ -850,23 +869,34 @@ const WorkoutTracker = ({
           </div>
         )}
         {/* --- Exercise Selector --- */}
-        <div className="exercise-selector-container ui-text-preset ui-box-preset">
-          <Select
-            label="Exercise"
-            placeholder="Pick exercise"
-            searchable
-            data={availableExercises.map(ex => ({ value: ex.id, label: ex.name }))}
-            value={selectedExercise.id}
-            onChange={value => {
-              if (value) {
-                onExerciseChange({ target: { value } });
-              }
+        <div className="exercise-selector-container">
+          <Paper 
+            p="lg" 
+            radius="md" 
+            styles={{
+              root: glassStyle
             }}
-            nothingFoundMessage="No exercises found"
-            styles={{ dropdown: { zIndex: 1000 } }}
-            radius="md"
-            color="grape.6"
-          />
+          >
+            <Select
+              label="Exercise"
+              placeholder="Pick exercise"
+              searchable
+              data={availableExercises.map(ex => ({ value: ex.id, label: ex.name }))}
+              value={selectedExercise.id}
+              onChange={value => {
+                if (value) {
+                  onExerciseChange({ target: { value } });
+                }
+              }}
+              nothingFoundMessage="No exercises found"
+              styles={{ 
+                dropdown: { zIndex: 1000 },
+                label: { color: 'var(--mantine-color-white)' }
+              }}
+              radius="md"
+              color="grape.6"
+            />
+          </Paper>
         </div>
         {/* --- End Exercise Selector --- */}
       </div>

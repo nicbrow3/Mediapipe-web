@@ -1,5 +1,6 @@
 import React from 'react';
 import { Switch, Slider, Button, Stack, Title, Box, Text } from '@mantine/core';
+import { glassStyle } from '/src/styles/uiStyles';
 
 const SettingsDrawer = ({
   colorScheme,
@@ -21,7 +22,7 @@ const SettingsDrawer = ({
   return (
     <Stack spacing="xl">
       {/* Light/Dark Mode Toggle */}
-      <Box>
+      <Box p="md" style={glassStyle} mb="xs">
         <Title order={4} mb="xs">Theme</Title>
         <Switch
           checked={colorScheme === 'dark'}
@@ -34,7 +35,7 @@ const SettingsDrawer = ({
       </Box>
 
       {/* Camera Feed Visibility Slider */}
-      <Box>
+      <Box p="md" style={glassStyle} mb="xs">
         <Title order={4} mb="xs">Camera Feed</Title>
         <Text size="md" mb={2}>Visibility: {Math.round(videoOpacity)}%</Text>
         <Text size="sm" c="dimmed" mb="xs">
@@ -53,7 +54,7 @@ const SettingsDrawer = ({
       </Box>
 
       {/* Smoothing Factor Slider */}
-      <Box>
+      <Box p="md" style={glassStyle} mb="xs">
         <Title order={4} mb="xs">Rep Graph</Title>
          <Text size="md" mb="xs">Smoothing Factor: {smoothingFactor}</Text>
          <Text size="sm" c="dimmed" mb="xs">
@@ -82,7 +83,7 @@ const SettingsDrawer = ({
       </Box>
 
       {/* Strict Landmark Visibility Toggle */}
-      <Box>
+      <Box p="md" style={glassStyle} mb="xs">
          <Title order={4} mb="xs">Rep Counting</Title>
         <Switch
           checked={strictLandmarkVisibility}
@@ -107,7 +108,7 @@ const SettingsDrawer = ({
        </Box>
 
       {/* Debug Toggle */}
-      <Box>
+      <Box p="md" style={glassStyle} mb="xs">
         <Title order={4} mb="xs">Debugging</Title>
         <Switch
           checked={showDebug}
@@ -121,7 +122,7 @@ const SettingsDrawer = ({
       </Box>
 
       {/* Reset Settings Button */}
-       <Box mt="lg">
+       <Box p="md" style={glassStyle} mt="md">
         <Button
           variant="filled"
           color="grape.6"

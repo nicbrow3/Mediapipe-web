@@ -1,0 +1,121 @@
+Product Requirements Document: Workout Tracker Webapp (Checklist)
+1. Core Functionality
+
+[x] Webcam Input & Pose Estimation: Utilize webcam feed for real-time video input.
+[x] MediaPipe Integration: Integrate MediaPipe Pose Landmarker (@mediapipe/tasks-vision) to detect and track 3D body landmarks.
+[x] Use pose_landmarker_lite model.
+[x] Support VIDEO running mode.
+[x] Configure basic parameters (confidence thresholds, numPoses) via src/config.js.
+[x] Handle WASM file loading (currently using CDN).
+[x] Implement GPU delegate fallback to CPU.
+[x] React Frontend: Build the application using React.
+[x] Component Structure: Organize UI into React components (App.jsx, WorkoutTracker.jsx, Sidebar.jsx, RepHistoryGraph.jsx, SettingsDrawer.jsx, etc.).
+[x] Basic UI:
+[x] Display webcam feed (WorkoutTracker.jsx).
+[x] Overlay pose landmarks and connections on the video feed (WorkoutTracker.jsx drawing logic).
+[x] Display current tracking state (IDLE, READY, ACTIVE, PAUSED) (WorkoutTracker.jsx).
+[x] Display rep counts (per side if applicable) (WorkoutTracker.jsx).
+[x] Include an exercise selection dropdown (WorkoutTracker.jsx using Mantine Select).
+[x] Display a real-time rep history graph (RepHistoryGraph.jsx using Mantine Charts).
+[x] Implement a settings panel/drawer (SettingsDrawer.jsx) for user configuration.
+[x] Implement a sidebar (Sidebar.jsx) to show exercise-specific info (e.g., required landmarks, visibility).
+
+2. Exercise Definition & Tracking Logic
+
+[x] Data-Driven Exercise Configuration: Define exercises in separate JS files (src/exercises/*.js).
+[x] Exercise Schema: Each exercise config includes:
+[x] id, name, isTwoSided.
+[x] landmarks: Specifies primary and secondary landmarks (per side if isTwoSided).
+[x] startPosition: Defines criteria (requiredAngles, requiredPositions, holdTime, description).
+[x] logicConfig: Defines tracking logic (type, anglesToTrack, positionsToTrack, pipeline, utilityFunctions).
+[x] Optional metadata (instructions, muscleGroups).
+[x] Exercise Loading: Load and make available multiple exercises (src/exercises/index.js, App.jsx).
+[x] Rep Counting Logic: Implement reusable logic functions (src/logic/).
+[x] Angle-based rep counting (angleBasedRepLogic.js) with configurable thresholds and phase detection (supporting relaxedIsHigh).
+[x] Position-based rep counting (positionBasedRepLogic.js) checking relative landmark positions/distances.
+[x] State Engine (repStateEngine.js) to run the configured logic pipeline.
+[x] Per-side state tracking for two-sided exercises.
+[x] State transitions based on landmark visibility, start pose criteria, and movement logic.
+[x] Configurable rep debounce timer (repDebounceDuration setting).
+[x] Landmark Utilities (landmarkUtils.js):
+[x] LANDMARK_MAP for name-to-index mapping.
+[x] POSE_CONNECTIONS for drawing.
+[x] calculateAngle.
+[x] getDistance2D, getDistance3D.
+
+[ ] Exercise Library Expansion (Task 3):
+[ ] Create configurations for Squats.
+[ ] Create configurations for Push-ups.
+[ ] Create configurations for Shoulder Presses.
+[ ] Refine thresholds and logic for all exercises through testing.
+
+3. User Settings & Configuration
+
+[x] Settings Panel (SettingsDrawer.jsx):
+[x] Theme (Light/Dark Mode) toggle.
+[x] Video Feed Opacity slider.
+[x] Rep Graph Smoothing Factor slider.
+[x] Rep Counting uses Smoothed Data toggle.
+[x] Strict Landmark Visibility toggle (Require ALL primary landmarks).
+[x] Rep Debounce Duration slider.
+[x] Show Debug Logs toggle.
+[x] Reset Settings button.
+[x] Settings Persistence: Save and load user settings to/from localStorage (App.jsx).
+
+4. Workout History & Analysis (Future Features)
+
+[ ] Data Persistence Layer (Task 1):
+[ ] Implement storage service (e.g., IndexedDB) for workout sessions, sets, reps, weights, and landmark data.
+[ ] Define data models (WorkoutSession, ExerciseSet, LandmarkSequence).
+[ ] Implement save/retrieve/query methods.
+[ ] Consider data compression for landmarks.
+
+[ ] Extend Config for Weights (Task 2):
+[ ] Add configurableWeight: boolean and defaultWeight: number to exercise schema.
+[ ] Update exercise loader/handling.
+[ ] Ensure backward compatibility.
+
+[ ] Weight Input UI (Task 4):
+[ ] Conditionally show weight input in UI based on configurableWeight.
+[ ] Implement state management for weight.
+[ ] Include weight in persisted data (depends on Task 1).
+
+[ ] Workout History UI (Task 5):
+[ ] Create view to list past workout sessions.
+[ ] Create detailed session view (exercises, reps, weights, duration).
+[ ] Implement filtering/sorting.
+[ ] Display basic stats.
+
+[ ] Landmark Data Recording (Task 7):
+[ ] Capture and store landmark sequences during active exercise.
+[ ] Implement sampling/compression strategy.
+[ ] Associate landmark data with specific exercises/reps in persistence layer (depends on Task 1).
+
+[ ] Historical Form Visualization (Task 8):
+[ ] Develop component to render stored landmark data as animated stick figures.
+[ ] Implement playback controls.
+[ ] Add UI for selecting session/exercise to visualize (depends on Task 5, 7).
+
+[ ] Form Comparison Feature (Task 9):
+[ ] Develop side-by-side visualization view.
+[ ] Implement alignment/synchronization logic.
+[ ] Implement difference metrics/visualization (depends on Task 8).
+
+5. Structured Workouts (Future Features - Based on tasks.json)
+
+[ ] Structured Workout Sequences (Task 6):
+[ ] Define data structure for routines (exercise sequence, targets, rest periods).
+[ ] Implement routine execution manager (tracking progress, transitions, rest timers).
+[ ] Create UI for selecting/starting routines.
+
+[ ] Workout Routine Builder (Task 10):
+[ ] Develop UI for creating/editing custom routines (add/reorder exercises, set targets/rest).
+[ ] Implement saving/loading of custom routines (depends on Task 1, 6).
+
+6. Non-Functional Requirements
+
+[ ] Performance: Ensure smooth real-time tracking and UI responsiveness. Optimize MediaPipe usage and React rendering.
+[ ] Accuracy: Continuously refine exercise logic and thresholds for reliable rep counting.
+[ ] Scalability: Architecture should support adding new exercises and features easily. Data persistence should handle growing history.
+[ ] Testability: Maintain separation of concerns to allow unit/integration testing of logic and components.
+[ ] Error Handling: Gracefully handle errors during MediaPipe initialization, webcam access, or data processing.
