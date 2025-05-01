@@ -11,12 +11,11 @@ import { Select, Paper, Button } from '@mantine/core';
 import { glassStyle } from '/src/styles/uiStyles';
 import { startNewWorkoutSession, endWorkoutSession, addExerciseSet } from '../services/db';
 
-const TRACKING_STATES = {
-  IDLE: 'IDLE',
-  READY: 'READY',
-  ACTIVE: 'ACTIVE',
-  PAUSED: 'PAUSED',
-};
+// Import the extracted utilities
+import { TRACKING_STATES, getAngle, updateTrackingState } from '../logic/trackingStateManager';
+import { REP_WINDOW_SECONDS, EXTRA_BUFFER_SECONDS, smoothRepHistoryEMA, updateRepHistoryBuffer, getLandmarkVisibilityScores } from '../logic/repHistoryProcessor';
+import { drawLandmarks, drawRepArc, getTrackingStateStyle } from '../logic/drawingUtils';
+import { initializePoseLandmarker, setupCamera, waitForVideoReady, cleanupVideoStream } from '../logic/mediaSetup';
 
 // Accept props: onPoseResultUpdate, availableExercises, selectedExercise, onExerciseChange, 
 // Settings props: videoOpacity, smoothingFactor, strictLandmarkVisibility, showDebug
@@ -78,12 +77,9 @@ const WorkoutTracker = ({
   // --- Rep History Buffer ---
   const [repHistory, setRepHistory] = useState([]);
   const repHistoryRef = useRef([]);
-  const REP_WINDOW_SECONDS = 10;
-  const EXTRA_BUFFER_SECONDS = 5; // Extra buffer for smoothing
 
   // Add a ref to track when visibility was lost for grace period
   const lostVisibilityTimestampRef = useRef(null);
-  const VISIBILITY_GRACE_PERIOD_MS = 300;
 
   const [cameraStarted, setCameraStarted] = useState(false);
 
@@ -113,46 +109,6 @@ const WorkoutTracker = ({
   useEffect(() => {
     useSmoothedRepCountingRef.current = useSmoothedRepCounting;
   }, [useSmoothedRepCounting]);
-
-  // Smoothing function for rep history (exponential moving average)
-  function smoothRepHistoryEMA(history, smoothingFactor = 5) {
-    if (history.length === 0) return history;
-    if (smoothingFactor === 0) return history; // No smoothing if 0
-    // Convert smoothingFactor to alpha (typical formula for EMA window)
-    const alpha = 2 / (smoothingFactor + 1);
-    let smoothed = [];
-    let prevLeft = history[0].leftAngle;
-    let prevRight = history[0].rightAngle;
-    for (let i = 0; i < history.length; i++) {
-      const left = history[i].leftAngle;
-      const right = history[i].rightAngle;
-      let smoothLeft, smoothRight;
-      if (left === null) {
-        smoothLeft = null;
-      } else if (prevLeft === null) {
-        smoothLeft = left;
-        prevLeft = left; // resume smoothing from here
-      } else {
-        smoothLeft = alpha * left + (1 - alpha) * prevLeft;
-        prevLeft = smoothLeft;
-      }
-      if (right === null) {
-        smoothRight = null;
-      } else if (prevRight === null) {
-        smoothRight = right;
-        prevRight = right; // resume smoothing from here
-      } else {
-        smoothRight = alpha * right + (1 - alpha) * prevRight;
-        prevRight = smoothRight;
-      }
-      smoothed.push({
-        ...history[i],
-        leftAngle: smoothLeft,
-        rightAngle: smoothRight,
-      });
-    }
-    return smoothed;
-  }
 
   useEffect(() => {
     selectedExerciseRef.current = selectedExercise;
@@ -210,110 +166,19 @@ const WorkoutTracker = ({
     setDebugLogs(prev => prev + msg + '\n');
   };
 
-  const drawLandmarks = (landmarks, highlightedLandmarkIndices = [], secondaryLandmarkIndices = []) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return; // Add check for canvas existence
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Get the computed color values from the CSS variables
-    const computedStyle = getComputedStyle(canvas);
-    const accentColorValue = computedStyle.getPropertyValue('--accent-color').trim();
-    const accentColorValue2 = computedStyle.getPropertyValue('--accent-color-2').trim();
-    const accentColorValue3 = computedStyle.getPropertyValue('--accent-color-3').trim(); // Color for highlight
-
-    // Draw the connecting lines
-    ctx.strokeStyle = accentColorValue2 || '#6a55be';
-    ctx.lineWidth = 2;
-    POSE_CONNECTIONS.forEach(([start, end]) => {
-      const startPoint = landmarks[start];
-      const endPoint = landmarks[end];
-      if (startPoint && endPoint) {
-        ctx.beginPath();
-        ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
-        ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
-        ctx.stroke();
-      }
-    });
-
-    // Draw the landmark points
-    landmarks.forEach((landmark, index) => {
-      // Draw the standard small filled circle for all landmarks
-      ctx.fillStyle = accentColorValue || '#6a55be';
-      ctx.beginPath();
-      ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 4, 0, 2 * Math.PI);
-      ctx.fill();
-
-      // If this landmark index is in the secondary list, draw the outer circle in accentColorValue2
-      if (secondaryLandmarkIndices.includes(index)) {
-        ctx.strokeStyle = accentColorValue2 || '#3a8ad3';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 8, 0, 2 * Math.PI);
-        ctx.stroke();
-      }
-      // If this landmark index is in the highlighted (primary) list, draw the outer circle in accentColorValue3
-      else if (highlightedLandmarkIndices.includes(index)) {
-        ctx.strokeStyle = accentColorValue3 || '#cf912e'; // Use accent-3 or fallback
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 8, 0, 2 * Math.PI);
-        ctx.stroke();
-      }
-    });
-
+  // Draw landmarks helper function
+  const renderLandmarks = (landmarks, highlightedLandmarkIndices = [], secondaryLandmarkIndices = []) => {
+    if (!landmarks) return;
+    drawLandmarks(landmarks, POSE_CONNECTIONS, canvasRef.current, highlightedLandmarkIndices, secondaryLandmarkIndices);
+    
     // Draw the arc for the left arm (shoulder, elbow, wrist)
     const leftShoulder = landmarks[LANDMARK_MAP.left_shoulder];
     const leftElbow = landmarks[LANDMARK_MAP.left_elbow];
     const leftWrist = landmarks[LANDMARK_MAP.left_wrist];
-    if (leftShoulder && leftElbow && leftWrist) {
-      drawRepArc(ctx, leftShoulder, leftElbow, leftWrist);
+    if (leftShoulder && leftElbow && leftWrist && canvasRef.current) {
+      drawRepArc(canvasRef.current.getContext('2d'), leftShoulder, leftElbow, leftWrist);
     }
   };
-
-  // Draw an arc from the midpoint of the upper arm to the midpoint of the forearm (left arm only for now)
-  function drawRepArc(ctx, a, b, c) {
-    // a, b, c are {x, y} in normalized coordinates (0-1)
-    // b is the elbow, a is shoulder, c is wrist
-
-    // Calculate midpoints
-    const midUpperArm = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    const midForearm = { x: (b.x + c.x) / 2, y: (b.y + c.y) / 2 };
-
-    // Convert to canvas coordinates
-    const toCanvas = (pt) => ({
-      x: pt.x * ctx.canvas.width,
-      y: pt.y * ctx.canvas.height,
-    });
-    const p1 = toCanvas(midUpperArm);
-    const p3 = toCanvas(midForearm);
-
-    // Calculate the vector from p1 to p3
-    const vx = p3.x - p1.x;
-    const vy = p3.y - p1.y;
-
-    // Find the midpoint between p1 and p3
-    const mx = (p1.x + p3.x) / 2;
-    const my = (p1.y + p3.y) / 2;
-
-    // Calculate a perpendicular vector (normalize and scale)
-    const perpLength = Math.sqrt(vx * vx + vy * vy);
-    const perpNorm = { x: -vy / perpLength, y: vx / perpLength };
-    // Move the control point farther away from the elbow, outward from the arm
-    const arcHeight = 0.5 * perpLength; // adjust 0.5 for more/less curve
-    const cx = mx + perpNorm.x * arcHeight;
-    const cy = my + perpNorm.y * arcHeight;
-
-    // Draw arc from p1 to p3 with (cx, cy) as the control point
-    ctx.save();
-    ctx.strokeStyle = '#3a8ad3'; // Simple blue for now
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(p1.x, p1.y);
-    ctx.quadraticCurveTo(cx, cy, p3.x, p3.y);
-    ctx.stroke();
-    ctx.restore();
-  }
 
   const setTrackingStateBoth = (newState) => {
     if (showDebug) {
@@ -323,207 +188,9 @@ const WorkoutTracker = ({
     trackingStateRef.current = newState;
   };
 
-  // Placeholder helpers for visibility and pose logic
-  function checkRequiredLandmarksVisible(landmarks, threshold, requireAll) {
-    if (!landmarks) return false;
-    if (requireAll) {
-      // Require ALL pose landmarks to be visible above threshold
-      return landmarks.every(lm => (lm?.visibility ?? 1) > threshold);
-    }
-    // Get required indices for current exercise
-    let requiredIndices = [];
-    if (selectedExerciseRef.current?.landmarks) {
-      let primaryNames = [];
-      if (selectedExerciseRef.current.isTwoSided) {
-        const leftPrimary = selectedExerciseRef.current.landmarks.left?.primary || [];
-        const rightPrimary = selectedExerciseRef.current.landmarks.right?.primary || [];
-        primaryNames = [...leftPrimary, ...rightPrimary];
-      } else {
-        primaryNames = selectedExerciseRef.current.landmarks.primary || [];
-      }
-      requiredIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-    }
-    return requiredIndices.length > 0 && requiredIndices.every(idx => (landmarks[idx]?.visibility ?? 1) > threshold);
-  }
-
-  function checkSecondaryLandmarksVisible(landmarks, threshold) {
-    if (!landmarks) return false;
-    let secondaryIndices = [];
-    if (selectedExerciseRef.current?.landmarks) {
-      let secondaryNames = [];
-      if (selectedExerciseRef.current.isTwoSided) {
-        const leftSecondary = selectedExerciseRef.current.landmarks.left?.secondary || [];
-        const rightSecondary = selectedExerciseRef.current.landmarks.right?.secondary || [];
-        secondaryNames = [...leftSecondary, ...rightSecondary];
-      } else {
-        secondaryNames = selectedExerciseRef.current.landmarks.secondary || [];
-      }
-      secondaryIndices = secondaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-    }
-    // If there are no secondary, treat as true
-    if (secondaryIndices.length === 0) return true;
-    return secondaryIndices.every(idx => (landmarks[idx]?.visibility ?? 1) > threshold);
-  }
-
-  function getAngle(landmarks, points, side) {
-    if (!landmarks) return null;
-    let indices = points.map(name => {
-      let sideName = `${side}_${name}`;
-      if (LANDMARK_MAP[sideName] !== undefined) return LANDMARK_MAP[sideName];
-      // fallback to just the name
-      return LANDMARK_MAP[name];
-    });
-    if (indices.some(idx => idx === undefined)) return null;
-    const [a, b, c] = indices.map(idx => landmarks[idx]);
-    if (!a || !b || !c) return null;
-    return calculateAngle(a, b, c);
-  }
-
-  function inReadyPoseSide(landmarks, exercise, side) {
-    if (!landmarks || !exercise?.startPosition?.requiredAngles) return false;
-    // Only check angles for this side
-    return exercise.startPosition.requiredAngles.filter(a => a.side === side).every(angleReq => {
-      let points = angleReq.points.map(pt => `${side}_${pt}`);
-      let indices = points.map(name => LANDMARK_MAP[name]).filter(idx => idx !== undefined);
-      if (indices.length !== 3) return false;
-      const [a, b, c] = indices.map(idx => landmarks[idx]);
-      if (!a || !b || !c) return false;
-      const angle = calculateAngle(a, b, c);
-      return Math.abs(angle - angleReq.targetAngle) <= angleReq.tolerance;
-    });
-  }
-
-  function repStartedSide(landmarks, exercise, side) {
-    if (!landmarks || !exercise?.logicConfig?.anglesToTrack) return false;
-    // Only check angles for this side
-    return exercise.logicConfig.anglesToTrack.some(angleConfig => {
-      let points = angleConfig.points.map(pt => `${side}_${pt}`);
-      let indices = points.map(name => LANDMARK_MAP[name]).filter(idx => idx !== undefined);
-      if (indices.length !== 3) return false;
-      const [a, b, c] = indices.map(idx => landmarks[idx]);
-      if (!a || !b || !c) return false;
-      const angle = calculateAngle(a, b, c);
-      return angle < angleConfig.maxThreshold;
-    });
-  }
-
-  function repCompletedSide(landmarks, exercise, side) {
-    if (!landmarks || !exercise?.logicConfig?.anglesToTrack) return false;
-    // Only check angles for this side
-    return exercise.logicConfig.anglesToTrack.some(angleConfig => {
-      let points = angleConfig.points.map(pt => `${side}_${pt}`);
-      let indices = points.map(name => LANDMARK_MAP[name]).filter(idx => idx !== undefined);
-      if (indices.length !== 3) return false;
-      const [a, b, c] = indices.map(idx => landmarks[idx]);
-      if (!a || !b || !c) return false;
-      const angle = calculateAngle(a, b, c);
-      return angle > angleConfig.maxThreshold;
-    });
-  }
-
   // Add a ref to store the previous state for the rep engine
   const repEnginePrevStateRef = useRef(null);
   const [repEngineState, setRepEngineState] = useState(null);
-
-  function updateTrackingState(landmarks, exercise, strictLandmarkVisibilityArg, visibilityThresholdArg) {
-    const requiredVisible = checkRequiredLandmarksVisible(landmarks, visibilityThresholdArg, strictLandmarkVisibilityArg);
-    const secondaryVisible = checkSecondaryLandmarksVisible(landmarks, visibilityThresholdArg);
-    if (showDebug) {
-      console.log('[DEBUG] updateTrackingState: requiredVisible =', requiredVisible, 'secondaryVisible =', secondaryVisible, 'strictLandmarkVisibility =', strictLandmarkVisibilityArg, 'visibilityThreshold =', visibilityThresholdArg);
-    }
-    const now = Date.now();
-    let isTwoSided = exercise?.isTwoSided;
-    let sides = isTwoSided ? ['left', 'right'] : ['left'];
-
-    // Per-side ready pose and rep logic
-    let newSideStatus = { ...sideStatus };
-    let repCompletedSides = [];
-    let allReady = true;
-    let anyReady = false;
-    let anyActive = false;
-
-    for (const side of sides) {
-      // Ready pose hold logic (per side)
-      if (inReadyPoseSide(landmarks, exercise, side)) {
-        if (!readyPoseHoldStartRef.current[side]) readyPoseHoldStartRef.current[side] = now;
-        const readyPositionHoldTime = (exercise?.startPosition?.readyPositionHoldTime || 0) * 1000;
-        if (now - readyPoseHoldStartRef.current[side] >= readyPositionHoldTime) {
-          newSideStatus[side].inReadyPose = true;
-          wasInReadyPoseRef.current[side] = true; // Mark that this side has been in ready pose
-        } else {
-          newSideStatus[side].inReadyPose = false;
-        }
-      } else {
-        readyPoseHoldStartRef.current[side] = null;
-        newSideStatus[side].inReadyPose = false;
-      }
-
-      // Rep start logic (track if user leaves ready pose and starts movement)
-      if (!newSideStatus[side].inReadyPose && repStartedSide(landmarks, exercise, side)) {
-        repInProgressRef.current[side] = true;
-      }
-
-      // Rep complete logic (only count if was in ready pose before this rep cycle)
-      if (
-        repInProgressRef.current[side] &&
-        repCompletedSide(landmarks, exercise, side) &&
-        wasInReadyPoseRef.current[side]
-      ) {
-        repCompletedSides.push(side);
-        repInProgressRef.current[side] = false;
-        wasInReadyPoseRef.current[side] = false; // Reset for next cycle
-      }
-
-      if (newSideStatus[side].inReadyPose) anyReady = true;
-      else anyActive = true;
-      allReady = allReady && newSideStatus[side].inReadyPose;
-    }
-
-    setSideStatus(newSideStatus);
-
-    // --- GLOBAL READY POSE HOLD LOGIC ---
-    let nextTrackingState = trackingStateRef.current;
-    const readyPositionHoldTime = (exercise?.startPosition?.readyPositionHoldTime || 0) * 1000;
-
-    // Visibility grace period logic
-    if (!requiredVisible || !secondaryVisible) {
-      if (!lostVisibilityTimestampRef.current) {
-        lostVisibilityTimestampRef.current = now;
-      }
-      if (now - lostVisibilityTimestampRef.current >= VISIBILITY_GRACE_PERIOD_MS) {
-        nextTrackingState = TRACKING_STATES.PAUSED;
-      } else {
-        // Remain in previous state during grace period
-        nextTrackingState = trackingStateRef.current;
-      }
-      // Reset global ready pose hold timer
-      readyPoseGlobalHoldStartRef.current = null;
-    } else {
-      // Visibility restored, reset lost visibility timer
-      lostVisibilityTimestampRef.current = null;
-      if (allReady) {
-        if (!readyPoseGlobalHoldStartRef.current) readyPoseGlobalHoldStartRef.current = now;
-        if (now - readyPoseGlobalHoldStartRef.current >= readyPositionHoldTime) {
-          nextTrackingState = TRACKING_STATES.READY;
-        } else {
-          // Not enough hold time yet, stay in previous state
-          nextTrackingState = trackingStateRef.current;
-        }
-      } else if (anyActive) {
-        nextTrackingState = TRACKING_STATES.ACTIVE;
-      } else if (!anyReady && repCompletedSides.length > 0) {
-        nextTrackingState = TRACKING_STATES.PAUSED;
-      }
-    }
-
-    // Update previous state ref
-    prevTrackingStateRef.current = trackingStateRef.current;
-    // Now update the global state
-    if (showDebug) {
-      console.log('[DEBUG] updateTrackingState: nextTrackingState =', nextTrackingState);
-    }
-    setTrackingStateBoth(nextTrackingState);
-  }
 
   const processResults = (results) => {
     if (showDebug) {
@@ -557,57 +224,60 @@ const WorkoutTracker = ({
         const config = selectedExerciseRef.current.logicConfig.anglesToTrack[0];
         leftAngle = getAngle(landmarks, config.points, 'left');
       }
-      // Compute required landmark visibility for this frame (primary)
-      let requiredVisibility = 1;
-      let secondaryVisibility = 1;
-      if (selectedExerciseRef.current?.landmarks) {
-        let requiredIndices = [];
-        let primaryNames = [];
-        let secondaryIndices = [];
-        let secondaryNames = [];
-        if (selectedExerciseRef.current.isTwoSided) {
-          const leftPrimary = selectedExerciseRef.current.landmarks.left?.primary || [];
-          const rightPrimary = selectedExerciseRef.current.landmarks.right?.primary || [];
-          primaryNames = [...leftPrimary, ...rightPrimary];
-          const leftSecondary = selectedExerciseRef.current.landmarks.left?.secondary || [];
-          const rightSecondary = selectedExerciseRef.current.landmarks.right?.secondary || [];
-          secondaryNames = [...leftSecondary, ...rightSecondary];
-        } else {
-          primaryNames = selectedExerciseRef.current.landmarks.primary || [];
-          secondaryNames = selectedExerciseRef.current.landmarks.secondary || [];
-        }
-        requiredIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-        secondaryIndices = secondaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-        if (requiredIndices.length > 0) {
-          requiredVisibility = Math.min(...requiredIndices.map(idx => (landmarks[idx]?.visibility ?? 1)));
-        }
-        if (secondaryIndices.length > 0) {
-          secondaryVisibility = Math.min(...secondaryIndices.map(idx => (landmarks[idx]?.visibility ?? 1)));
-        }
-      }
+      
+      // Get landmark visibility scores
+      const { requiredVisibility, secondaryVisibility } = getLandmarkVisibilityScores(
+        landmarks,
+        selectedExerciseRef.current,
+        LANDMARK_MAP
+      );
+      
       // --- State Tracking Logic ---
-      updateTrackingState(landmarks, selectedExerciseRef.current, strictLandmarkVisibilityRef.current, visibilityThresholdRef.current);
+      const trackingResult = updateTrackingState(
+        landmarks,
+        selectedExerciseRef.current,
+        strictLandmarkVisibilityRef.current,
+        visibilityThresholdRef.current,
+        trackingStateRef,
+        sideStatus,
+        readyPoseHoldStartRef.current,
+        readyPoseGlobalHoldStartRef,
+        repInProgressRef.current,
+        wasInReadyPoseRef.current,
+        lostVisibilityTimestampRef,
+        prevTrackingStateRef
+      );
+      
+      // Update tracking state from the result
+      setTrackingStateBoth(trackingResult.nextTrackingState);
+      setSideStatus(trackingResult.newSideStatus);
+      
       // Only add to buffer and count reps if trackingState is not PAUSED
       if (
         (leftAngle !== null || rightAngle !== null) &&
         trackingStateRef.current !== TRACKING_STATES.PAUSED
       ) {
-        const now = Date.now();
-        const newEntry = { timestamp: now, leftAngle, rightAngle, requiredVisibility, secondaryVisibility, trackingState: trackingStateRef.current };
-        // Keep REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS worth of data
-        const maxAge = (REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS) * 1000;
-        repHistoryRef.current = [
-          ...repHistoryRef.current.filter(d => now - d.timestamp <= maxAge),
-          newEntry
-        ];
+        // Update rep history buffer
+        repHistoryRef.current = updateRepHistoryBuffer(
+          repHistoryRef.current, 
+          leftAngle, 
+          rightAngle, 
+          requiredVisibility, 
+          secondaryVisibility, 
+          trackingStateRef.current
+        );
         setRepHistory(repHistoryRef.current);
+        
         // --- Rep Engine Integration ---
         // Use smoothed or raw data for rep counting
-        let repEngineInputHistory = useSmoothedRepCountingRef.current ? smoothRepHistoryEMA(repHistoryRef.current, smoothingFactor) : repHistoryRef.current;
-        // Use the most recent entry for landmarks, but run rep logic over the smoothed/latest data
+        let repEngineInputHistory = useSmoothedRepCountingRef.current 
+          ? smoothRepHistoryEMA(repHistoryRef.current, smoothingFactor) 
+          : repHistoryRef.current;
+        
         // We'll simulate the rep logic as if it was running frame-by-frame on the chosen data
         let lastRepState = repEnginePrevStateRef.current;
         let finalRepState = null;
+        
         for (const entry of repEngineInputHistory) {
           // Patch debounce duration into config for this run
           const patchedConfig = {
@@ -617,15 +287,19 @@ const WorkoutTracker = ({
               repDebounceDuration: repDebounceDurationRef.current,
             },
           };
+          
           finalRepState = runRepStateEngine(
             landmarks, // still pass current landmarks for utility functions
             patchedConfig,
             lastRepState
           );
+          
           lastRepState = finalRepState;
         }
+        
         repEnginePrevStateRef.current = finalRepState;
         setRepEngineState(finalRepState);
+        
         // Update rep count from repState
         if (finalRepState && finalRepState.angleLogic) {
           setRepCount({
@@ -638,9 +312,11 @@ const WorkoutTracker = ({
       // Extract landmark indices to highlight from the selected exercise's landmarks config
       let highlightedIndices = [];
       let secondaryIndices = [];
+      
       if (selectedExerciseRef.current?.landmarks) {
         let primaryNames = [];
         let secondaryNames = [];
+        
         if (selectedExerciseRef.current.isTwoSided) {
           // Two-sided structure
           const leftPrimary = selectedExerciseRef.current.landmarks.left?.primary || [];
@@ -654,15 +330,16 @@ const WorkoutTracker = ({
           primaryNames = selectedExerciseRef.current.landmarks.primary || [];
           secondaryNames = selectedExerciseRef.current.landmarks.secondary || [];
         }
+        
         highlightedIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
         secondaryIndices = secondaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
       }
-      drawLandmarks(landmarks, highlightedIndices, secondaryIndices);
+      
+      renderLandmarks(landmarks, highlightedIndices, secondaryIndices);
     }
   };
 
   const renderLoop = () => {
-    // debugLog('Render loop running...'); // Comment out for less noise
     const video = videoRef.current;
 
     if (!video) {
@@ -679,10 +356,8 @@ const WorkoutTracker = ({
       video.currentTime !== lastVideoTimeRef.current
     ) {
       try {
-        // debugLog('Calling detectForVideo...'); // Comment out for less noise
         const timestamp = performance.now();
         const poseLandmarkerResult = poseLandmarkerRef.current.detectForVideo(video, timestamp);
-        // debugLog('detectForVideo result: ' + JSON.stringify(poseLandmarkerResult)); // Comment out for less noise
 
         // Process results internally (drawing, rep counting) AND pass them up
         processResults(poseLandmarkerResult);
@@ -695,7 +370,6 @@ const WorkoutTracker = ({
         if (error?.stack) {
           debugLog('Stack trace: ' + error.stack);
         }
-        // Consider adding logic to potentially pause or stop the loop if errors persist
       }
     }
     requestAnimationFrame(renderLoop);
@@ -708,94 +382,21 @@ const WorkoutTracker = ({
 
     try {
       setIsLoading(true);
-      // Polyfill for getUserMedia (for iOS/Safari/legacy support)
-      const getUserMediaCompat = (constraints) => {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          return navigator.mediaDevices.getUserMedia(constraints);
-        }
-        const getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-        if (getUserMedia) {
-          // Promisify the legacy getUserMedia
-          return new Promise((resolve, reject) => {
-            getUserMedia.call(navigator, constraints, resolve, reject);
-          });
-        }
-        return Promise.reject(new Error('getUserMedia is not supported in this browser.'));
-      };
-
+      
       // Access webcam
-      const stream = await getUserMediaCompat({ video: true });
+      const stream = await setupCamera();
       video.srcObject = stream;
       debugLog('Webcam access successful');
 
       // Wait for video metadata to be loaded
-      await new Promise((resolve) => {
-        if (video.readyState >= 2) {
-          resolve();
-        } else {
-          video.addEventListener('loadedmetadata', resolve, { once: true });
-        }
-      });
+      await waitForVideoReady(video);
 
       // Adjust canvas size to match video dimensions
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
       // Initialize MediaPipe
-      debugLog('Setting up MediaPipe...');
-      debugLog(`Using WASM path: ${config.mediapipe.wasmPath}`);
-      const vision = await FilesetResolver.forVisionTasks(
-        config.mediapipe.wasmPath
-      );
-
-      // Check if vision was successfully created
-      if (!vision) {
-        throw new Error('Failed to initialize FilesetResolver');
-      }
-
-      debugLog('FilesetResolver initialized successfully');
-
-      // First try with GPU
-      try {
-        debugLog('Attempting to initialize with GPU delegate...');
-        poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: config.mediapipe.modelPath,
-            delegate: 'GPU'
-          },
-          runningMode: 'VIDEO',
-          numPoses: config.pose.numPoses,
-          minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
-          minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
-          minTrackingConfidence: config.pose.minTrackingConfidence,
-          outputSegmentationMasks: false
-        });
-        debugLog('Successfully initialized with GPU delegate');
-      } catch (gpuError) {
-        // If GPU fails, try with CPU
-        debugLog('GPU initialization failed: ' + gpuError.message);
-        debugLog('Falling back to CPU delegate...');
-
-        poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: config.mediapipe.modelPath,
-            delegate: 'CPU'
-          },
-          runningMode: 'VIDEO',
-          numPoses: config.pose.numPoses,
-          minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
-          minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
-          minTrackingConfidence: config.pose.minTrackingConfidence,
-          outputSegmentationMasks: false
-        });
-        debugLog('Successfully initialized with CPU delegate');
-      }
-
-      if (!poseLandmarkerRef.current) {
-        throw new Error('Failed to initialize PoseLandmarker');
-      }
-
-      debugLog('MediaPipe setup complete!');
+      poseLandmarkerRef.current = await initializePoseLandmarker(config, debugLog);
       debugLog(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
 
       // Start the render loop
@@ -818,11 +419,7 @@ const WorkoutTracker = ({
           .catch(error => console.error('Error ending workout session:', error));
       }
       
-      const video = videoRef.current;
-      if (video && video.srcObject) {
-        const tracks = video.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
-      }
+      cleanupVideoStream(videoRef.current);
     };
   }, [isSessionActive, currentSessionId]);
 
@@ -907,28 +504,26 @@ const WorkoutTracker = ({
     }
     // When strictLandmarkVisibility or visibilityThreshold changes, re-check state logic
     if (latestLandmarksRef.current) {
-      updateTrackingState(latestLandmarksRef.current, selectedExerciseRef.current, strictLandmarkVisibility, visibilityThreshold);
+      const trackingResult = updateTrackingState(
+        latestLandmarksRef.current,
+        selectedExerciseRef.current,
+        strictLandmarkVisibility,
+        visibilityThreshold,
+        trackingStateRef,
+        sideStatus,
+        readyPoseHoldStartRef.current,
+        readyPoseGlobalHoldStartRef,
+        repInProgressRef.current,
+        wasInReadyPoseRef.current,
+        lostVisibilityTimestampRef,
+        prevTrackingStateRef
+      );
+      
+      setTrackingStateBoth(trackingResult.nextTrackingState);
+      setSideStatus(trackingResult.newSideStatus);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strictLandmarkVisibility, visibilityThreshold]);
-
-  // Tracking state indicator styles
-  const getStateStyle = (state) => {
-    const baseStyle = { ...glassStyle };
-    
-    switch (state) {
-      case TRACKING_STATES.IDLE:
-        return { ...baseStyle, borderLeft: '4px solid #3a8ad3' }; // Blue for idle
-      case TRACKING_STATES.ACTIVE:
-        return { ...baseStyle, borderLeft: '4px solid #2ecc40' }; // Green for active
-      case TRACKING_STATES.PAUSED:
-        return { ...baseStyle, borderLeft: '4px solid #e74c3c' }; // Red for paused
-      case TRACKING_STATES.READY:
-        return { ...baseStyle, borderLeft: '4px solid #f1c40f' }; // Yellow for ready, keeping white text
-      default:
-        return baseStyle;
-    }
-  };
 
   return (
     <div className="workout-tracker-container">
@@ -975,7 +570,7 @@ const WorkoutTracker = ({
           gap: 'var(--mantine-spacing-md)'
         }}>
           {/* State Indicator */}
-          <div className="ui-text-preset ui-box-preset" style={getStateStyle(trackingState)}>
+          <div className="ui-text-preset ui-box-preset" style={getTrackingStateStyle(trackingState, glassStyle)}>
             <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
               <span>State: {trackingState}</span>
             </div>
