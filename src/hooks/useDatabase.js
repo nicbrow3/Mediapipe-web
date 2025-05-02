@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { getAllWorkoutSessions, getSetsForSession } from '../services/db';
+import { 
+  getAllWorkoutSessions, 
+  getSetsForSession, 
+  deleteWorkoutSession,
+  clearAllData as clearDatabaseData
+} from '../services/db';
 
 /**
  * Hook to manage database data fetching for workout sessions and their sets
@@ -20,20 +25,71 @@ const useDatabase = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       // Get all workout sessions
       const fetchedSessions = await getAllWorkoutSessions();
       setSessions(fetchedSessions);
 
-      // Fetch sets for each session
-      const setsMap = {};
-      for (const session of fetchedSessions) {
-        const sets = await getSetsForSession(session.id);
-        setsMap[session.id] = sets;
+      // Optimized approach: Fetch sets for all sessions in parallel
+      if (fetchedSessions.length > 0) {
+        const promises = fetchedSessions.map(session => 
+          getSetsForSession(session.id).then(sets => ({ sessionId: session.id, sets }))
+        );
+        
+        const results = await Promise.all(promises);
+        
+        // Convert array of results to a map
+        const setsMap = results.reduce((map, { sessionId, sets }) => {
+          map[sessionId] = sets;
+          return map;
+        }, {});
+        
+        setSessionSets(setsMap);
+      } else {
+        setSessionSets({});
       }
-      setSessionSets(setsMap);
+      
       setLoading(false);
     } catch (err) {
       console.error('Error fetching database data:', err);
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+  
+  // Delete a specific workout session and its sets
+  const deleteSession = async (sessionId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      await deleteWorkoutSession(sessionId);
+      // Refresh the data after deletion
+      await fetchData();
+    } catch (err) {
+      console.error('Error deleting session:', err);
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+  
+  // Clear all database data
+  const clearAllData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Find any active session (session without an endTime)
+      const activeSession = sessions.find(session => session.endTime === null);
+      const activeSessionId = activeSession ? activeSession.id : null;
+      
+      // Pass the active session ID to preserve it
+      await clearDatabaseData(activeSessionId);
+      
+      // Refresh the data after deletion
+      await fetchData();
+    } catch (err) {
+      console.error('Error clearing database:', err);
       setError(err.message);
       setLoading(false);
     }
@@ -61,6 +117,8 @@ const useDatabase = () => {
     loading,
     error,
     refreshData: fetchData,
+    deleteSession,
+    clearAllData,
     formatDate,
     formatDuration
   };

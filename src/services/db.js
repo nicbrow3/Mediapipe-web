@@ -161,4 +161,71 @@ export const getSetsForSession = async (sessionId) => {
     console.error(`Failed to get sets for session ${sessionId}:`, error);
     throw error; // Re-throw
   }
+};
+
+/**
+ * Deletes a specific workout session and all its related exercise sets.
+ * @param {number} sessionId The ID of the workout session to delete.
+ * @returns {Promise<void>}
+ */
+export const deleteWorkoutSession = async (sessionId) => {
+  if (!sessionId) {
+    console.error("deleteWorkoutSession called without a valid sessionId.");
+    throw new Error("Invalid session ID provided");
+  }
+  
+  try {
+    // Use transaction to ensure both operations succeed or fail together
+    await db.transaction('rw', [db.workoutSessions, db.exerciseSets], async () => {
+      // First delete all related exercise sets
+      await db.exerciseSets.where('sessionId').equals(sessionId).delete();
+      
+      // Then delete the session itself
+      await db.workoutSessions.delete(sessionId);
+    });
+    
+    console.log(`Successfully deleted workout session ${sessionId} and its related sets.`);
+  } catch (error) {
+    console.error(`Failed to delete workout session ${sessionId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Clears all data from the database (both sessions and exercise sets),
+ * optionally preserving an active session.
+ * @param {number} [activeSessionId] The ID of the active session to preserve (if any)
+ * @returns {Promise<void>}
+ */
+export const clearAllData = async (activeSessionId = null) => {
+  try {
+    // Use transaction to ensure all operations succeed or fail together
+    await db.transaction('rw', [db.workoutSessions, db.exerciseSets], async () => {
+      if (activeSessionId) {
+        // Preserve the active session by deleting all other sessions
+        
+        // 1. Delete all exercise sets except those for the active session
+        await db.exerciseSets
+          .where('sessionId')
+          .notEqual(activeSessionId)
+          .delete();
+          
+        // 2. Delete all sessions except the active one
+        await db.workoutSessions
+          .where('id')
+          .notEqual(activeSessionId)
+          .delete();
+          
+        console.log(`Cleared all database data except active session ${activeSessionId}`);
+      } else {
+        // Delete everything if no active session
+        await db.exerciseSets.clear();
+        await db.workoutSessions.clear();
+        console.log('Successfully cleared all database data.');
+      }
+    });
+  } catch (error) {
+    console.error('Failed to clear database data:', error);
+    throw error;
+  }
 }; 
