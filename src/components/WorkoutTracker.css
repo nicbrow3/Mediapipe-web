@@ -43,12 +43,9 @@ video, canvas {
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-color-2, #3a8ad3) 80%, var(--accent-color-3, #cf912e) 100%);
-  opacity: 0.25;
-  border-radius: var(--mantine-radius-md);
-  pointer-events: none;
-  transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
-  z-index: 1;
+  background: rgba(106, 85, 190, 0.25);
+  transition: width 0.3s ease;
+  z-index: -1;
 }
 .rep-progress-outline.left {
   border-top-left-radius: var(--mantine-radius-md);
@@ -141,6 +138,7 @@ video, canvas {
   max-width: 1800px; /* Optional: limit max width */
   margin: 0 auto;
   padding: 0 var(--mantine-spacing-xl); /* Add horizontal padding */
+  padding-top: var(--mantine-spacing-md); /* Reduced top padding */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -375,14 +373,31 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
 
 /* --- Rep Counter & Progress Styles --- */
 .rep-counter-box {
-  min-width: 120px;
-  margin: 0;
-  box-sizing: border-box;
-  /* Inherit from ui-box-preset, but can add more if needed */
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+/* New styles for rep flow animation */
+.rep-flow span {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.rep-flow span:not(:last-child) {
+  padding: 0 2px;
+}
+
+/* Pulse animation for the rep flow */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.rep-flow .pulse {
+  animation: pulse 1.5s infinite ease-in-out;
+  font-weight: bold;
 }
 
 /* Workout Summary Styles */
@@ -442,4 +457,84 @@ but it was an attempt get rid of the "focus" outline on the exercise selector */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Fullscreen mode styles */
+.workout-tracker-container:fullscreen {
+  background-color: var(--background-color);
+  padding: var(--mantine-spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.workout-tracker-container:fullscreen .video-canvas-container {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: auto; /* Override aspect ratio in fullscreen */
+  height: 100%;
+  max-height: calc(100% - 40px); /* Leave some space for debug window if needed */
+}
+
+/* Safari/Chrome specific syntax */
+.workout-tracker-container:-webkit-full-screen {
+  background-color: var(--background-color);
+  padding: var(--mantine-spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.workout-tracker-container:-webkit-full-screen .video-canvas-container {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: auto;
+  height: 100%;
+  max-height: calc(100% - 40px);
+}
+
+/* Firefox specific syntax */
+.workout-tracker-container:-moz-full-screen {
+  background-color: var(--background-color);
+  padding: var(--mantine-spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.workout-tracker-container:-moz-full-screen .video-canvas-container {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: auto;
+  height: 100%;
+  max-height: calc(100% - 40px);
+}
+
+/* IE specific syntax */
+.workout-tracker-container:-ms-fullscreen {
+  background-color: var(--background-color);
+  padding: var(--mantine-spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.workout-tracker-container:-ms-fullscreen .video-canvas-container {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: auto;
+  height: 100%;
+  max-height: calc(100% - 40px);
 } 

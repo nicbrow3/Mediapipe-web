@@ -6,6 +6,7 @@ export const jumpingJacks = {
   id: 'jumping-jacks',
   name: 'Jumping Jacks',
   isTwoSided: false,
+  hasWeight: false,
 
   requireAllLandmarksVisible: false,
 

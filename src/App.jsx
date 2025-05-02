@@ -6,7 +6,7 @@ import DatabaseViewer from './components/DatabaseViewer'; // Import DatabaseView
 import * as exercises from './exercises'; // Import all exercises
 import './App.css'; // Add styles for layout and toggle button
 import { MantineProvider, Drawer, ActionIcon, Tooltip } from '@mantine/core';
-import { IconSettings, IconX, IconDatabase } from '@tabler/icons-react'; // Icons for settings button and close, and database icon
+import { IconSettings, IconX, IconDatabase, IconEye } from '@tabler/icons-react'; // Icons for settings button and close, and database icon
 import '@mantine/core/styles.css';
 import { startNewWorkoutSession, endWorkoutSession } from './services/db'; // Import db functions
 
@@ -73,6 +73,7 @@ function App() {
   const [showDebug, setShowDebug] = useState(() => loadSettings().showDebug);
   const [repDebounceDuration, setRepDebounceDuration] = useState(() => loadSettings().repDebounceDuration ?? 200);
   const [useSmoothedRepCounting, setUseSmoothedRepCounting] = useState(() => loadSettings().useSmoothedRepCounting ?? true);
+  const [showRepFlowDiagram, setShowRepFlowDiagram] = useState(() => loadSettings().showRepFlowDiagram ?? true);
 
   // Save settings whenever they change
   useEffect(() => {
@@ -83,9 +84,10 @@ function App() {
       showDebug,
       repDebounceDuration,
       useSmoothedRepCounting,
+      showRepFlowDiagram,
     };
     saveSettings(settings);
-  }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, useSmoothedRepCounting]);
+  }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, useSmoothedRepCounting, showRepFlowDiagram]);
   // --- End Lifted Settings State ---
 
   // --- NEW: Workout Session Handlers ---
@@ -209,6 +211,7 @@ function App() {
             setShowDebug(false);
             setRepDebounceDuration(200);
             setUseSmoothedRepCounting(true);
+            setShowRepFlowDiagram(true);
             // Save immediately
             saveSettings({
               strictLandmarkVisibility: true,
@@ -217,12 +220,15 @@ function App() {
               showDebug: false,
               repDebounceDuration: 200,
               useSmoothedRepCounting: true,
+              showRepFlowDiagram: true,
             });
           }}
           repDebounceDuration={repDebounceDuration}
           setRepDebounceDuration={setRepDebounceDuration}
           useSmoothedRepCounting={useSmoothedRepCounting}
           setUseSmoothedRepCounting={setUseSmoothedRepCounting}
+          showRepFlowDiagram={showRepFlowDiagram}
+          setShowRepFlowDiagram={setShowRepFlowDiagram}
         />
       </Drawer>
 
@@ -270,19 +276,34 @@ function App() {
           </ActionIcon>
         </Tooltip>
 
-        {/* Database Button - Bottom Left */}
-        <Tooltip label="View Database Contents" position="right" withArrow>
-          <ActionIcon
-            variant="filled"
-            color="teal.7"
-            size="lg"
-            radius="xl"
-            onClick={() => setShowDatabaseViewer(true)}
-            style={{ position: 'fixed', bottom: '20px', left: '20px', zIndex: 1001 }}
-          >
-            <IconDatabase size={20} />
-          </ActionIcon>
-        </Tooltip>
+        {/* Top Right Vertical Button Group */}
+        <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1001, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Sidebar Toggle (Visibility) Button */}
+          <Tooltip label={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"} position="left" withArrow>
+            <ActionIcon
+              variant="filled"
+              color="grape.6"
+              size="lg"
+              radius="xl"
+              onClick={toggleSidebar}
+            >
+              <IconEye size={20} />
+            </ActionIcon>
+          </Tooltip>
+
+          {/* Database Button */}
+          <Tooltip label="View Database Contents" position="left" withArrow>
+            <ActionIcon
+              variant="filled"
+              color="teal.7"
+              size="lg"
+              radius="xl"
+              onClick={() => setShowDatabaseViewer(true)}
+            >
+              <IconDatabase size={20} />
+            </ActionIcon>
+          </Tooltip>
+        </div>
 
         {/* <<< ADDED: End Workout Button - Top Right >>> */}
         {currentSessionId && (
@@ -293,20 +314,14 @@ function App() {
               size="lg"
               radius="xl"
               onClick={handleEndWorkout}
-              style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1001 }}
+              style={{ position: 'fixed', top: '20px', right: '80px', zIndex: 1001 }}
             >
               <IconX size={20} />
             </ActionIcon>
           </Tooltip>
         )}
 
-        <button className="sidebar-toggle-btn" onClick={toggleSidebar}>
-          {/* Simple toggle icon, adjust as needed */}
-          {isSidebarOpen ? '>' : '<'}
-        </button>
-
         <div className="main-content">
-          <h1>React Workout Tracker</h1>
           <WorkoutTracker
             onPoseResultUpdate={handlePoseResultUpdate}
             availableExercises={availableExercises.current} // Pass down list
@@ -320,6 +335,7 @@ function App() {
             showDebug={showDebug}
             repDebounceDuration={repDebounceDuration}
             useSmoothedRepCounting={useSmoothedRepCounting}
+            showRepFlowDiagram={showRepFlowDiagram}
             currentSessionId={currentSessionId} // Pass current ID (needed for addExerciseSet)
             onWorkoutStart={handleStartWorkout} // Pass the start handler
           />

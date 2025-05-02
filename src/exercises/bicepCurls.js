@@ -10,6 +10,7 @@ export const bicepCurls = {
     id: 'bicep-curls',
     name: 'Bicep Curls',
     isTwoSided: true,
+    hasWeight: true,
 
     // --- Visibility Strictness Option ---
     /**

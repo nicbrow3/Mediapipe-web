@@ -3,6 +3,7 @@ import { TRACKING_STATES, getAngle, updateTrackingState } from '../logic/trackin
 import { smoothRepHistoryEMA, updateRepHistoryBuffer, getLandmarkVisibilityScores } from '../logic/repHistoryProcessor';
 import { LANDMARK_MAP } from '../logic/landmarkUtils';
 import { runRepStateEngine } from '../logic/repStateEngine';
+import useStateBasedRepCounter from './useStateBasedRepCounter';
 
 /**
  * Custom hook for tracking poses and counting reps
@@ -49,6 +50,15 @@ function usePoseTracking({
   const repEnginePrevStateRef = useRef(null);
   const [repEngineState, setRepEngineState] = useState(null);
   
+  // Initialize the state-based rep counter
+  const { 
+    processPhase, 
+    resetRepCounts, 
+    getRepCounts
+  } = useStateBasedRepCounter({ 
+    debounceDuration: repDebounceDuration 
+  });
+  
   // Update refs when props change
   useEffect(() => {
     strictLandmarkVisibilityRef.current = strictLandmarkVisibility;
@@ -71,7 +81,9 @@ function usePoseTracking({
     // Clear rep history when exercise changes
     repHistoryRef.current = [];
     setRepHistory([]);
-  }, [selectedExercise]);
+    // Reset rep counters when exercise changes
+    resetRepCounts();
+  }, [selectedExercise, resetRepCounts]);
   
   // Update tracking state helper
   const setTrackingStateBoth = (newState) => {
@@ -192,12 +204,20 @@ function usePoseTracking({
       repEnginePrevStateRef.current = finalRepState;
       setRepEngineState(finalRepState);
       
-      // Update rep count from state
+      // Use state-based rep counting based on phases
       if (finalRepState && finalRepState.angleLogic) {
-        setRepCount({
-          left: finalRepState.angleLogic.left?.repCount || 0,
-          right: finalRepState.angleLogic.right?.repCount || 0,
-        });
+        // Process left side phase if it exists
+        if (finalRepState.angleLogic.left?.phase) {
+          processPhase('left', finalRepState.angleLogic.left.phase);
+        }
+        
+        // Process right side phase if it exists
+        if (finalRepState.angleLogic.right?.phase) {
+          processPhase('right', finalRepState.angleLogic.right.phase);
+        }
+        
+        // Get updated rep counts from the state-based counter
+        setRepCount(getRepCounts());
       }
     }
     

@@ -9,6 +9,7 @@ export const tricepKickbacks = {
     id: 'tricep-kickbacks',
     name: 'Tricep Kickbacks',
     isTwoSided: true,
+    hasWeight: true,
 
     // --- Landmark Requirements ---
     landmarks: {

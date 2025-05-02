@@ -18,6 +18,8 @@ const SettingsDrawer = ({
   setRepDebounceDuration,
   useSmoothedRepCounting,
   setUseSmoothedRepCounting,
+  showRepFlowDiagram,
+  setShowRepFlowDiagram,
 }) => {
   return (
     <Stack spacing="xl">
@@ -104,6 +106,18 @@ const SettingsDrawer = ({
           value={repDebounceDuration}
           onChange={setRepDebounceDuration}
           color="grape.6"
+        />
+        
+        {/* Show Rep Flow Diagram Toggle */}
+        <Switch
+          checked={showRepFlowDiagram}
+          onChange={() => setShowRepFlowDiagram(!showRepFlowDiagram)}
+          label="Show Rep Flow Diagram"
+          description="Display the sequence of movements needed to complete a rep."
+          size="md"
+          radius="xl"
+          color="grape.6"
+          mt="md"
         />
        </Box>
 

@@ -115,6 +115,22 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
           </Paper>
         </SimpleGrid>
         
+        <div className="info-section">
+          <h3>Rep Counting Method</h3>
+          <p>
+            Reps are counted using a state-based approach, tracking your movement through a complete sequence:
+            <span style={{ color: '#3498db' }}>Relaxed</span> → 
+            <span style={{ color: '#f39c12' }}>Concentric</span> → 
+            <span style={{ color: '#27ae60' }}>Peak</span> → 
+            <span style={{ color: '#9b59b6' }}>Eccentric</span> → 
+            <span style={{ color: '#3498db' }}>Relaxed</span>
+          </p>
+          <p>
+            A rep is only counted when you complete the full motion cycle and hold the peak position.
+            You can toggle the rep flow diagram visibility in Settings.
+          </p>
+        </div>
+        
         <Group justify="flex-end" mt="xl">
           <button 
             className="close-button"

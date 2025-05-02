@@ -10,6 +10,7 @@ export const leftShoulder = {
     id: 'left-shoulder',
     name: 'Left Shoulder test',
     isTwoSided: false,
+    hasWeight: true,
 
     // --- Landmark Requirements ---
     landmarks: {
@@ -40,7 +41,7 @@ export const leftShoulder = {
                 // Let's assume we want to track shoulder abduction for the rep
                 id: 'leftShoulderAbductionRep',
                 points: ['hip', 'shoulder', 'elbow'], // Angle of arm relative to body
-                minThreshold: 30,  // Arm slightly raised
+                minThreshold: 50,  // Arm slightly raised
                 maxThreshold: 90, // Arm parallel to ground (adjust as needed)
                 isRepCounter: true,
                 relaxedIsHigh: false
