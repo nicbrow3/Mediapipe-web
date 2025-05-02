@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import WorkoutTracker from './components/WorkoutTracker';
 import Sidebar from './components/Sidebar'; // Assuming Sidebar component exists
 import SettingsDrawer from './components/SettingsDrawer'; // New component for settings
-import DatabaseViewer from './components/DatabaseViewer'; // Import DatabaseViewer
+import DatabaseViewer from './components/DatabaseViewer.jsx'; // Import DatabaseViewer
 import * as exercises from './exercises'; // Import all exercises
 import './App.css'; // Add styles for layout and toggle button
 import { MantineProvider, Drawer, ActionIcon, Tooltip } from '@mantine/core';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AreaChart } from '@mantine/charts';
-import useRepHistoryData from '../hooks/useRepHistoryData';
+import useRepHistoryData from '../hooks/useRepHistoryData.js';
 
 /**
  * RepHistoryGraph component (Mantine version)

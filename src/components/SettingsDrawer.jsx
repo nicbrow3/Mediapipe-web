@@ -1,6 +1,6 @@
 import React from 'react';
 import { Switch, Slider, Button, Stack, Title, Box, Text } from '@mantine/core';
-import { glassStyle } from '/src/styles/uiStyles';
+import { glassStyle } from '../styles/uiStyles.js';
 
 const SettingsDrawer = ({
   colorScheme,
