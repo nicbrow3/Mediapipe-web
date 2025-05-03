@@ -129,13 +129,21 @@ export const addExerciseSet = async (setData) => {
 
 /**
  * Retrieves all workout sessions, sorted by start time (newest first).
+ * @param {number} [limit] Optional limit on the number of sessions to retrieve
  * @returns {Promise<Array<object>>} A list of workout session objects.
  */
-export const getAllWorkoutSessions = async () => {
+export const getAllWorkoutSessions = async (limit = null) => {
   try {
     // Get all sessions, ordered by startTime descending
-    const sessions = await db.workoutSessions.orderBy('startTime').reverse().toArray();
-    // console.log(`Retrieved ${sessions.length} workout sessions.`); // Debug log removed
+    let query = db.workoutSessions.orderBy('startTime').reverse();
+    
+    // Apply limit if provided
+    if (limit && typeof limit === 'number' && limit > 0) {
+      query = query.limit(limit);
+    }
+    
+    const sessions = await query.toArray();
+    console.log(`Retrieved ${sessions.length} workout sessions${limit ? ' (limited to ' + limit + ')' : ''}.`);
     return sessions;
   } catch (error) {
     console.error("Failed to get all workout sessions:", error);

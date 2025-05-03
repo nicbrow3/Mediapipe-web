@@ -16,11 +16,14 @@ const useDatabase = () => {
   const [sessionSets, setSessionSets] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Default session limit to reduce memory usage
+  const [sessionLimit, setSessionLimit] = useState(10);
+  const [totalSessionCount, setTotalSessionCount] = useState(0);
 
-  // Fetch all data on mount
+  // Fetch data on mount with the limit
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(sessionLimit);
+  }, [sessionLimit]);
 
   // Function to end any in-progress sessions
   const endInProgressSessions = async () => {
@@ -58,7 +61,7 @@ const useDatabase = () => {
       }
       
       // Refresh data after ending sessions
-      await fetchData();
+      await fetchData(sessionLimit);
     } catch (err) {
       console.error('Error ending in-progress sessions:', err);
       setError(err.message);
@@ -117,26 +120,35 @@ const useDatabase = () => {
       }
       
       // Refresh data after ending sessions
-      await fetchData();
+      await fetchData(sessionLimit);
     } catch (err) {
       console.error('Error ending stale workout sessions:', err);
       setError(err.message);
     }
   };
 
-  // Function to fetch all sessions and their sets
-  const fetchData = async () => {
+  // Function to fetch a specific number of sessions
+  const fetchData = async (limit = null) => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get all workout sessions
-      const fetchedSessions = await getAllWorkoutSessions();
+      // Get workout sessions with the provided limit
+      const fetchedSessions = await getAllWorkoutSessions(limit);
       setSessions(fetchedSessions);
+      
+      // Get a count of total sessions (for pagination UI if needed)
+      // This will make an extra DB call but is more efficient than loading all sessions
+      const allSessions = await getAllWorkoutSessions();
+      setTotalSessionCount(allSessions.length);
 
-      // Optimized approach: Fetch sets for all sessions in parallel
-      if (fetchedSessions.length > 0) {
-        const promises = fetchedSessions.map(session => 
+      // Don't eagerly load sets for all sessions - this improves memory usage
+      // Instead, we'll load sets on demand when sessions are opened (lazy loading)
+      // Only load sets for active sessions initially
+      const activeSessions = fetchedSessions.filter(session => session.endTime === null);
+      
+      if (activeSessions.length > 0) {
+        const promises = activeSessions.map(session => 
           getSetsForSession(session.id).then(sets => ({ sessionId: session.id, sets }))
         );
         
@@ -148,9 +160,11 @@ const useDatabase = () => {
           return map;
         }, {});
         
-        setSessionSets(setsMap);
-      } else {
-        setSessionSets({});
+        // Update state without losing existing loaded sets
+        setSessionSets(prev => ({
+          ...prev,
+          ...setsMap
+        }));
       }
       
       setLoading(false);
@@ -161,6 +175,30 @@ const useDatabase = () => {
     }
   };
   
+  // Function to load sets for a specific session on demand
+  const loadSetsForSession = async (sessionId) => {
+    // Don't reload if we already have sets for this session
+    if (sessionSets[sessionId]) {
+      return sessionSets[sessionId];
+    }
+    
+    try {
+      const sets = await getSetsForSession(sessionId);
+      
+      // Update the sessionSets state with the new data
+      setSessionSets(prev => ({
+        ...prev,
+        [sessionId]: sets
+      }));
+      
+      return sets;
+    } catch (err) {
+      console.error(`Error loading sets for session ${sessionId}:`, err);
+      setError(err.message);
+      return [];
+    }
+  };
+  
   // Delete a specific workout session and its sets
   const deleteSession = async (sessionId) => {
     try {
@@ -168,7 +206,7 @@ const useDatabase = () => {
       setError(null);
       await deleteWorkoutSession(sessionId);
       // Refresh the data after deletion
-      await fetchData();
+      await fetchData(sessionLimit);
     } catch (err) {
       console.error('Error deleting session:', err);
       setError(err.message);
@@ -190,12 +228,17 @@ const useDatabase = () => {
       await clearDatabaseData(activeSessionId);
       
       // Refresh the data after deletion
-      await fetchData();
+      await fetchData(sessionLimit);
     } catch (err) {
       console.error('Error clearing database:', err);
       setError(err.message);
       setLoading(false);
     }
+  };
+  
+  // Function to load more sessions when needed
+  const loadMoreSessions = () => {
+    setSessionLimit(prev => prev + 10);
   };
   
   // Helper function to format date
@@ -224,6 +267,11 @@ const useDatabase = () => {
     clearAllData,
     endInProgressSessions,
     endStaleWorkoutSessions,
+    loadMoreSessions,
+    loadSetsForSession,
+    sessionLimit,
+    totalSessionCount,
+    hasMoreSessions: totalSessionCount > sessions.length,
     formatDate,
     formatDuration
   };

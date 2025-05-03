@@ -17,7 +17,10 @@ const DatabaseViewer = () => {
     deleteSession,
     clearAllData,
     endInProgressSessions,
-    endStaleWorkoutSessions
+    endStaleWorkoutSessions,
+    loadMoreSessions,
+    loadSetsForSession,
+    totalSessionCount
   } = useDatabase();
   
   // State for confirmation modals
@@ -25,6 +28,9 @@ const DatabaseViewer = () => {
   const [deleteSessionModalOpen, setDeleteSessionModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // State for tracking which session accordions are open
+  const [openedSessions, setOpenedSessions] = useState([]);
 
   // State for multi-selection
   const [selectedSessions, setSelectedSessions] = useState([]);
@@ -45,6 +51,22 @@ const DatabaseViewer = () => {
       endStaleWorkoutSessions();
     }
   }, [loading, sessions, endStaleWorkoutSessions]);
+  
+  // Handle accordion change to load session data on demand
+  const handleAccordionChange = (value) => {
+    setOpenedSessions(value);
+    
+    // For each newly opened session, load its sets if not already loaded
+    if (Array.isArray(value)) {
+      value.forEach(sessionValue => {
+        // Extract the session ID from the value (format is "session-{id}")
+        const sessionId = parseInt(sessionValue.replace('session-', ''));
+        if (!isNaN(sessionId) && !sessionSets[sessionId]) {
+          loadSetsForSession(sessionId);
+        }
+      });
+    }
+  };
   
   // Create an exercise map for looking up names by ID
   const exerciseMap = Object.values(allExercises).reduce((map, exercise) => {
@@ -258,8 +280,12 @@ const DatabaseViewer = () => {
         </Center>
       )}
 
-      <Title order={3} mb="md">Workout Sessions ({sessions.length})</Title>
-      <Accordion>
+      <Title order={3} mb="md">Workout Sessions ({sessions.length} of {totalSessionCount})</Title>
+      <Accordion 
+        multiple 
+        value={openedSessions} 
+        onChange={handleAccordionChange}
+      >
         {sessions.map(session => (
           <Accordion.Item key={session.id} value={`session-${session.id}`}>
             <Group spacing="sm" style={{ width: '100%', flexWrap: 'nowrap' }}>
@@ -367,29 +393,37 @@ const DatabaseViewer = () => {
                 Exercise Sets ({sessionSets[session.id]?.length || 0})
               </Title>
               
-              {sessionSets[session.id]?.length > 0 ? (
-                <Table striped>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>ID</Table.Th>
-                      <Table.Th>Exercise</Table.Th>
-                      <Table.Th>Duration</Table.Th>
-                      <Table.Th>Reps</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {sessionSets[session.id].map(set => (
-                      <Table.Tr key={set.id}>
-                        <Table.Td>{set.id}</Table.Td>
-                        <Table.Td>{getExerciseName(set.exerciseId)}</Table.Td>
-                        <Table.Td>{getSetDuration(set)}</Table.Td>
-                        <Table.Td>{getDisplayReps(set)}</Table.Td>
+              {/* Display sets if loaded, otherwise show loading indicator */}
+              {sessionSets[session.id] ? (
+                sessionSets[session.id].length > 0 ? (
+                  <Table striped>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>ID</Table.Th>
+                        <Table.Th>Exercise</Table.Th>
+                        <Table.Th>Duration</Table.Th>
+                        <Table.Th>Reps</Table.Th>
                       </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {sessionSets[session.id].map(set => (
+                        <Table.Tr key={set.id}>
+                          <Table.Td>{set.id}</Table.Td>
+                          <Table.Td>{getExerciseName(set.exerciseId)}</Table.Td>
+                          <Table.Td>{getSetDuration(set)}</Table.Td>
+                          <Table.Td>{getDisplayReps(set)}</Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                ) : (
+                  <Text c="dimmed">No exercise sets found for this session</Text>
+                )
               ) : (
-                <Text c="dimmed">No exercise sets found for this session</Text>
+                <Center my="md">
+                  <Loader size="sm" />
+                  <Text ml="xs" c="dimmed">Loading sets...</Text>
+                </Center>
               )}
             </Accordion.Panel>
           </Accordion.Item>
@@ -398,6 +432,19 @@ const DatabaseViewer = () => {
 
       {sessions.length === 0 && (
         <Text>No workout sessions found in the database.</Text>
+      )}
+      
+      {/* Load More Button */}
+      {sessions.length > 0 && sessions.length < totalSessionCount && (
+        <Center mt="md">
+          <Button 
+            onClick={loadMoreSessions} 
+            loading={loading}
+            variant="light"
+          >
+            Load More Sessions ({sessions.length} of {totalSessionCount})
+          </Button>
+        </Center>
       )}
       
       {/* Delete All Confirmation Modal */}
