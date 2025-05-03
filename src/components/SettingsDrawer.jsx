@@ -1,5 +1,5 @@
 import React from 'react';
-import { Switch, Slider, Button, Stack, Title, Box, Text } from '@mantine/core';
+import { Switch, Slider, Button, Stack, Title, Box, Text, Tooltip } from '@mantine/core';
 import { glassStyle } from '../styles/uiStyles.js';
 
 const SettingsDrawer = ({
@@ -20,7 +20,29 @@ const SettingsDrawer = ({
   setUseSmoothedRepCounting,
   showRepFlowDiagram,
   setShowRepFlowDiagram,
+  visibilityThreshold,
+  setVisibilityThreshold,
 }) => {
+  // Tooltip content for rep flow diagram explanation
+  const repFlowTooltip = (
+    <div style={{ maxWidth: '300px', textAlign: 'left' }}>
+      <Text fw={500} mb="xs">Rep Counting Method</Text>
+      <Text size="sm" mb="xs">
+        Reps are counted using a state-based approach, tracking your movement through a complete sequence:
+      </Text>
+      <Text size="sm" mb="xs">
+        <span style={{ color: '#3498db' }}>Relaxed</span> → 
+        <span style={{ color: '#f39c12' }}> Concentric</span> → 
+        <span style={{ color: '#27ae60' }}> Peak</span> → 
+        <span style={{ color: '#9b59b6' }}> Eccentric</span> → 
+        <span style={{ color: '#3498db' }}> Relaxed</span>
+      </Text>
+      <Text size="sm">
+        A rep is only counted when you complete the full motion cycle and hold the peak position.
+      </Text>
+    </div>
+  );
+
   return (
     <Stack spacing="xl">
       {/* Light/Dark Mode Toggle */}
@@ -96,6 +118,24 @@ const SettingsDrawer = ({
           radius="xl"
           color="grape.6"
         />
+        
+        {/* Visibility Threshold Slider */}
+        <Text size="md" mt="md">Landmark Visibility Threshold: {(visibilityThreshold * 100).toFixed(0)}%</Text>
+        <Text size="sm" c="dimmed" mb="xs">
+          Adjust how visible a landmark needs to be before it's tracked. Lower values reduce pauses but may decrease accuracy.
+        </Text>
+        <Slider
+          id="visibilityThreshold"
+          min={0.3}
+          max={0.9}
+          step={0.05}
+          value={visibilityThreshold}
+          onChange={setVisibilityThreshold}
+          label={(value) => `${(value * 100).toFixed(0)}%`}
+          color="grape.6"
+          mb="md"
+        />
+        
         {/* Rep Debounce Duration Slider */}
         <Text size="sm" mt="md">Debounce Duration: {repDebounceDuration} ms</Text>
         <Slider
@@ -108,17 +148,27 @@ const SettingsDrawer = ({
           color="grape.6"
         />
         
-        {/* Show Rep Flow Diagram Toggle */}
-        <Switch
-          checked={showRepFlowDiagram}
-          onChange={() => setShowRepFlowDiagram(!showRepFlowDiagram)}
-          label="Show Rep Flow Diagram"
-          description="Display the sequence of movements needed to complete a rep."
-          size="md"
-          radius="xl"
-          color="grape.6"
-          mt="md"
-        />
+        {/* Show Rep Flow Diagram Toggle with Tooltip */}
+        <Tooltip 
+          label={repFlowTooltip}
+          multiline
+          width={300}
+          withArrow
+          position="right"
+        >
+          <div>
+            <Switch
+              checked={showRepFlowDiagram}
+              onChange={() => setShowRepFlowDiagram(!showRepFlowDiagram)}
+              label="Show Rep Flow Diagram"
+              description="Display the sequence of movements needed to complete a rep."
+              size="md"
+              radius="xl"
+              color="grape.6"
+              mt="md"
+            />
+          </div>
+        </Tooltip>
        </Box>
 
       {/* Debug Toggle */}

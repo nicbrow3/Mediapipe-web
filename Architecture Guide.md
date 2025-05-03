@@ -405,6 +405,10 @@ const DatabaseViewer = () => {
     - After a rep is counted, the per-side ready state is reset for the next cycle.
 - For **single-sided exercises**, only the 'left' side is used for all rep tracking and state logic.
 - The global ready pose hold timer is still used for transitioning from IDLE to READY state, ensuring the user must hold the ready pose for a minimum duration before starting reps.
+- For **dual-sided exercises**, the total rep count uses the minimum (lower) count between left and right sides. This ensures that:
+    - A set of 10 reps on each arm is counted as 10 total reps, not 20.
+    - If sides are uneven (e.g., 8 left, 10 right), the lower count (8) is used as the total.
+    - This follows the conventional way to count exercise repetitions for dual-sided movements.
 
 This approach eliminates phantom reps and ensures accurate, robust rep counting for both single- and two-sided exercises.
 
@@ -424,6 +428,28 @@ This approach eliminates phantom reps and ensures accurate, robust rep counting 
 
 - **Benefits:**
   - This approach eliminates duplicated logic, reduces bugs, and makes the system easier to maintain and extend.
+
+## 13.1 Automatic Rep Goal Adjustment
+
+- **Purpose:** 
+  Automatically adjusts the user's rep goal when they exceed their current goal, encouraging progressive overload and continuous improvement.
+
+- **Implementation:**
+  - Implemented via a React `useEffect` hook that watches rep counts and compares them to the current goal.
+  - For single-sided exercises: When the rep count exceeds the current goal, the rep goal is automatically increased to match the rep count.
+  - For two-sided exercises: When either side's rep count exceeds the current goal, the rep goal is increased to match the higher of the two counts.
+  - The rep goal is displayed to the user and can also be manually adjusted using increment/decrement buttons.
+
+- **Benefits:**
+  - Promotes progressive overload by automatically raising standards as the user improves.
+  - Reduces manual input needed from users during workouts.
+  - Provides motivation by acknowledging when a user exceeds their target.
+  - Maintains challenge level appropriate to the user's demonstrated ability.
+
+- **User Experience:**
+  - Users still have full control to manually set goals higher or lower if desired.
+  - The automatic adjustment only occurs when the user demonstrates they can exceed the current goal.
+  - Used in conjunction with the rep visualization tools to provide immediate feedback on progress.
 
 ## 14. Data Persistence
 
@@ -532,8 +558,12 @@ The application includes components for visualizing workout data and providing f
   - **Reset Capability:** Users can reset all settings to defaults.
 
 - **Settings Categories:**
-  - **Workout Tracking:** Controls for visibility thresholds, smoothing factors, and rep counting logic.
-  - **UI Settings:** Video opacity, debug information visibility.
+  - **Workout Tracking:** 
+    - **Visibility Threshold:** Adjustable threshold (0.3-0.9) for landmark visibility detection. Lower values reduce tracking pauses at the cost of potential accuracy.
+    - **Strict Landmark Visibility:** Toggle requiring all primary landmarks to be visible.
+    - **Rep Debounce Duration:** Controls rep detection sensitivity.
+    - **Smoothing Factor:** Reduces noise in movement data.
+  - **UI Settings:** Video opacity, debug information visibility, rep flow diagram display.
   - **Appearance:** Light/dark mode preference.
 
 - **Implementation:**

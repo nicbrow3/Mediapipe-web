@@ -67,8 +67,8 @@ export const tricepKickbacks = {
                 id: 'leftElbowExtensionAngle',
                 side: 'left',
                 points: ['shoulder', 'elbow', 'wrist'],
-                minThreshold: 90,
-                maxThreshold: 170,
+                minThreshold: 105,
+                maxThreshold: 150,
                 isRepCounter: true,
                 relaxedIsHigh: false // relaxed at 90º (high is 170º)
              },
@@ -76,8 +76,8 @@ export const tricepKickbacks = {
                 id: 'rightElbowExtensionAngle',
                 side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'],
-                minThreshold: 90,
-                maxThreshold: 170,
+                minThreshold: 105,
+                maxThreshold: 150,
                 isRepCounter: true,
                 relaxedIsHigh: false // relaxed at 90º (high is 170º)
              }

@@ -2,8 +2,8 @@ import React from 'react';
 import './Sidebar.css'; // We'll create this next
 import { LANDMARK_MAP } from '../logic/landmarkUtils';
 
-// Accept selectedExercise prop
-const Sidebar = ({ isOpen, latestPoseData, selectedExercise }) => {
+// Accept selectedExercise prop and visibilityThreshold
+const Sidebar = ({ isOpen, latestPoseData, selectedExercise, visibilityThreshold }) => {
 
   // Handle case where selectedExercise might not be available initially
   if (!selectedExercise) {
@@ -29,17 +29,38 @@ const Sidebar = ({ isOpen, latestPoseData, selectedExercise }) => {
 
   // Helper to render landmarks list with visibility
   const renderLandmarkList = (landmarks, side) => {
-    return landmarks.map(name => (
-      <li key={`${side}-${name}`}>
-        {name}: <span className="visibility-score">({getVisibility(name)})</span>
-      </li>
-    ));
+    return landmarks.map(name => {
+      const visibility = getVisibility(name);
+      const visibilityNumber = parseFloat(visibility);
+      
+      // Check if the visibility is below the threshold
+      const isBelowThreshold = !isNaN(visibilityNumber) && visibilityNumber < visibilityThreshold;
+      
+      return (
+        <li key={`${side}-${name}`}>
+          {name}: <span 
+            className="visibility-score" 
+            style={{ color: isBelowThreshold ? '#e74c3c' : 'inherit' }}
+          >
+            ({visibility})
+            {isBelowThreshold && " ⚠️"}
+          </span>
+        </li>
+      );
+    });
   };
 
   return (
     <div className={`sidebar ${isOpen ? 'open' : ''}`}>
       {/* Use selectedExercise.name for the title */}
       <h2>{selectedExercise.name} Info</h2>
+      
+      {/* Display Threshold Info */}
+      <div className="threshold-info" style={{ marginBottom: '15px' }}>
+        <p>Visibility Threshold: <span style={{ fontWeight: 'bold' }}>{(visibilityThreshold * 100).toFixed(0)}%</span></p>
+        <p style={{ fontSize: '0.8em', opacity: 0.8 }}>Landmarks below this threshold will pause tracking</p>
+      </div>
+      
       {/* Display Landmark Requirements */}
       <div className="landmark-section">
         <h3>Required Landmarks</h3>

@@ -61,7 +61,7 @@ export const bicepCurls = {
                 id: 'leftElbowCurlAngle',
                 side: 'left',
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
-                minThreshold: 45,
+                minThreshold: 90,
                 maxThreshold: 160,
                 isRepCounter: true,
                 relaxedIsHigh: true
@@ -70,7 +70,7 @@ export const bicepCurls = {
                 id: 'rightElbowCurlAngle',
                 side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
-                minThreshold: 45,
+                minThreshold: 90,
                 maxThreshold: 160,
                 isRepCounter: true,
                 relaxedIsHigh: true

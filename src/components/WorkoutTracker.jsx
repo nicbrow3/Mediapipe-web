@@ -50,6 +50,7 @@ const WorkoutTracker = ({
   const [repGoal, setRepGoal] = useState(12); // Add state for rep goal
   const [weight, setWeight] = useState(5); // Add weight state with default of 5
   const containerRef = useRef(null);
+  const previousExerciseRef = useRef(null); // Store previous exercise to detect changes
   
   // Handle fullscreen changes
   useEffect(() => {
@@ -118,14 +119,15 @@ const WorkoutTracker = ({
     showDebug
   });
   
-  // Initialize workout session hook
+  // Initialize workout session hook with expanded functionality
   const {
     isSessionActive,
     workoutStats,
     showWorkoutSummary,
     startWorkout,
     endWorkout,
-    handleCloseSummary
+    handleCloseSummary,
+    saveExerciseSet // Make sure this function exists in useWorkoutSession
   } = useWorkoutSession(selectedExercise, repCount, showDebug);
   
   // Initialize landmark renderer hook
@@ -138,12 +140,57 @@ const WorkoutTracker = ({
     }
   }, [cameraStarted, poseLandmarkerRef, renderLoop]);
   
+  // Auto-increase rep goal when rep count exceeds goal
+  useEffect(() => {
+    if (selectedExercise.isTwoSided) {
+      // For two-sided exercises, use the maximum of both sides
+      const currentReps = Math.max(repCount.left, repCount.right);
+      if (currentReps > repGoal) {
+        setRepGoal(currentReps);
+      }
+    } else {
+      // For single-sided exercises
+      if (repCount.left > repGoal) {
+        setRepGoal(repCount.left);
+      }
+    }
+  }, [repCount, repGoal, selectedExercise.isTwoSided]);
+  
   // Render landmarks when they update
   useEffect(() => {
     if (latestLandmarksRef.current) {
       renderLandmarks(latestLandmarksRef.current);
     }
   }, [latestLandmarksRef.current, renderLandmarks]);
+
+  // When exercise changes, save the previous exercise's reps as a set
+  useEffect(() => {
+    // Skip on initial mount
+    if (previousExerciseRef.current && isSessionActive) {
+      const prevExercise = previousExerciseRef.current;
+      
+      // Check if there are any completed reps to save
+      const totalReps = prevExercise.isTwoSided 
+        ? Math.min(repCount.left, repCount.right) 
+        : repCount.left;
+      
+      if (totalReps > 0) {
+        debugLog(`Saving set for ${prevExercise.name} with ${totalReps} reps`);
+        
+        // Save the previous exercise as a completed set
+        saveExerciseSet({
+          exerciseId: prevExercise.id,
+          reps: prevExercise.isTwoSided ? null : repCount.left,
+          repsLeft: prevExercise.isTwoSided ? repCount.left : null,
+          repsRight: prevExercise.isTwoSided ? repCount.right : null,
+          weight: prevExercise.hasWeight ? weight : null
+        });
+      }
+    }
+    
+    // Update the previous exercise ref
+    previousExerciseRef.current = selectedExercise;
+  }, [selectedExercise, isSessionActive]);
   
   // Handle starting camera and workout
   const handleStartCamera = async () => {
@@ -165,7 +212,35 @@ const WorkoutTracker = ({
   
   // Handle ending the workout
   const handleEndWorkout = () => {
+    // Before ending workout, save the current exercise as a set if it has reps
+    if (isSessionActive) {
+      const totalReps = selectedExercise.isTwoSided 
+        ? Math.min(repCount.left, repCount.right)
+        : repCount.left;
+      
+      if (totalReps > 0) {
+        debugLog(`Saving final set for ${selectedExercise.name} with ${totalReps} reps`);
+        
+        // Save the current exercise as a completed set
+        saveExerciseSet({
+          exerciseId: selectedExercise.id,
+          reps: selectedExercise.isTwoSided ? null : repCount.left,
+          repsLeft: selectedExercise.isTwoSided ? repCount.left : null,
+          repsRight: selectedExercise.isTwoSided ? repCount.right : null,
+          weight: selectedExercise.hasWeight ? weight : null
+        });
+      }
+    }
+    
     endWorkout();
+  };
+  
+  // Custom exercise change handler that saves current exercise as a set first
+  const handleExerciseChange = (event) => {
+    const newExerciseId = event.target.value;
+    
+    // Standard handler provided by parent
+    onExerciseChange(event);
   };
   
   // Add getPhaseStyle function to color-code different phases
@@ -200,8 +275,35 @@ const WorkoutTracker = ({
     '-': <IconMinus size={24} />,
   };
 
-  const getPhaseIcon = (phase) => {
-    return phaseIcons[phase] || null; // Return icon or null if phase is unknown
+  const getPhaseIcon = (phase, side) => {
+    // Get the angle config for this side to determine if relaxedIsHigh
+    const angleConfig = selectedExercise?.logicConfig?.anglesToTrack?.find(
+      a => (a.side ? a.side === side : side === 'left') && a.isRepCounter
+    );
+    const relaxedIsHigh = angleConfig?.relaxedIsHigh !== undefined ? angleConfig.relaxedIsHigh : true;
+
+    // For exercises like tricep kickbacks where relaxedIsHigh is false:
+    // - relaxed is at low angle (bent arm) - should show PlayerPause
+    // - peak is at high angle (extended arm) - should show Target
+    // 
+    // For exercises like bicep curls where relaxedIsHigh is true:
+    // - relaxed is at high angle (straight arm) - should show PlayerPause
+    // - peak is at low angle (bent arm) - should show Target
+    
+    if (relaxedIsHigh) {
+      // Standard icons for bicep curls etc.
+      return phaseIcons[phase] || null;
+    } else {
+      // Adjusted icons for tricep kickbacks etc.
+      const adjustedPhaseIcons = {
+        relaxed: phaseIcons.relaxed, // Same icon for relaxed
+        concentric: phaseIcons.eccentric, // Reverse the direction
+        peak: phaseIcons.peak, // Same icon for peak
+        eccentric: phaseIcons.concentric, // Reverse the direction
+        '-': phaseIcons['-'], // Same icon for paused
+      };
+      return adjustedPhaseIcons[phase] || null;
+    }
   };
   
   // Helper to get the appropriate phase display based on tracking state
@@ -212,6 +314,16 @@ const WorkoutTracker = ({
   // Helper to determine which phase should pulse in the rep flow
   const getPhaseClassName = (phase, currentPhase) => {
     return phase === currentPhase ? 'pulse' : '';
+  };
+  
+  // Check if the exercise uses relaxedIsHigh=false (like tricep kickbacks)
+  const exerciseHasLowRelaxed = () => {
+    // For single-sided, check the left side config
+    // For two-sided, we assume both sides have the same pattern (could be enhanced if needed)
+    const angleConfig = selectedExercise?.logicConfig?.anglesToTrack?.find(
+      a => (a.side ? a.side === 'left' : true) && a.isRepCounter
+    );
+    return angleConfig?.relaxedIsHigh === false;
   };
   
   // Add handler for rep goal adjustment
@@ -488,53 +600,105 @@ const WorkoutTracker = ({
               gap: 'var(--mantine-spacing-md)',
             }}
           >
-            <div style={{ 
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }}>
-              <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
-                getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
-                null)} 
-                style={{ color: '#3498db' }}
-              >
-                Relaxed
-              </span>
-              <span>→</span>
-              <span className={getPhaseClassName('concentric', !selectedExercise.isTwoSided ? 
-                getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
-                null)} 
-                style={{ color: '#f39c12' }}
-              >
-                Concentric
-              </span>
-              <span>→</span>
-              <span className={getPhaseClassName('peak', !selectedExercise.isTwoSided ? 
-                getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
-                null)} 
-                style={{ color: '#27ae60' }}
-              >
-                Peak
-              </span>
-              <span>→</span>
-              <span className={getPhaseClassName('eccentric', !selectedExercise.isTwoSided ? 
-                getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
-                null)} 
-                style={{ color: '#9b59b6' }}
-              >
-                Eccentric
-              </span>
-              <span>→</span>
-              <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
-                getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
-                null)}
-                style={{ color: '#3498db' }}
-              >
-                Relaxed
-              </span>
-              <span style={{ fontSize: '0.9em', marginLeft: '10px', opacity: 0.7 }}>= 1 rep</span>
-            </div>
+            {exerciseHasLowRelaxed() ? (
+              // Flow for exercises where relaxedIsHigh=false (tricep kickbacks)
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}>
+                <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#3498db' }}
+                >
+                  Relaxed
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('concentric', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#f39c12' }}
+                >
+                  Extend
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('peak', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#27ae60' }}
+                >
+                  Peak
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('eccentric', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#9b59b6' }}
+                >
+                  Return
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)}
+                  style={{ color: '#3498db' }}
+                >
+                  Relaxed
+                </span>
+                <span style={{ fontSize: '0.9em', marginLeft: '10px', opacity: 0.7 }}>= 1 rep</span>
+              </div>
+            ) : (
+              // Standard flow for exercises where relaxedIsHigh=true (bicep curls)
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}>
+                <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#3498db' }}
+                >
+                  Relaxed
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('concentric', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#f39c12' }}
+                >
+                  Concentric
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('peak', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#27ae60' }}
+                >
+                  Peak
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('eccentric', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)} 
+                  style={{ color: '#9b59b6' }}
+                >
+                  Eccentric
+                </span>
+                <span>→</span>
+                <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
+                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  null)}
+                  style={{ color: '#3498db' }}
+                >
+                  Relaxed
+                </span>
+                <span style={{ fontSize: '0.9em', marginLeft: '10px', opacity: 0.7 }}>= 1 rep</span>
+              </div>
+            )}
           </div>
         )}
         
@@ -694,7 +858,7 @@ const WorkoutTracker = ({
               justifyContent: 'center',
               padding: 0, // Remove padding if not needed
             }}>
-              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.left?.phase))}
+              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.left?.phase), 'left')}
             </div>
 
             {/* Right State Indicator */}
@@ -715,7 +879,7 @@ const WorkoutTracker = ({
               justifyContent: 'center',
               padding: 0,
             }}>
-              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.right?.phase))}
+              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.right?.phase), 'right')}
             </div>
           </>
         ) : (
@@ -756,7 +920,7 @@ const WorkoutTracker = ({
               justifyContent: 'center',
               padding: 0,
             }}>
-              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.left?.phase))}
+              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.left?.phase), 'left')}
             </div>
           </>
         )}
@@ -788,7 +952,8 @@ const WorkoutTracker = ({
               value={selectedExercise.id}
               onChange={value => {
                 if (value) {
-                  onExerciseChange({ target: { value } });
+                  // Use our custom handler instead of the direct prop
+                  handleExerciseChange({ target: { value } });
                 }
               }}
               nothingFoundMessage="No exercises found"

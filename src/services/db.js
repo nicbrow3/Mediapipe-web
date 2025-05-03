@@ -47,15 +47,18 @@ export const startNewWorkoutSession = async () => {
 /**
  * Marks a workout session as ended and calculates its duration.
  * @param {number} sessionId The ID of the session to end.
+ * @param {number|string} [customEndTime] Optional custom end time (timestamp or ISO string).
  * @returns {Promise<void>}
  */
-export const endWorkoutSession = async (sessionId) => {
+export const endWorkoutSession = async (sessionId, customEndTime = null) => {
   if (!sessionId) {
     console.error("endWorkoutSession called without a valid sessionId.");
     return; // Or throw an error?
   }
   try {
-    const endTime = Date.now();
+    // Use provided end time or current time
+    const endTime = customEndTime ? (typeof customEndTime === 'string' ? new Date(customEndTime).getTime() : customEndTime) : Date.now();
+    
     const session = await db.workoutSessions.get(sessionId);
     if (!session) {
       console.error(`Workout session with ID ${sessionId} not found.`);

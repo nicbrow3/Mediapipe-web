@@ -86,13 +86,18 @@ function determinePhaseFromAngle(angle, angleConfig, prevPhase) {
   const max = angleConfig.maxThreshold || 160;
   const relaxedIsHigh = angleConfig.relaxedIsHigh !== undefined ? angleConfig.relaxedIsHigh : true;
   
-  // Calculate thresholds
+  // Calculate thresholds based on relaxedIsHigh setting
+  // For relaxedIsHigh=true (like bicep curls):
+  //   - relaxed state is when angle is high (near 180°)
+  //   - peak state is when angle is low (near 90°)
+  // For relaxedIsHigh=false (like tricep kickbacks):
+  //   - relaxed state is when angle is low (near 90°)
+  //   - peak state is when angle is high (near 180°)
   const relaxedThreshold = relaxedIsHigh ? max * 0.95 : min * 1.05;
   const peakThreshold = relaxedIsHigh ? min * 1.05 : max * 0.95;
-  const midRange = (max + min) / 2;
   
-  // For relaxedIsHigh (like bicep curl), angle decreases during concentric
   if (relaxedIsHigh) {
+    // For exercises like bicep curls
     if (angle >= relaxedThreshold) {
       return 'relaxed';
     } else if (angle <= peakThreshold) {
@@ -102,9 +107,8 @@ function determinePhaseFromAngle(angle, angleConfig, prevPhase) {
     } else {
       return 'eccentric';
     }
-  } 
-  // For !relaxedIsHigh (like squat), angle increases during concentric
-  else {
+  } else {
+    // For exercises like tricep kickbacks
     if (angle <= relaxedThreshold) {
       return 'relaxed';
     } else if (angle >= peakThreshold) {

@@ -8,7 +8,7 @@ import './App.css'; // Add styles for layout and toggle button
 import { MantineProvider, Drawer, ActionIcon, Tooltip } from '@mantine/core';
 import { IconSettings, IconX, IconDatabase, IconEye } from '@tabler/icons-react'; // Icons for settings button and close, and database icon
 import '@mantine/core/styles.css';
-import { startNewWorkoutSession, endWorkoutSession } from './services/db'; // Import db functions
+import { startNewWorkoutSession, endWorkoutSession, getSetsForSession } from './services/db'; // Import db functions
 
 // Import glassStyle from the styles utility file
 import { glassStyle } from '/src/styles/uiStyles';
@@ -66,6 +66,60 @@ function App() {
     document.documentElement.setAttribute('data-mantine-color-scheme', colorScheme);
   }, [colorScheme]);
 
+  // --- Handle Page Unload to End Active Sessions ---
+  useEffect(() => {
+    // Function to end any active session when the page unloads
+    const handlePageUnload = async () => {
+      if (currentSessionId) {
+        try {
+          // Get the latest set time to use as the end time
+          const sets = await getSetsForSession(currentSessionId);
+          
+          let endTime = Date.now(); // Default to current time
+          if (sets && sets.length > 0) {
+            // Sort sets by endTime (descending) and use the most recent one
+            const sortedSets = [...sets].sort((a, b) => {
+              return new Date(b.endTime || 0) - new Date(a.endTime || 0);
+            });
+            
+            // Use the last set's end time if available
+            if (sortedSets[0].endTime) {
+              endTime = new Date(sortedSets[0].endTime).getTime();
+            }
+          }
+          
+          // End the workout session with the determined end time
+          await endWorkoutSession(currentSessionId, endTime);
+          console.log(`Ended workout session ${currentSessionId} on page unload`);
+        } catch (error) {
+          console.error("Failed to end workout session on page unload:", error);
+        }
+      }
+    };
+
+    // Check for active sessions on load
+    const checkForInProgressSessions = async () => {
+      if (!currentSessionId) {
+        // If we don't have a current session ID, check if any are still active in database
+        try {
+          // We'll rely on DatabaseViewer's code to handle this instead
+          // This avoids duplicating the logic here
+        } catch (error) {
+          console.error("Error checking for in-progress sessions:", error);
+        }
+      }
+    };
+
+    // Run check on component mount
+    checkForInProgressSessions();
+
+    // Add event listeners for page close/refresh
+    window.addEventListener('beforeunload', handlePageUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handlePageUnload);
+    };
+  }, [currentSessionId]);
+
   // --- Lifted Settings State (from WorkoutTracker) ---
   const [strictLandmarkVisibility, setStrictLandmarkVisibility] = useState(() => loadSettings().strictLandmarkVisibility);
   const [videoOpacity, setVideoOpacity] = useState(() => loadSettings().videoOpacity);
@@ -74,6 +128,7 @@ function App() {
   const [repDebounceDuration, setRepDebounceDuration] = useState(() => loadSettings().repDebounceDuration ?? 200);
   const [useSmoothedRepCounting, setUseSmoothedRepCounting] = useState(() => loadSettings().useSmoothedRepCounting ?? true);
   const [showRepFlowDiagram, setShowRepFlowDiagram] = useState(() => loadSettings().showRepFlowDiagram ?? true);
+  const [visibilityThreshold, setVisibilityThreshold] = useState(() => loadSettings().visibilityThreshold ?? 0.7);
 
   // Save settings whenever they change
   useEffect(() => {
@@ -85,9 +140,10 @@ function App() {
       repDebounceDuration,
       useSmoothedRepCounting,
       showRepFlowDiagram,
+      visibilityThreshold,
     };
     saveSettings(settings);
-  }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, useSmoothedRepCounting, showRepFlowDiagram]);
+  }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, useSmoothedRepCounting, showRepFlowDiagram, visibilityThreshold]);
   // --- End Lifted Settings State ---
 
   // --- NEW: Workout Session Handlers ---
@@ -212,6 +268,7 @@ function App() {
             setRepDebounceDuration(200);
             setUseSmoothedRepCounting(true);
             setShowRepFlowDiagram(true);
+            setVisibilityThreshold(0.7);
             // Save immediately
             saveSettings({
               strictLandmarkVisibility: true,
@@ -221,6 +278,7 @@ function App() {
               repDebounceDuration: 200,
               useSmoothedRepCounting: true,
               showRepFlowDiagram: true,
+              visibilityThreshold: 0.7,
             });
           }}
           repDebounceDuration={repDebounceDuration}
@@ -229,6 +287,8 @@ function App() {
           setUseSmoothedRepCounting={setUseSmoothedRepCounting}
           showRepFlowDiagram={showRepFlowDiagram}
           setShowRepFlowDiagram={setShowRepFlowDiagram}
+          visibilityThreshold={visibilityThreshold}
+          setVisibilityThreshold={setVisibilityThreshold}
         />
       </Drawer>
 
@@ -338,6 +398,7 @@ function App() {
             showRepFlowDiagram={showRepFlowDiagram}
             currentSessionId={currentSessionId} // Pass current ID (needed for addExerciseSet)
             onWorkoutStart={handleStartWorkout} // Pass the start handler
+            visibilityThreshold={visibilityThreshold}
           />
         </div>
 
@@ -346,6 +407,7 @@ function App() {
           isOpen={isSidebarOpen}
           latestPoseData={latestPoseData}
           selectedExercise={selectedExercise} // Pass down selected exercise
+          visibilityThreshold={visibilityThreshold}
         />
       </div>
     </MantineProvider>

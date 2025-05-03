@@ -46,11 +46,7 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
     const min = angleConfig.minThreshold;
     const max = angleConfig.maxThreshold;
     const relaxedIsHigh = angleConfig.relaxedIsHigh !== undefined ? angleConfig.relaxedIsHigh : true;
-    // Optionally allow for a peak threshold (default to min or max)
-    const peakThreshold = angleConfig.peakThreshold ?? (relaxedIsHigh ? min : max);
-    // Optionally allow for a peak hold time (not used yet)
-    // const peakHoldTime = angleConfig.peakHoldTime ?? 0;
-
+    
     // Get previous state
     const prev = angleLogic[side] || {
       phase: 'relaxed',
@@ -62,7 +58,9 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
 
     // State machine logic
     if (relaxedIsHigh) {
-      // Relaxed = angle > max, Concentric = moving toward min, Peak = angle < min, Eccentric = moving back to relaxed
+      // For exercises like bicep curls:
+      // Relaxed = angle is high (near 180°, straight arm)
+      // Peak = angle is low (near 90°, arm bent)
       switch (phase) {
         case 'relaxed':
           if (angle < max && angle > min) {
@@ -105,7 +103,9 @@ export function angleBasedRepLogic({ landmarks, config, prevState, utils, state 
           lastTransitionTime = now;
       }
     } else {
-      // Relaxed = angle < min, Concentric = moving toward max, Peak = angle > max, Eccentric = moving back to relaxed
+      // For exercises like tricep kickbacks:
+      // Relaxed = angle is low (near 90°, arm bent)
+      // Peak = angle is high (near 180°, arm straight)
       switch (phase) {
         case 'relaxed':
           if (angle > min && angle < max) {

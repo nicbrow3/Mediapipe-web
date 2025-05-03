@@ -1,7 +1,9 @@
 import React from 'react';
-import { Paper, Group, Text, Title, RingProgress, SimpleGrid, Badge, Center } from '@mantine/core';
+import { Paper, Group, Text, Title, RingProgress, SimpleGrid, Badge, Center, Table } from '@mantine/core';
 import { glassStyle } from '/src/styles/uiStyles';
-import { IconClock, IconBarbell, IconCalendar } from '@tabler/icons-react';
+import { IconClock, IconBarbell, IconActivity, IconWeight } from '@tabler/icons-react';
+// Import all available exercises
+import * as allExercises from '../exercises';
 
 const WorkoutSummary = ({ workoutStats, onClose }) => {
   // If no stats provided, show placeholder data
@@ -9,10 +11,10 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
     totalReps: 0,
     duration: 0, // in seconds
     exercisesCompleted: 0,
-    exerciseName: 'Unknown Exercise',
-    isTwoSided: false,
+    exercises: [],
     startTime: new Date(),
     endTime: new Date(),
+    setCount: 0
   };
   
   const formatDuration = (seconds) => {
@@ -26,6 +28,38 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
       ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  // Create an exercise map for looking up names by ID
+  const exerciseMap = Object.values(allExercises).reduce((map, exercise) => {
+    if (exercise && exercise.id) {
+      map[exercise.id] = exercise.name;
+    }
+    return map;
+  }, {});
+
+  // Helper to find exercise name by ID
+  const getExerciseName = (exerciseId, fallback = "Unknown Exercise") => {
+    return exerciseMap[exerciseId] || fallback;
+  };
+  
+  // Extract muscle groups from the exercises performed
+  const getMuscleGroups = () => {
+    const allMuscleGroups = new Set();
+    
+    stats.exercises.forEach(exercise => {
+      // Find the exercise config that matches this ID
+      const exerciseConfig = Object.values(allExercises).find(ex => ex.id === exercise.id);
+      
+      // If we found the config and it has muscle groups defined, add them to our set
+      if (exerciseConfig && exerciseConfig.muscleGroups) {
+        exerciseConfig.muscleGroups.forEach(group => allMuscleGroups.add(group));
+      }
+    });
+    
+    return Array.from(allMuscleGroups);
+  };
+  
+  const muscleGroups = getMuscleGroups();
   
   return (
     <div className="workout-summary-overlay">
@@ -48,7 +82,8 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
         </Title>
 
         <Text size="sm" c="dimmed" mb="lg">
-          Exercise: {stats.exerciseName}
+          Completed {stats.exercisesCompleted} {stats.exercisesCompleted === 1 ? 'exercise' : 'exercises'} 
+          with {stats.setCount} {stats.setCount === 1 ? 'set' : 'sets'}
         </Text>
         
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
@@ -102,34 +137,80 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
                 sections={[{ value: 100, color: 'green' }]}
                 label={
                   <Center>
-                    <IconCalendar size={24} style={{ color: 'var(--accent-color-3)' }} />
+                    <IconActivity size={24} style={{ color: 'var(--accent-color-3)' }} />
                   </Center>
                 }
               />
               <div>
-                <Text size="xs" c="dimmed">Workout Time</Text>
-                <Text size="sm" fw={500}>{formatTime(stats.startTime)} - {formatTime(stats.endTime)}</Text>
-                <Text size="xs" c="dimmed">Today</Text>
+                <Text size="xs" c="dimmed">Muscle Groups</Text>
+                <div>
+                  {muscleGroups.length > 0 ? (
+                    <Group gap={5} mt={5}>
+                      {muscleGroups.map((group, index) => (
+                        <Badge key={index} color="green.7" size="sm">
+                          {group}
+                        </Badge>
+                      ))}
+                    </Group>
+                  ) : (
+                    <Text size="sm" fw={500}>No muscle data</Text>
+                  )}
+                </div>
               </div>
             </Group>
           </Paper>
         </SimpleGrid>
         
-        <div className="info-section">
-          <h3>Rep Counting Method</h3>
-          <p>
-            Reps are counted using a state-based approach, tracking your movement through a complete sequence:
-            <span style={{ color: '#3498db' }}>Relaxed</span> → 
-            <span style={{ color: '#f39c12' }}>Concentric</span> → 
-            <span style={{ color: '#27ae60' }}>Peak</span> → 
-            <span style={{ color: '#9b59b6' }}>Eccentric</span> → 
-            <span style={{ color: '#3498db' }}>Relaxed</span>
-          </p>
-          <p>
-            A rep is only counted when you complete the full motion cycle and hold the peak position.
-            You can toggle the rep flow diagram visibility in Settings.
-          </p>
-        </div>
+        {/* Exercise Breakdown */}
+        {stats.exercises && stats.exercises.length > 0 && (
+          <Paper p="md" radius="md" style={glassStyle} mt="lg">
+            <Title order={4} mb="sm">Exercise Breakdown</Title>
+            <Table striped highlightOnHover withColumnBorders style={{ width: '100%' }}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Exercise</Table.Th>
+                  <Table.Th>Reps</Table.Th>
+                  <Table.Th>Weight</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {/* Group exercises by ID and show combined stats */}
+                {Object.entries(
+                  stats.exercises.reduce((grouped, exercise) => {
+                    const id = exercise.id;
+                    
+                    if (!grouped[id]) {
+                      grouped[id] = {
+                        id,
+                        totalReps: 0,
+                        weight: exercise.weight // Just use the last weight for now
+                      };
+                    }
+                    
+                    // Add reps - handle both single and two-sided
+                    if (exercise.repsLeft !== null && exercise.repsRight !== null) {
+                      // For two-sided exercises, use the minimum of left and right
+                      const currentSetReps = Math.min(exercise.repsLeft, exercise.repsRight);
+                      grouped[id].totalReps += currentSetReps;
+                    } else {
+                      grouped[id].totalReps += exercise.reps || 0;
+                    }
+                    
+                    return grouped;
+                  }, {})
+                ).map(([id, exercise]) => (
+                  <Table.Tr key={id}>
+                    <Table.Td>{getExerciseName(exercise.id)}</Table.Td>
+                    <Table.Td>{exercise.totalReps}</Table.Td>
+                    <Table.Td>
+                      {exercise.weight ? `${exercise.weight} lbs` : 'N/A'}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Paper>
+        )}
         
         <Group justify="flex-end" mt="xl">
           <button 
