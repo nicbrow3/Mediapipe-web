@@ -30,7 +30,8 @@ function drawLandmarks(
   connections.forEach(([start, end]) => {
     const startPoint = landmarks[start];
     const endPoint = landmarks[end];
-    if (startPoint && endPoint) {
+    // Check visibility of both connected points
+    if (startPoint && startPoint.visibility > 0.1 && endPoint && endPoint.visibility > 0.1) {
       ctx.beginPath();
       ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
       ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
@@ -40,45 +41,48 @@ function drawLandmarks(
 
   // Draw the landmark points
   landmarks.forEach((landmark, index) => {
-    // Draw the standard small filled circle for all landmarks
-    ctx.fillStyle = accentColorValue || '#6a55be';
-    ctx.beginPath();
-    ctx.arc(
-      landmark.x * canvas.width, 
-      landmark.y * canvas.height, 
-      4, 
-      0, 
-      2 * Math.PI
-    );
-    ctx.fill();
+    // Only draw if landmark is reasonably visible
+    if (landmark && landmark.visibility > 0.1) { 
+      // Draw the standard small filled circle for all visible landmarks
+      ctx.fillStyle = accentColorValue || '#6a55be';
+      ctx.beginPath();
+      ctx.arc(
+        landmark.x * canvas.width, 
+        landmark.y * canvas.height, 
+        4, 
+        0, 
+        2 * Math.PI
+      );
+      ctx.fill();
 
-    // If this landmark index is in the secondary list, draw the outer circle in accentColorValue2
-    if (secondaryLandmarkIndices.includes(index)) {
-      ctx.strokeStyle = accentColorValue2 || '#3a8ad3';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(
-        landmark.x * canvas.width, 
-        landmark.y * canvas.height, 
-        8, 
-        0, 
-        2 * Math.PI
-      );
-      ctx.stroke();
-    }
-    // If this landmark index is in the highlighted (primary) list, draw the outer circle in accentColorValue3
-    else if (highlightedLandmarkIndices.includes(index)) {
-      ctx.strokeStyle = accentColorValue3 || '#cf912e'; // Use accent-3 or fallback
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(
-        landmark.x * canvas.width, 
-        landmark.y * canvas.height, 
-        8, 
-        0, 
-        2 * Math.PI
-      );
-      ctx.stroke();
+      // If this landmark index is in the secondary list, draw the outer circle in accentColorValue2
+      if (secondaryLandmarkIndices.includes(index)) {
+        ctx.strokeStyle = accentColorValue2 || '#3a8ad3';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(
+          landmark.x * canvas.width, 
+          landmark.y * canvas.height, 
+          8, 
+          0, 
+          2 * Math.PI
+        );
+        ctx.stroke();
+      }
+      // If this landmark index is in the highlighted (primary) list, draw the outer circle in accentColorValue3
+      else if (highlightedLandmarkIndices.includes(index)) {
+        ctx.strokeStyle = accentColorValue3 || '#cf912e'; // Use accent-3 or fallback
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(
+          landmark.x * canvas.width, 
+          landmark.y * canvas.height, 
+          8, 
+          0, 
+          2 * Math.PI
+        );
+        ctx.stroke();
+      }
     }
   });
 }

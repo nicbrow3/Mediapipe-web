@@ -22,6 +22,12 @@ const SettingsDrawer = ({
   setShowRepFlowDiagram,
   visibilityThreshold,
   setVisibilityThreshold,
+  frameSamplingRate,
+  setFrameSamplingRate,
+  enableFaceLandmarks,
+  setEnableFaceLandmarks,
+  enableHandLandmarks,
+  setEnableHandLandmarks,
 }) => {
   // Tooltip content for rep flow diagram explanation
   const repFlowTooltip = (
@@ -170,6 +176,60 @@ const SettingsDrawer = ({
           </div>
         </Tooltip>
        </Box>
+
+      {/* Performance Optimization */}
+      <Box p="md" style={glassStyle} mb="xs">
+        <Title order={4} mb="xs">Performance</Title>
+        <Text size="md" mb={2}>Frame Sampling Rate: {frameSamplingRate}</Text>
+        <Text size="sm" c="dimmed" mb="xs">
+          Process every nth frame (higher values improve performance but reduce responsiveness).
+          Try setting to 2-3 on slower devices (like iPads).
+        </Text>
+        <Slider
+          id="frameSamplingRate"
+          min={1}
+          max={5}
+          step={1}
+          value={frameSamplingRate}
+          onChange={setFrameSamplingRate}
+          label={(value) => `${value === 1 ? 'Every frame' : `Every ${value} frames`}`}
+          marks={[
+            { value: 1, label: '1' },
+            { value: 2, label: '2' },
+            { value: 3, label: '3' },
+            { value: 4, label: '4' },
+            { value: 5, label: '5' }
+          ]}
+          color="grape.6"
+        />
+        
+        {/* Add Face/Hand Landmark Toggles */}
+        <Title order={5} mt="lg" mb="xs">Landmarks to Track</Title>
+        <Text size="sm" c="dimmed" mb="md">
+          Disable unused landmarks to improve performance. These points are not used for rep counting.
+        </Text>
+        
+        <Switch
+          checked={enableFaceLandmarks}
+          onChange={() => setEnableFaceLandmarks(!enableFaceLandmarks)}
+          label="Track Face Landmarks"
+          description="Face points aren't used for rep counting. Disable for better performance."
+          size="md"
+          radius="xl"
+          color="grape.6"
+          mb="sm"
+        />
+        
+        <Switch
+          checked={enableHandLandmarks}
+          onChange={() => setEnableHandLandmarks(!enableHandLandmarks)}
+          label="Track Hand/Finger Landmarks"
+          description="Hand points aren't used for rep counting. Disable for better performance."
+          size="md"
+          radius="xl"
+          color="grape.6"
+        />
+      </Box>
 
       {/* Debug Toggle */}
       <Box p="md" style={glassStyle} mb="xs">

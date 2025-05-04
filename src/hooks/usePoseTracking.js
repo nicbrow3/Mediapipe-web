@@ -21,7 +21,8 @@ function usePoseTracking({
   repDebounceDuration,
   useSmoothedRepCounting,
   onPoseResultUpdate,
-  showDebug
+  showDebug,
+  frameSamplingRate = 1
 }) {
   // State tracking
   const [trackingState, setTrackingState] = useState(TRACKING_STATES.IDLE);
@@ -49,6 +50,8 @@ function usePoseTracking({
   const useSmoothedRepCountingRef = useRef(useSmoothedRepCounting);
   const repEnginePrevStateRef = useRef(null);
   const [repEngineState, setRepEngineState] = useState(null);
+  const frameSamplingRateRef = useRef(frameSamplingRate);
+  const frameCounterRef = useRef(0);
   
   // Initialize the state-based rep counter
   const { 
@@ -75,6 +78,10 @@ function usePoseTracking({
   useEffect(() => {
     useSmoothedRepCountingRef.current = useSmoothedRepCounting;
   }, [useSmoothedRepCounting]);
+  
+  useEffect(() => {
+    frameSamplingRateRef.current = frameSamplingRate;
+  }, [frameSamplingRate]);
   
   useEffect(() => {
     selectedExerciseRef.current = selectedExercise;
@@ -233,13 +240,17 @@ function usePoseTracking({
       return;
     }
     
-    // Only run if video is ready and has valid dimensions
+    // Increment frame counter for sampling
+    frameCounterRef.current = (frameCounterRef.current + 1) % Math.max(1, frameSamplingRateRef.current);
+    
+    // Only run if video is ready, has valid dimensions, and it's time to sample a frame
     if (
       poseLandmarkerRef?.current &&
       video.readyState >= 2 &&
       video.videoWidth > 0 &&
       video.videoHeight > 0 &&
-      video.currentTime !== lastVideoTimeRef.current
+      video.currentTime !== lastVideoTimeRef.current &&
+      frameCounterRef.current === 0 // Only process when counter is 0 (sampling)
     ) {
       try {
         const timestamp = performance.now();

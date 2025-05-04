@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'; // Assuming Sidebar component exists
 import SettingsDrawer from './components/SettingsDrawer'; // New component for settings
 import DatabaseViewer from './components/DatabaseViewer.jsx'; // Import DatabaseViewer
 import * as exercises from './exercises'; // Import all exercises
+import config from './config'; // Import the configuration
 import './App.css'; // Add styles for layout and toggle button
 import { MantineProvider, Drawer, ActionIcon, Tooltip } from '@mantine/core';
 import { IconSettings, IconX, IconDatabase, IconEye } from '@tabler/icons-react'; // Icons for settings button and close, and database icon
@@ -23,6 +24,9 @@ function loadSettings() {
       videoOpacity: 5,
       smoothingFactor: 15,
       showDebug: false,
+      frameSamplingRate: 1,
+      enableFaceLandmarks: true,
+      enableHandLandmarks: true,
     };
     return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
   } catch {
@@ -31,6 +35,9 @@ function loadSettings() {
       videoOpacity: 5,
       smoothingFactor: 15,
       showDebug: false,
+      frameSamplingRate: 1,
+      enableFaceLandmarks: true,
+      enableHandLandmarks: true,
     };
   }
 }
@@ -129,6 +136,9 @@ function App() {
   const [useSmoothedRepCounting, setUseSmoothedRepCounting] = useState(() => loadSettings().useSmoothedRepCounting ?? true);
   const [showRepFlowDiagram, setShowRepFlowDiagram] = useState(() => loadSettings().showRepFlowDiagram ?? true);
   const [visibilityThreshold, setVisibilityThreshold] = useState(() => loadSettings().visibilityThreshold ?? 0.7);
+  const [frameSamplingRate, setFrameSamplingRate] = useState(() => loadSettings().frameSamplingRate ?? 1);
+  const [enableFaceLandmarks, setEnableFaceLandmarks] = useState(() => loadSettings().enableFaceLandmarks ?? true);
+  const [enableHandLandmarks, setEnableHandLandmarks] = useState(() => loadSettings().enableHandLandmarks ?? true);
 
   // Save settings whenever they change
   useEffect(() => {
@@ -141,9 +151,14 @@ function App() {
       useSmoothedRepCounting,
       showRepFlowDiagram,
       visibilityThreshold,
+      frameSamplingRate,
+      enableFaceLandmarks,
+      enableHandLandmarks,
     };
     saveSettings(settings);
-  }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, useSmoothedRepCounting, showRepFlowDiagram, visibilityThreshold]);
+  }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, 
+      useSmoothedRepCounting, showRepFlowDiagram, visibilityThreshold, frameSamplingRate,
+      enableFaceLandmarks, enableHandLandmarks]);
   // --- End Lifted Settings State ---
 
   // --- NEW: Workout Session Handlers ---
@@ -212,6 +227,31 @@ function App() {
   // Add state for database viewer
   const [showDatabaseViewer, setShowDatabaseViewer] = useState(false);
 
+  // Add enableFaceLandmarks and enableHandLandmarks to resetSettings
+  const resetSettings = () => {
+    setStrictLandmarkVisibility(true);
+    setVideoOpacity(5);
+    setSmoothingFactor(15);
+    setShowDebug(false);
+    setRepDebounceDuration(200);
+    setUseSmoothedRepCounting(true);
+    setShowRepFlowDiagram(true);
+    setVisibilityThreshold(0.7);
+    setFrameSamplingRate(1);
+    setEnableFaceLandmarks(true);
+    setEnableHandLandmarks(true);
+  };
+
+  // Create a modified config object with current settings
+  const configWithSettings = {
+    ...config,
+    pose: {
+      ...config.pose,
+      enableFaceLandmarks,
+      enableHandLandmarks,
+    }
+  };
+
   return (
     <MantineProvider theme={{ 
       colorScheme,
@@ -259,28 +299,7 @@ function App() {
           setStrictLandmarkVisibility={setStrictLandmarkVisibility}
           showDebug={showDebug}
           setShowDebug={setShowDebug}
-          // Pass reset function
-          resetSettings={() => {
-            setStrictLandmarkVisibility(true);
-            setVideoOpacity(5);
-            setSmoothingFactor(15);
-            setShowDebug(false);
-            setRepDebounceDuration(200);
-            setUseSmoothedRepCounting(true);
-            setShowRepFlowDiagram(true);
-            setVisibilityThreshold(0.7);
-            // Save immediately
-            saveSettings({
-              strictLandmarkVisibility: true,
-              videoOpacity: 5,
-              smoothingFactor: 15,
-              showDebug: false,
-              repDebounceDuration: 200,
-              useSmoothedRepCounting: true,
-              showRepFlowDiagram: true,
-              visibilityThreshold: 0.7,
-            });
-          }}
+          resetSettings={resetSettings}
           repDebounceDuration={repDebounceDuration}
           setRepDebounceDuration={setRepDebounceDuration}
           useSmoothedRepCounting={useSmoothedRepCounting}
@@ -289,6 +308,12 @@ function App() {
           setShowRepFlowDiagram={setShowRepFlowDiagram}
           visibilityThreshold={visibilityThreshold}
           setVisibilityThreshold={setVisibilityThreshold}
+          frameSamplingRate={frameSamplingRate}
+          setFrameSamplingRate={setFrameSamplingRate}
+          enableFaceLandmarks={enableFaceLandmarks}
+          setEnableFaceLandmarks={setEnableFaceLandmarks}
+          enableHandLandmarks={enableHandLandmarks}
+          setEnableHandLandmarks={setEnableHandLandmarks}
         />
       </Drawer>
 
@@ -384,9 +409,9 @@ function App() {
         <div className="main-content">
           <WorkoutTracker
             onPoseResultUpdate={handlePoseResultUpdate}
-            availableExercises={availableExercises.current} // Pass down list
-            selectedExercise={selectedExercise} // Pass down selected exercise
-            onExerciseChange={handleExerciseChange} // Pass down handler
+            availableExercises={availableExercises.current}
+            selectedExercise={selectedExercise}
+            onExerciseChange={handleExerciseChange}
             colorScheme={colorScheme}
             setColorScheme={setColorScheme}
             videoOpacity={videoOpacity}
@@ -396,9 +421,11 @@ function App() {
             repDebounceDuration={repDebounceDuration}
             useSmoothedRepCounting={useSmoothedRepCounting}
             showRepFlowDiagram={showRepFlowDiagram}
-            currentSessionId={currentSessionId} // Pass current ID (needed for addExerciseSet)
-            onWorkoutStart={handleStartWorkout} // Pass the start handler
+            currentSessionId={currentSessionId}
+            onWorkoutStart={handleStartWorkout}
             visibilityThreshold={visibilityThreshold}
+            frameSamplingRate={frameSamplingRate}
+            config={configWithSettings}
           />
         </div>
 
@@ -406,7 +433,7 @@ function App() {
         <Sidebar
           isOpen={isSidebarOpen}
           latestPoseData={latestPoseData}
-          selectedExercise={selectedExercise} // Pass down selected exercise
+          selectedExercise={selectedExercise}
           visibilityThreshold={visibilityThreshold}
         />
       </div>

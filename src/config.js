@@ -15,6 +15,9 @@ const config = {
     minPosePresenceConfidence: 0.5,
     minTrackingConfidence: 0.5,
     numPoses: 1,
+    // Default tracking settings - can be overridden by app settings
+    enableFaceLandmarks: true,
+    enableHandLandmarks: true,
   }
 };
 

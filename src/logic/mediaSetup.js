@@ -24,6 +24,8 @@ async function initializePoseLandmarker(config, debugLog = console.log) {
   // First try with GPU
   try {
     debugLog('Attempting to initialize with GPU delegate...');
+    debugLog(`Face landmarks enabled: ${config.pose.enableFaceLandmarks}, Hand landmarks enabled: ${config.pose.enableHandLandmarks}`);
+    
     poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
       baseOptions: {
         modelAssetPath: config.mediapipe.modelPath,
@@ -34,7 +36,9 @@ async function initializePoseLandmarker(config, debugLog = console.log) {
       minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
       minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
       minTrackingConfidence: config.pose.minTrackingConfidence,
-      outputSegmentationMasks: false
+      outputSegmentationMasks: false,
+      enableFaceLandmarks: config.pose.enableFaceLandmarks,
+      enableHandLandmarks: config.pose.enableHandLandmarks
     });
     debugLog('Successfully initialized with GPU delegate');
   } catch (gpuError) {
@@ -52,7 +56,9 @@ async function initializePoseLandmarker(config, debugLog = console.log) {
       minPoseDetectionConfidence: config.pose.minPoseDetectionConfidence,
       minPosePresenceConfidence: config.pose.minPosePresenceConfidence,
       minTrackingConfidence: config.pose.minTrackingConfidence,
-      outputSegmentationMasks: false
+      outputSegmentationMasks: false,
+      enableFaceLandmarks: config.pose.enableFaceLandmarks,
+      enableHandLandmarks: config.pose.enableHandLandmarks
     });
     debugLog('Successfully initialized with CPU delegate');
   }

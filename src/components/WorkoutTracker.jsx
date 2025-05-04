@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import config from '../config';
+import defaultConfig from '../config';
 import './WorkoutTracker.css';
 import '../App.css'; // Import global styles
 import RepHistoryGraph from './RepHistoryGraph';
@@ -42,6 +42,8 @@ const WorkoutTracker = ({
   repDebounceDuration, // New prop
   useSmoothedRepCounting, // New prop
   showRepFlowDiagram, // New prop for toggling the rep flow diagram
+  frameSamplingRate = 1, // New prop for MediaPipe frame sampling (default: process every frame)
+  config = null, // Receive configuration with face/hands landmark settings
 }) => {
   // Debug logging
   const [debugLogs, setDebugLogs] = useState('');
@@ -51,6 +53,9 @@ const WorkoutTracker = ({
   const [weight, setWeight] = useState(5); // Add weight state with default of 5
   const containerRef = useRef(null);
   const previousExerciseRef = useRef(null); // Store previous exercise to detect changes
+  
+  // Use imported default config if none provided via props
+  const actualConfig = config || defaultConfig;
   
   // Handle fullscreen changes
   useEffect(() => {
@@ -95,9 +100,9 @@ const WorkoutTracker = ({
     cameraStarted,
     setCameraStarted,
     setupMediaPipe
-  } = useMediaPipe(config, debugLog);
+  } = useMediaPipe(actualConfig, debugLog);
   
-  // Initialize pose tracking hook
+  // Initialize pose tracking hook with frame sampling rate
   const {
     trackingState,
     repCount,
@@ -116,7 +121,8 @@ const WorkoutTracker = ({
     repDebounceDuration,
     useSmoothedRepCounting,
     onPoseResultUpdate,
-    showDebug
+    showDebug,
+    frameSamplingRate, // Pass the new prop to the hook
   });
   
   // Initialize workout session hook with expanded functionality
@@ -131,7 +137,7 @@ const WorkoutTracker = ({
   } = useWorkoutSession(selectedExercise, repCount, showDebug);
   
   // Initialize landmark renderer hook
-  const { renderLandmarks } = useLandmarkRenderer(canvasRef, selectedExercise);
+  const { renderLandmarks } = useLandmarkRenderer(canvasRef, selectedExercise, actualConfig);
   
   // Start render loop when everything is set up
   useEffect(() => {
