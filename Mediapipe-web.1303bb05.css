@@ -1,0 +1,43 @@
+body {
+  flex-direction: column;
+  align-items: center;
+  font-family: Arial, sans-serif;
+  display: flex;
+}
+
+#video, #canvas {
+  border: 1px solid #ccc;
+  width: 640px;
+  height: 480px;
+}
+
+#repCount {
+  margin-top: 20px;
+  font-size: 24px;
+}
+
+.main-container {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 32px;
+  display: flex;
+}
+
+.video-area {
+  flex-direction: column;
+  align-items: center;
+  display: flex;
+}
+
+#debugWindow {
+  color: #fff;
+  background: #222;
+  border-radius: 8px;
+  width: 300px;
+  height: 120px;
+  padding: 10px;
+  font-size: 14px;
+  overflow-y: auto;
+  box-shadow: 0 2px 8px #0003;
+}
+/*# sourceMappingURL=Mediapipe-web.1303bb05.css.map */
