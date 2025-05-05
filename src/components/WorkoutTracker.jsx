@@ -27,6 +27,7 @@ import useLandmarkRenderer from '../hooks/useLandmarkRenderer';
 
 // Import the new component
 import VerticalRepProgressBar from './VerticalRepProgressBar';
+import FpsCounter from './FpsCounter';
 
 // Accept props: onPoseResultUpdate, availableExercises, selectedExercise, onExerciseChange, 
 // Settings props: videoOpacity, smoothingFactor, strictLandmarkVisibility, showDebug
@@ -44,6 +45,7 @@ const WorkoutTracker = ({
   showRepFlowDiagram, // New prop for toggling the rep flow diagram
   frameSamplingRate = 1, // New prop for MediaPipe frame sampling (default: process every frame)
   config = null, // Receive configuration with face/hands landmark settings
+  useLocalModel, // New prop for local model
 }) => {
   // Debug logging
   const [debugLogs, setDebugLogs] = useState('');
@@ -53,6 +55,7 @@ const WorkoutTracker = ({
   const [weight, setWeight] = useState(5); // Add weight state with default of 5
   const containerRef = useRef(null);
   const previousExerciseRef = useRef(null); // Store previous exercise to detect changes
+  const [modelDownloadProgress, setModelDownloadProgress] = useState(0);
   
   // Use imported default config if none provided via props
   const actualConfig = config || defaultConfig;
@@ -100,7 +103,12 @@ const WorkoutTracker = ({
     cameraStarted,
     setCameraStarted,
     setupMediaPipe
-  } = useMediaPipe(actualConfig, debugLog);
+  } = useMediaPipe(
+    actualConfig, 
+    showDebug ? console.log : () => {},
+    // Pass progress callback if using local model
+    useLocalModel ? (progress) => setModelDownloadProgress(progress) : null
+  );
   
   // Initialize pose tracking hook with frame sampling rate
   const {
@@ -399,6 +407,9 @@ const WorkoutTracker = ({
       )}
 
       <div className="video-canvas-container">
+        {/* Add FPS Counter when debug is enabled */}
+        {showDebug && <FpsCounter position="top-right" showDetails />}
+        
         {/* Top Left Controls Container */}
         <div style={{ 
           position: 'absolute', 

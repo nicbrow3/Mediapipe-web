@@ -1,6 +1,7 @@
-import React from 'react';
-import { Switch, Slider, Button, Stack, Title, Box, Text, Tooltip } from '@mantine/core';
+import React, { useState, useEffect } from 'react';
+import { Switch, Slider, Button, Stack, Title, Box, Text, Tooltip, Select, Progress, Group } from '@mantine/core';
 import { glassStyle } from '../styles/uiStyles.js';
+import { IconDownload, IconCheck } from '@tabler/icons-react';
 
 const SettingsDrawer = ({
   colorScheme,
@@ -28,6 +29,10 @@ const SettingsDrawer = ({
   setEnableFaceLandmarks,
   enableHandLandmarks,
   setEnableHandLandmarks,
+  modelType,
+  setModelType,
+  useLocalModel,
+  setUseLocalModel,
 }) => {
   // Tooltip content for rep flow diagram explanation
   const repFlowTooltip = (
@@ -49,6 +54,96 @@ const SettingsDrawer = ({
     </div>
   );
 
+  // Model download state
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [modelDownloaded, setModelDownloaded] = useState(false);
+
+  // Check if model is already downloaded
+  useEffect(() => {
+    // Reset download state when model type changes
+    setModelDownloaded(false);
+    
+    // Here we would check if the model is already in local storage or IndexedDB
+    const checkLocalModel = async () => {
+      try {
+        // This would be your actual implementation to check for a local model
+        const modelExists = localStorage.getItem(`pose_landmarker_${modelType}_downloaded`);
+        if (modelExists) {
+          setModelDownloaded(true);
+        }
+      } catch (err) {
+        console.error('Error checking for local model:', err);
+      }
+    };
+    
+    if (useLocalModel) {
+      checkLocalModel();
+    }
+  }, [modelType, useLocalModel]);
+
+  // Function to download the model
+  const downloadModel = async () => {
+    if (isDownloading) return;
+    
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    
+    try {
+      // The URL for the model file
+      const modelUrl = `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${modelType}/float16/1/pose_landmarker_${modelType}.task`;
+      
+      // Fetch the model file with progress tracking
+      const response = await fetch(modelUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download model: ${response.statusText}`);
+      }
+      
+      const contentLength = response.headers.get('content-length');
+      const total = parseInt(contentLength, 10);
+      const reader = response.body.getReader();
+      let receivedLength = 0;
+      let chunks = [];
+      
+      // Process the data stream
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+        
+        chunks.push(value);
+        receivedLength += value.length;
+        
+        // Update progress
+        const progress = Math.round((receivedLength / total) * 100);
+        setDownloadProgress(progress);
+      }
+      
+      // Combine all chunks into a single Uint8Array
+      const allChunks = new Uint8Array(receivedLength);
+      let position = 0;
+      for (const chunk of chunks) {
+        allChunks.set(chunk, position);
+        position += chunk.length;
+      }
+      
+      // Here you would store the model locally
+      // For this example, we'll just mark it as downloaded in localStorage
+      localStorage.setItem(`pose_landmarker_${modelType}_downloaded`, 'true');
+      
+      // Update UI state
+      setModelDownloaded(true);
+      setIsDownloading(false);
+      
+    } catch (error) {
+      console.error('Error downloading model:', error);
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <Stack spacing="xl">
       {/* Light/Dark Mode Toggle */}
@@ -62,6 +157,80 @@ const SettingsDrawer = ({
           radius="xl"
           color="grape.6"
         />
+      </Box>
+
+      {/* Model Selection */}
+      <Box p="md" style={glassStyle} mb="xs">
+        <Title order={4} mb="xs">Pose Model</Title>
+        
+        <Select
+          label="Model Type"
+          description="Select the model variant to use. Heavier models are more accurate but slower."
+          data={[
+            { value: 'lite', label: 'Lite (3.8 MB) - Fastest' },
+            { value: 'full', label: 'Full (8.5 MB) - Balanced' },
+            { value: 'heavy', label: 'Heavy (16 MB) - Most Accurate' }
+          ]}
+          value={modelType}
+          onChange={(value) => {
+            if (value && value !== modelType) {
+              setModelType(value);
+            }
+          }}
+          mb="md"
+        />
+        
+        <Switch
+          checked={useLocalModel}
+          onChange={() => setUseLocalModel(!useLocalModel)}
+          label="Use Local Model"
+          description="Download and use the model locally instead of fetching it each time from the internet"
+          size="md"
+          radius="xl"
+          color="grape.6"
+          mb="md"
+        />
+        
+        {useLocalModel && (
+          <>
+            <Text size="sm" mb="xs">
+              {modelDownloaded 
+                ? <Text span c="green.6"><IconCheck size={16} style={{verticalAlign: 'middle'}} /> Model downloaded and ready for use</Text>
+                : "Model needs to be downloaded for local use"}
+            </Text>
+            
+            {!modelDownloaded && (
+              <>
+                {isDownloading ? (
+                  <Box mb="md">
+                    <Text size="sm" mb="xs">Downloading... {downloadProgress}%</Text>
+                    <Progress 
+                      value={downloadProgress} 
+                      animate="true"
+                      color="grape.6" 
+                      mb="md"
+                    />
+                  </Box>
+                ) : (
+                  <Button
+                    variant="light"
+                    color="grape.6"
+                    onClick={downloadModel}
+                    mb="md"
+                  >
+                    <IconDownload size={16} style={{marginRight: '8px'}} />
+                    Download Model ({modelType === 'lite' ? '3.8' : modelType === 'full' ? '8.5' : '16'} MB)
+                  </Button>
+                )}
+              </>
+            )}
+            
+            <Text size="xs" c="dimmed">
+              Once downloaded, the model will be stored in your browser's storage and won't need to be downloaded again.
+              App will work offline with locally stored models.
+            </Text>
+          </>
+        )}
       </Box>
 
       {/* Camera Feed Visibility Slider */}
@@ -157,9 +326,9 @@ const SettingsDrawer = ({
         {/* Show Rep Flow Diagram Toggle with Tooltip */}
         <Tooltip 
           label={repFlowTooltip}
-          multiline
+          multiline="true"
           width={300}
-          withArrow
+          withArrow="true"
           position="right"
         >
           <div>

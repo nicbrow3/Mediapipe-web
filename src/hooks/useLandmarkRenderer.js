@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { LANDMARK_MAP, POSE_CONNECTIONS } from '../logic/landmarkUtils';
-import { drawLandmarks, drawRepArc } from '../logic/drawingUtils';
+import { drawLandmarks } from '../logic/drawingUtils';
 import defaultConfig from '../config';
 
 /**
@@ -78,14 +78,6 @@ function useLandmarkRenderer(canvasRef, selectedExercise, config = defaultConfig
     // Draw the landmarks and connections
     drawLandmarks(filteredLandmarks, POSE_CONNECTIONS, canvasRef.current, highlightedIndices, secondaryIndices);
     
-    // Draw arm arc (for visualization)
-    const leftShoulder = landmarks[LANDMARK_MAP.left_shoulder];
-    const leftElbow = landmarks[LANDMARK_MAP.left_elbow];
-    const leftWrist = landmarks[LANDMARK_MAP.left_wrist];
-    
-    if (leftShoulder && leftElbow && leftWrist && canvasRef.current) {
-      drawRepArc(canvasRef.current.getContext('2d'), leftShoulder, leftElbow, leftWrist);
-    }
   }, [canvasRef, selectedExercise, config.pose.enableFaceLandmarks, config.pose.enableHandLandmarks]);
   
   return { renderLandmarks };

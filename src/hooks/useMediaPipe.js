@@ -5,9 +5,10 @@ import { initializePoseLandmarker, setupCamera, waitForVideoReady, cleanupVideoS
  * Custom hook for handling MediaPipe and camera setup
  * @param {Object} config - MediaPipe configuration object
  * @param {Function} debugLog - Function for debug logging
+ * @param {Function} progressCallback - Optional progress callback for model loading
  * @returns {Object} - MediaPipe state and functions
  */
-function useMediaPipe(config, debugLog = console.log) {
+function useMediaPipe(config, debugLog = console.log, progressCallback = null) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,7 +43,7 @@ function useMediaPipe(config, debugLog = console.log) {
       canvas.height = video.videoHeight;
 
       // Initialize MediaPipe
-      poseLandmarkerRef.current = await initializePoseLandmarker(config, debugLog);
+      poseLandmarkerRef.current = await initializePoseLandmarker(config, debugLog, progressCallback);
       debugLog(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
 
       setIsLoading(false);

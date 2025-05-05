@@ -139,6 +139,8 @@ function App() {
   const [frameSamplingRate, setFrameSamplingRate] = useState(() => loadSettings().frameSamplingRate ?? 1);
   const [enableFaceLandmarks, setEnableFaceLandmarks] = useState(() => loadSettings().enableFaceLandmarks ?? true);
   const [enableHandLandmarks, setEnableHandLandmarks] = useState(() => loadSettings().enableHandLandmarks ?? true);
+  const [modelType, setModelType] = useState(() => loadSettings().modelType ?? 'lite');
+  const [useLocalModel, setUseLocalModel] = useState(() => loadSettings().useLocalModel ?? false);
 
   // Save settings whenever they change
   useEffect(() => {
@@ -154,11 +156,13 @@ function App() {
       frameSamplingRate,
       enableFaceLandmarks,
       enableHandLandmarks,
+      modelType,
+      useLocalModel,
     };
     saveSettings(settings);
   }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, 
       useSmoothedRepCounting, showRepFlowDiagram, visibilityThreshold, frameSamplingRate,
-      enableFaceLandmarks, enableHandLandmarks]);
+      enableFaceLandmarks, enableHandLandmarks, modelType, useLocalModel]);
   // --- End Lifted Settings State ---
 
   // --- NEW: Workout Session Handlers ---
@@ -227,7 +231,7 @@ function App() {
   // Add state for database viewer
   const [showDatabaseViewer, setShowDatabaseViewer] = useState(false);
 
-  // Add enableFaceLandmarks and enableHandLandmarks to resetSettings
+  // Add modelType and useLocalModel to resetSettings
   const resetSettings = () => {
     setStrictLandmarkVisibility(true);
     setVideoOpacity(5);
@@ -240,11 +244,19 @@ function App() {
     setFrameSamplingRate(1);
     setEnableFaceLandmarks(true);
     setEnableHandLandmarks(true);
+    setModelType('lite');
+    setUseLocalModel(false);
   };
 
   // Create a modified config object with current settings
   const configWithSettings = {
     ...config,
+    mediapipe: {
+      ...config.mediapipe,
+      modelPath: useLocalModel 
+        ? `${window.location.origin}/models/pose_landmarker_${modelType}.task` 
+        : `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${modelType}/float16/1/pose_landmarker_${modelType}.task`,
+    },
     pose: {
       ...config.pose,
       enableFaceLandmarks,
@@ -314,6 +326,10 @@ function App() {
           setEnableFaceLandmarks={setEnableFaceLandmarks}
           enableHandLandmarks={enableHandLandmarks}
           setEnableHandLandmarks={setEnableHandLandmarks}
+          modelType={modelType}
+          setModelType={setModelType}
+          useLocalModel={useLocalModel}
+          setUseLocalModel={setUseLocalModel}
         />
       </Drawer>
 
