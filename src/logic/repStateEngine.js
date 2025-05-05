@@ -14,62 +14,115 @@ export function runRepStateEngine(landmarks, exerciseConfig, prevState) {
   const utils = exerciseConfig.logicConfig.utilityFunctions || {};
   const pipeline = exerciseConfig.logicConfig.pipeline;
 
-  if (Array.isArray(pipeline) && pipeline.length > 0) {
-    // Start with an initial state (can be customized as needed)
-    let state = { prevState };
-    for (const logicFn of pipeline) {
-      if (typeof logicFn !== 'function') throw new Error('Invalid logic function in pipeline');
-      state = logicFn({ landmarks, config: exerciseConfig, prevState, utils, state });
+  try {
+    // Create a minimal version of the previous state to avoid memory growth
+    let cleanPrevState = null;
+    if (prevState) {
+      cleanPrevState = {
+        angleLogic: prevState.angleLogic ? {
+          left: prevState.angleLogic.left ? {
+            phase: prevState.angleLogic.left.phase,
+            lastAngle: prevState.angleLogic.left.lastAngle,
+            lastTransitionTime: prevState.angleLogic.left.lastTransitionTime
+          } : undefined,
+          right: prevState.angleLogic.right ? {
+            phase: prevState.angleLogic.right.phase,
+            lastAngle: prevState.angleLogic.right.lastAngle,
+            lastTransitionTime: prevState.angleLogic.right.lastTransitionTime
+          } : undefined
+        } : undefined
+      };
     }
-    
-    // Ensure each side has a phase property for state-based rep counting
-    if (state.angleLogic) {
-      if (state.angleLogic.left && !state.angleLogic.left.phase) {
-        state.angleLogic.left.phase = determinePhaseFromAngle(
-          state.angleLogic.left.angle,
-          exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'left' || !a.side),
-          prevState?.angleLogic?.left?.phase || 'relaxed'
-        );
+
+    if (Array.isArray(pipeline) && pipeline.length > 0) {
+      // Start with an initial state (can be customized as needed)
+      let state = { prevState: cleanPrevState };
+      for (const logicFn of pipeline) {
+        if (typeof logicFn !== 'function') throw new Error('Invalid logic function in pipeline');
+        state = logicFn({ landmarks, config: exerciseConfig, prevState: cleanPrevState, utils, state });
       }
       
-      if (state.angleLogic.right && !state.angleLogic.right.phase) {
-        state.angleLogic.right.phase = determinePhaseFromAngle(
-          state.angleLogic.right.angle,
-          exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'right'),
-          prevState?.angleLogic?.right?.phase || 'relaxed'
-        );
-      }
-    }
-    
-    return state;
-  } else {
-    // Fallback: single logic function (legacy support)
-    const logicFn = exerciseConfig.logicConfig.stateCalculationFunction;
-    if (typeof logicFn !== 'function') throw new Error('No valid logic function provided in config');
-    
-    const state = logicFn({ landmarks, config: exerciseConfig, prevState, utils });
-    
-    // Ensure each side has a phase property for state-based rep counting
-    if (state.angleLogic) {
-      if (state.angleLogic.left && !state.angleLogic.left.phase) {
-        state.angleLogic.left.phase = determinePhaseFromAngle(
-          state.angleLogic.left.angle,
-          exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'left' || !a.side),
-          prevState?.angleLogic?.left?.phase || 'relaxed'
-        );
+      // Ensure each side has a phase property for state-based rep counting
+      if (state.angleLogic) {
+        if (state.angleLogic.left && !state.angleLogic.left.phase) {
+          state.angleLogic.left.phase = determinePhaseFromAngle(
+            state.angleLogic.left.angle,
+            exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'left' || !a.side),
+            cleanPrevState?.angleLogic?.left?.phase || 'relaxed'
+          );
+        }
+        
+        if (state.angleLogic.right && !state.angleLogic.right.phase) {
+          state.angleLogic.right.phase = determinePhaseFromAngle(
+            state.angleLogic.right.angle,
+            exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'right'),
+            cleanPrevState?.angleLogic?.right?.phase || 'relaxed'
+          );
+        }
       }
       
-      if (state.angleLogic.right && !state.angleLogic.right.phase) {
-        state.angleLogic.right.phase = determinePhaseFromAngle(
-          state.angleLogic.right.angle,
-          exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'right'),
-          prevState?.angleLogic?.right?.phase || 'relaxed'
-        );
+      // Return a clean copy of the state with only the needed properties
+      return createCleanStateObject(state);
+    } else {
+      // Fallback: single logic function (legacy support)
+      const logicFn = exerciseConfig.logicConfig.stateCalculationFunction;
+      if (typeof logicFn !== 'function') throw new Error('No valid logic function provided in config');
+      
+      const state = logicFn({ landmarks, config: exerciseConfig, prevState: cleanPrevState, utils });
+      
+      // Ensure each side has a phase property for state-based rep counting
+      if (state.angleLogic) {
+        if (state.angleLogic.left && !state.angleLogic.left.phase) {
+          state.angleLogic.left.phase = determinePhaseFromAngle(
+            state.angleLogic.left.angle,
+            exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'left' || !a.side),
+            cleanPrevState?.angleLogic?.left?.phase || 'relaxed'
+          );
+        }
+        
+        if (state.angleLogic.right && !state.angleLogic.right.phase) {
+          state.angleLogic.right.phase = determinePhaseFromAngle(
+            state.angleLogic.right.angle,
+            exerciseConfig.logicConfig.anglesToTrack?.find(a => a.side === 'right'),
+            cleanPrevState?.angleLogic?.right?.phase || 'relaxed'
+          );
+        }
       }
+      
+      // Return a clean copy of the state with only the needed properties
+      return createCleanStateObject(state);
     }
-    
-    return state;
+  } catch (error) {
+    console.error('Error in rep state engine:', error);
+    return prevState || {}; // Return previous state on error to maintain stability
   }
+}
+
+/**
+ * Creates a clean state object with only the essential properties needed for rep counting
+ * to prevent memory leaks due to accumulating state objects
+ * @param {Object} state - The full state object
+ * @returns {Object} - A clean state object with only essential properties
+ */
+function createCleanStateObject(state) {
+  if (!state) return {};
+  
+  return {
+    angleLogic: state.angleLogic ? {
+      left: state.angleLogic.left ? {
+        phase: state.angleLogic.left.phase,
+        lastAngle: state.angleLogic.left.lastAngle,
+        lastTransitionTime: state.angleLogic.left.lastTransitionTime,
+        angle: state.angleLogic.left.angle,
+      } : undefined,
+      right: state.angleLogic.right ? {
+        phase: state.angleLogic.right.phase,
+        lastAngle: state.angleLogic.right.lastAngle,
+        lastTransitionTime: state.angleLogic.right.lastTransitionTime,
+        angle: state.angleLogic.right.angle,
+      } : undefined
+    } : undefined
+  };
 }
 
 /**

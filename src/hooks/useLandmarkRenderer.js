@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { LANDMARK_MAP, POSE_CONNECTIONS } from '../logic/landmarkUtils';
 import { drawLandmarks } from '../logic/drawingUtils';
 import defaultConfig from '../config';
@@ -11,6 +11,45 @@ import defaultConfig from '../config';
  * @returns {Object} - Rendering functions
  */
 function useLandmarkRenderer(canvasRef, selectedExercise, config = defaultConfig) {
+  // Cache highlighted indices to avoid recreating arrays on every render
+  const highlightedIndicesRef = useRef([]);
+  const secondaryIndicesRef = useRef([]);
+  const visibilityMapRef = useRef(new Map());
+  
+  // Update the cached indices when exercise changes
+  const updateIndices = useCallback(() => {
+    if (!selectedExercise?.landmarks) {
+      highlightedIndicesRef.current = [];
+      secondaryIndicesRef.current = [];
+      return;
+    }
+    
+    let primaryNames = [];
+    let secondaryNames = [];
+    
+    if (selectedExercise.isTwoSided) {
+      // Two-sided structure
+      const leftPrimary = selectedExercise.landmarks.left?.primary || [];
+      const rightPrimary = selectedExercise.landmarks.right?.primary || [];
+      const leftSecondary = selectedExercise.landmarks.left?.secondary || [];
+      const rightSecondary = selectedExercise.landmarks.right?.secondary || [];
+      primaryNames = [...leftPrimary, ...rightPrimary];
+      secondaryNames = [...leftSecondary, ...rightSecondary];
+    } else {
+      // Flat structure
+      primaryNames = selectedExercise.landmarks.primary || [];
+      secondaryNames = selectedExercise.landmarks.secondary || [];
+    }
+    
+    highlightedIndicesRef.current = primaryNames
+      .map(name => LANDMARK_MAP[name])
+      .filter(index => index !== undefined);
+    
+    secondaryIndicesRef.current = secondaryNames
+      .map(name => LANDMARK_MAP[name])
+      .filter(index => index !== undefined);
+  }, [selectedExercise]);
+  
   /**
    * Render landmarks on the canvas
    * @param {Array} landmarks - Pose landmarks
@@ -18,67 +57,50 @@ function useLandmarkRenderer(canvasRef, selectedExercise, config = defaultConfig
   const renderLandmarks = useCallback((landmarks) => {
     if (!landmarks || !canvasRef.current) return;
     
-    // Get landmark indices to highlight based on the selected exercise
-    let highlightedIndices = [];
-    let secondaryIndices = [];
+    // Update indices if needed
+    updateIndices();
     
-    if (selectedExercise?.landmarks) {
-      let primaryNames = [];
-      let secondaryNames = [];
-      
-      if (selectedExercise.isTwoSided) {
-        // Two-sided structure
-        const leftPrimary = selectedExercise.landmarks.left?.primary || [];
-        const rightPrimary = selectedExercise.landmarks.right?.primary || [];
-        const leftSecondary = selectedExercise.landmarks.left?.secondary || [];
-        const rightSecondary = selectedExercise.landmarks.right?.secondary || [];
-        primaryNames = [...leftPrimary, ...rightPrimary];
-        secondaryNames = [...leftSecondary, ...rightSecondary];
-      } else {
-        // Flat structure
-        primaryNames = selectedExercise.landmarks.primary || [];
-        secondaryNames = selectedExercise.landmarks.secondary || [];
-      }
-      
-      highlightedIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-      secondaryIndices = secondaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
-    }
+    // Create visibility map based on settings (face and hand landmarks)
+    // This avoids creating new landmark objects
+    visibilityMapRef.current.clear();
     
-    // Filter landmarks based on settings (face and hand landmarks)
-    const filteredLandmarks = [...landmarks]; // Create a copy of the landmarks
-
     // Define ranges for face/hand landmarks
     const faceLandmarkRange = { start: 0, end: 10 }; // Indices 0-10 are face landmarks
     const handLandmarkRanges = [
       { start: 17, end: 22 } // Indices 17-22 are hand landmarks
     ];
 
-    // If face landmarks are disabled, make them invisible
+    // If face landmarks are disabled, mark them invisible in the map
     if (!config.pose.enableFaceLandmarks) {
       for (let i = faceLandmarkRange.start; i <= faceLandmarkRange.end; i++) {
-        if (filteredLandmarks[i]) {
-          // Keep the object but make visibility 0
-          filteredLandmarks[i] = { ...filteredLandmarks[i], visibility: 0 };
+        if (landmarks[i]) {
+          visibilityMapRef.current.set(i, 0); // Mark as invisible
         }
       }
     }
 
-    // If hand landmarks are disabled, make them invisible
+    // If hand landmarks are disabled, mark them invisible in the map
     if (!config.pose.enableHandLandmarks) {
       for (const range of handLandmarkRanges) {
         for (let i = range.start; i <= range.end; i++) {
-          if (filteredLandmarks[i]) {
-            // Keep the object but make visibility 0
-            filteredLandmarks[i] = { ...filteredLandmarks[i], visibility: 0 };
+          if (landmarks[i]) {
+            visibilityMapRef.current.set(i, 0); // Mark as invisible
           }
         }
       }
     }
     
     // Draw the landmarks and connections
-    drawLandmarks(filteredLandmarks, POSE_CONNECTIONS, canvasRef.current, highlightedIndices, secondaryIndices);
+    drawLandmarks(
+      landmarks, 
+      POSE_CONNECTIONS, 
+      canvasRef.current, 
+      highlightedIndicesRef.current, 
+      secondaryIndicesRef.current,
+      visibilityMapRef.current
+    );
     
-  }, [canvasRef, selectedExercise, config.pose.enableFaceLandmarks, config.pose.enableHandLandmarks]);
+  }, [canvasRef, config.pose.enableFaceLandmarks, config.pose.enableHandLandmarks, updateIndices]);
   
   return { renderLandmarks };
 }

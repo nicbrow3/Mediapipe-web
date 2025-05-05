@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import defaultConfig from '../config';
 import './WorkoutTracker.css';
 import '../App.css'; // Import global styles
@@ -13,6 +13,7 @@ import {
   IconTarget, // Peak
   IconArrowNarrowDown, // Eccentric
   IconMinus, // Paused
+  IconDeviceWatch, // Add this for model indicator
 } from '@tabler/icons-react';
 import { glassStyle } from '/src/styles/uiStyles';
 import { REP_WINDOW_SECONDS, EXTRA_BUFFER_SECONDS } from '../logic/repHistoryProcessor';
@@ -31,7 +32,7 @@ import FpsCounter from './FpsCounter';
 
 // Accept props: onPoseResultUpdate, availableExercises, selectedExercise, onExerciseChange, 
 // Settings props: videoOpacity, smoothingFactor, strictLandmarkVisibility, showDebug
-const WorkoutTracker = ({
+const WorkoutTracker = forwardRef(({
   onPoseResultUpdate,
   availableExercises,
   selectedExercise,
@@ -46,7 +47,12 @@ const WorkoutTracker = ({
   frameSamplingRate = 1, // New prop for MediaPipe frame sampling (default: process every frame)
   config = null, // Receive configuration with face/hands landmark settings
   useLocalModel, // New prop for local model
-}) => {
+  modelType = 'full', // Add model type prop with default
+  useConfidenceAsFallback = false, // New prop to use confidence as fallback when visibility is low
+  confidenceThreshold = 0.8, // Threshold for confidence values when used as fallback
+  onFullscreenToggle, // New prop to handle fullscreen from the App component
+  onModelInfoClick, // New prop to handle model info button click
+}, ref) => {
   // Debug logging
   const [debugLogs, setDebugLogs] = useState('');
   const [visibilityThreshold, setVisibilityThreshold] = useState(0.7);
@@ -56,6 +62,22 @@ const WorkoutTracker = ({
   const containerRef = useRef(null);
   const previousExerciseRef = useRef(null); // Store previous exercise to detect changes
   const [modelDownloadProgress, setModelDownloadProgress] = useState(0);
+  const [accelerationMode, setAccelerationMode] = useState('Loading...'); // Add state for GPU/CPU info
+  
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    toggleFullScreen: () => {
+      toggleFullScreen();
+    },
+    getModelInfo: () => {
+      return {
+        modelType,
+        useLocalModel,
+        accelerationMode,
+        modelInfo: poseLandmarkerRef?.current?.modelInfo
+      };
+    }
+  }));
   
   // Use imported default config if none provided via props
   const actualConfig = config || defaultConfig;
@@ -85,7 +107,19 @@ const WorkoutTracker = ({
         document.exitFullscreen();
       }
     }
+    // Call the parent component's handler if provided
+    if (onFullscreenToggle) {
+      onFullscreenToggle(isFullScreen);
+    }
   };
+  
+  // Expose the toggleFullScreen function and isFullScreen state to parent
+  useEffect(() => {
+    if (onFullscreenToggle) {
+      // This effect creates a way for the parent to know the current fullscreen state
+      onFullscreenToggle(isFullScreen);
+    }
+  }, [isFullScreen, onFullscreenToggle]);
   
   const debugLog = (msg) => {
     if (!showDebug) return;
@@ -102,7 +136,8 @@ const WorkoutTracker = ({
     lastVideoTimeRef,
     cameraStarted,
     setCameraStarted,
-    setupMediaPipe
+    setupMediaPipe,
+    modelInfo // Add this to get model info from the hook
   } = useMediaPipe(
     actualConfig, 
     showDebug ? console.log : () => {},
@@ -110,7 +145,30 @@ const WorkoutTracker = ({
     useLocalModel ? (progress) => setModelDownloadProgress(progress) : null
   );
   
-  // Initialize pose tracking hook with frame sampling rate
+  // Expose model info to parent - MOVED after modelInfo is defined
+  useEffect(() => {
+    if (onModelInfoClick && modelInfo) {
+      onModelInfoClick({
+        modelType,
+        useLocalModel,
+        accelerationMode,
+        modelInfo
+      });
+    }
+  }, [modelInfo, modelType, useLocalModel, accelerationMode, onModelInfoClick]);
+  
+  // Update GPU acceleration status when model info changes
+  useEffect(() => {
+    if (modelInfo) {
+      // Update local state with acceleration mode
+      setAccelerationMode(modelInfo.delegate || 'Loading...');
+      
+      // No need to call onModelInfoClick here as it's already called
+      // in the effect above that handles modelInfo changes
+    }
+  }, [modelInfo]);
+  
+  // Initialize pose tracking hook with frame sampling rate and confidence fallback
   const {
     trackingState,
     repCount,
@@ -131,6 +189,8 @@ const WorkoutTracker = ({
     onPoseResultUpdate,
     showDebug,
     frameSamplingRate, // Pass the new prop to the hook
+    useConfidenceAsFallback, // Pass the confidence fallback setting
+    confidenceThreshold, // Pass the confidence threshold
   });
   
   // Initialize workout session hook with expanded functionality
@@ -407,9 +467,21 @@ const WorkoutTracker = ({
       )}
 
       <div className="video-canvas-container">
-        {/* Add FPS Counter when debug is enabled */}
-        {showDebug && <FpsCounter position="top-right" showDetails />}
+        <video 
+          ref={videoRef} 
+          className="input_video" 
+          autoPlay 
+          playsInline 
+          muted 
+          style={{ opacity: videoOpacity / 100 }}
+        />
+        <canvas ref={canvasRef} className="output_canvas" />
         
+        {/* Add FPS Counter when debug is enabled */}
+        {showDebug && <FpsCounter position="top-center" showDetails />}
+        
+        {/* Model Indicator and Fullscreen Button moved to App level */}
+
         {/* Top Left Controls Container */}
         <div style={{ 
           position: 'absolute', 
@@ -448,36 +520,7 @@ const WorkoutTracker = ({
             </div>
           )}
         </div>
-        
-        {/* Fullscreen Button - Top Right */}
-        <Tooltip label={isFullScreen ? "Exit Fullscreen" : "Enter Fullscreen"} position="left" withArrow>
-          <ActionIcon
-            variant="filled"
-            color="grape.6"
-            size="lg"
-            radius="xl"
-            onClick={toggleFullScreen}
-            style={{
-              position: 'absolute',
-              top: 'var(--mantine-spacing-md)',
-              right: 'var(--mantine-spacing-md)',
-              zIndex: 10
-            }}
-          >
-            {isFullScreen ? <IconMinimize size={20} /> : <IconMaximize size={20} />}
-          </ActionIcon>
-        </Tooltip>
 
-        <video 
-          ref={videoRef} 
-          className="input_video" 
-          autoPlay 
-          playsInline 
-          muted 
-          style={{ opacity: videoOpacity / 100 }}
-        />
-        <canvas ref={canvasRef} className="output_canvas" />
-        
         {/* Rep History Graph */}
         <div style={{ position: 'absolute', top: 10, right: 10, width: '40%', minWidth: 320, zIndex: 3 }}>
           <RepHistoryGraph
@@ -1005,6 +1048,6 @@ const WorkoutTracker = ({
       )}
     </div>
   );
-};
+});
 
 export default WorkoutTracker;

@@ -2,12 +2,20 @@ import React, { useState, useRef, useEffect } from 'react';
 import WorkoutTracker from './components/WorkoutTracker';
 import Sidebar from './components/Sidebar'; // Assuming Sidebar component exists
 import SettingsDrawer from './components/SettingsDrawer'; // New component for settings
-import DatabaseViewer from './components/DatabaseViewer.jsx'; // Import DatabaseViewer
+import DatabaseViewerContent from './components/DatabaseViewerContent.jsx'; // Import the new component
 import * as exercises from './exercises'; // Import all exercises
 import config from './config'; // Import the configuration
 import './App.css'; // Add styles for layout and toggle button
-import { MantineProvider, Drawer, ActionIcon, Tooltip } from '@mantine/core';
-import { IconSettings, IconX, IconDatabase, IconEye } from '@tabler/icons-react'; // Icons for settings button and close, and database icon
+import { MantineProvider, Drawer, ActionIcon, Tooltip, Paper, Tabs, Switch, Slider, Text } from '@mantine/core';
+import { 
+  IconSettings, 
+  IconX, 
+  IconDatabase, 
+  IconEye, 
+  IconMaximize, 
+  IconMinimize, 
+  IconDeviceWatch 
+} from '@tabler/icons-react'; // Add fullscreen and model indicator icons
 import '@mantine/core/styles.css';
 import { startNewWorkoutSession, endWorkoutSession, getSetsForSession } from './services/db'; // Import db functions
 
@@ -51,6 +59,10 @@ function App() {
   const [latestPoseData, setLatestPoseData] = useState(null); // State for pose data
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false); // State for settings drawer
   const [currentSessionId, setCurrentSessionId] = useState(null); // State for active session ID
+  const [showDatabaseViewer, setShowDatabaseViewer] = useState(false); // State for database viewer
+  
+  // Create ref for WorkoutTracker component to access its methods
+  const workoutTrackerRef = useRef(null);
 
   // --- Lifted Exercise State ---
   const availableExercises = useRef(Object.values(exercises)); // Get all exercises
@@ -141,6 +153,8 @@ function App() {
   const [enableHandLandmarks, setEnableHandLandmarks] = useState(() => loadSettings().enableHandLandmarks ?? true);
   const [modelType, setModelType] = useState(() => loadSettings().modelType ?? 'lite');
   const [useLocalModel, setUseLocalModel] = useState(() => loadSettings().useLocalModel ?? false);
+  const [useConfidenceAsFallback, setUseConfidenceAsFallback] = useState(true);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(0.8);
 
   // Save settings whenever they change
   useEffect(() => {
@@ -158,11 +172,14 @@ function App() {
       enableHandLandmarks,
       modelType,
       useLocalModel,
+      useConfidenceAsFallback,
+      confidenceThreshold,
     };
     saveSettings(settings);
   }, [strictLandmarkVisibility, videoOpacity, smoothingFactor, showDebug, repDebounceDuration, 
       useSmoothedRepCounting, showRepFlowDiagram, visibilityThreshold, frameSamplingRate,
-      enableFaceLandmarks, enableHandLandmarks, modelType, useLocalModel]);
+      enableFaceLandmarks, enableHandLandmarks, modelType, useLocalModel, useConfidenceAsFallback,
+      confidenceThreshold]);
   // --- End Lifted Settings State ---
 
   // --- NEW: Workout Session Handlers ---
@@ -228,9 +245,6 @@ function App() {
   const openSettingsDrawer = () => setSettingsDrawerOpen(true);
   const closeSettingsDrawer = () => setSettingsDrawerOpen(false);
 
-  // Add state for database viewer
-  const [showDatabaseViewer, setShowDatabaseViewer] = useState(false);
-
   // Add modelType and useLocalModel to resetSettings
   const resetSettings = () => {
     setStrictLandmarkVisibility(true);
@@ -246,6 +260,8 @@ function App() {
     setEnableHandLandmarks(true);
     setModelType('lite');
     setUseLocalModel(false);
+    setUseConfidenceAsFallback(true);
+    setConfidenceThreshold(0.8);
   };
 
   // Create a modified config object with current settings
@@ -262,6 +278,25 @@ function App() {
       enableFaceLandmarks,
       enableHandLandmarks,
     }
+  };
+
+  // Add new state for fullscreen and model info
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [modelInfo, setModelInfo] = useState({
+    modelType: 'full',
+    useLocalModel: false,
+    accelerationMode: 'Loading...',
+    details: null
+  });
+
+  // Handle fullscreen toggle from WorkoutTracker
+  const handleFullscreenToggle = (fullScreenState) => {
+    setIsFullScreen(fullScreenState);
+  };
+  
+  // Handle model info from WorkoutTracker
+  const handleModelInfoUpdate = (info) => {
+    setModelInfo(info);
   };
 
   return (
@@ -330,6 +365,10 @@ function App() {
           setModelType={setModelType}
           useLocalModel={useLocalModel}
           setUseLocalModel={setUseLocalModel}
+          useConfidenceAsFallback={useConfidenceAsFallback}
+          setUseConfidenceAsFallback={setUseConfidenceAsFallback}
+          confidenceThreshold={confidenceThreshold}
+          setConfidenceThreshold={setConfidenceThreshold}
         />
       </Drawer>
 
@@ -359,7 +398,7 @@ function App() {
           }
         }}
       >
-        <DatabaseViewer />
+        <DatabaseViewerContent />
       </Drawer>
 
       <div className={`app-container ${isSidebarOpen ? 'sidebar-open' : ''}`}>
@@ -392,14 +431,60 @@ function App() {
             </ActionIcon>
           </Tooltip>
 
+          {/* Fullscreen Button - Moved from WorkoutTracker */}
+          <Tooltip label={isFullScreen ? "Exit Fullscreen" : "Enter Fullscreen"} position="left" withArrow>
+            <ActionIcon
+              variant="filled"
+              color="grape.6"
+              size="lg"
+              radius="xl"
+              onClick={() => {
+                // This will trigger the toggleFullScreen function in WorkoutTracker through the ref
+                if (workoutTrackerRef.current && workoutTrackerRef.current.toggleFullScreen) {
+                  workoutTrackerRef.current.toggleFullScreen();
+                }
+              }}
+            >
+              {isFullScreen ? <IconMinimize size={20} /> : <IconMaximize size={20} />}
+            </ActionIcon>
+          </Tooltip>
+          
+          {/* Model Info Button - Moved from WorkoutTracker */}
+          <Tooltip 
+            label={
+              <div>
+                <div>Using <b>{modelInfo.modelType}</b> model{modelInfo.useLocalModel ? ' (local)' : ' (remote)'}</div>
+                <div>Acceleration: <b>{modelInfo.accelerationMode}</b></div>
+                {showDebug && modelInfo.modelType && 
+                  <div style={{fontSize: '0.85em', marginTop: '4px', opacity: 0.8}}>
+                    Model size: {modelInfo.modelType === 'lite' ? '3.8MB' : modelInfo.modelType === 'full' ? '8.5MB' : '16MB'}
+                  </div>
+                }
+              </div>
+            } 
+            position="left" 
+            withArrow
+            multiline
+            width={200}
+          >
+            <ActionIcon
+              variant="filled"
+              color={modelInfo.accelerationMode === 'GPU' ? 'teal.6' : modelInfo.accelerationMode === 'CPU' ? 'orange.6' : 'gray.6'}
+              size="lg"
+              radius="xl"
+            >
+              <IconDeviceWatch size={20} />
+            </ActionIcon>
+          </Tooltip>
+
           {/* Database Button */}
-          <Tooltip label="View Database Contents" position="left" withArrow>
+          <Tooltip label={showDatabaseViewer ? "Hide Database" : "View Database Contents"} position="left" withArrow>
             <ActionIcon
               variant="filled"
               color="teal.7"
               size="lg"
               radius="xl"
-              onClick={() => setShowDatabaseViewer(true)}
+              onClick={() => setShowDatabaseViewer(prevState => !prevState)}
             >
               <IconDatabase size={20} />
             </ActionIcon>
@@ -423,7 +508,9 @@ function App() {
         )}
 
         <div className="main-content">
+          {/* Add ref to the WorkoutTracker component to access its methods */}
           <WorkoutTracker
+            ref={workoutTrackerRef}
             onPoseResultUpdate={handlePoseResultUpdate}
             availableExercises={availableExercises.current}
             selectedExercise={selectedExercise}
@@ -442,6 +529,12 @@ function App() {
             visibilityThreshold={visibilityThreshold}
             frameSamplingRate={frameSamplingRate}
             config={configWithSettings}
+            useLocalModel={useLocalModel}
+            modelType={modelType}
+            useConfidenceAsFallback={useConfidenceAsFallback}
+            confidenceThreshold={confidenceThreshold}
+            onFullscreenToggle={handleFullscreenToggle}
+            onModelInfoClick={handleModelInfoUpdate}
           />
         </div>
 

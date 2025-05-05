@@ -184,7 +184,7 @@ async function getModelBuffer(config, debugLog, progressCallback = null) {
  * @param {Object} config - App configuration with MediaPipe settings
  * @param {Function} debugLog - Function for debug logging
  * @param {Function} progressCallback - Optional callback for download progress
- * @returns {Promise<Object>} - Initialized pose landmarker
+ * @returns {Promise<Object>} - Object containing initialized pose landmarker and model info
  */
 async function initializePoseLandmarker(config, debugLog = console.log, progressCallback = null) {
   debugLog('Setting up MediaPipe...');
@@ -203,6 +203,11 @@ async function initializePoseLandmarker(config, debugLog = console.log, progress
   const modelBuffer = await getModelBuffer(config, debugLog, progressCallback);
   
   let poseLandmarker = null;
+  let modelInfo = {
+    delegate: 'Unknown',
+    isLocalModel: !!modelBuffer,
+    modelPath: config.mediapipe.modelPath
+  };
   
   // First try with GPU
   try {
@@ -242,6 +247,7 @@ async function initializePoseLandmarker(config, debugLog = console.log, progress
     }
     
     debugLog('Successfully initialized with GPU delegate');
+    modelInfo.delegate = 'GPU';
   } catch (gpuError) {
     // If GPU fails, try with CPU
     debugLog('GPU initialization failed: ' + gpuError.message);
@@ -281,6 +287,7 @@ async function initializePoseLandmarker(config, debugLog = console.log, progress
       }
       
       debugLog('Successfully initialized with CPU delegate');
+      modelInfo.delegate = 'CPU';
     } catch (cpuError) {
       throw new Error(`Failed to initialize with both GPU and CPU: GPU error: ${gpuError.message}, CPU error: ${cpuError.message}`);
     }
@@ -290,8 +297,19 @@ async function initializePoseLandmarker(config, debugLog = console.log, progress
     throw new Error('Failed to initialize PoseLandmarker');
   }
   
+  // Extract model type from the model path
+  const modelPath = config.mediapipe.modelPath;
+  const modelType = modelPath.includes('lite') ? 'lite' : 
+                    modelPath.includes('full') ? 'full' : 
+                    modelPath.includes('heavy') ? 'heavy' : 'unknown';
+  
+  modelInfo.modelType = modelType;
+  
   debugLog('MediaPipe setup complete!');
-  return poseLandmarker;
+  return {
+    poseLandmarker, 
+    info: modelInfo
+  };
 }
 
 /**

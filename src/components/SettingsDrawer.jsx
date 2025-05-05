@@ -33,6 +33,10 @@ const SettingsDrawer = ({
   setModelType,
   useLocalModel,
   setUseLocalModel,
+  useConfidenceAsFallback,
+  setUseConfidenceAsFallback,
+  confidenceThreshold,
+  setConfidenceThreshold,
 }) => {
   // Tooltip content for rep flow diagram explanation
   const repFlowTooltip = (
@@ -412,6 +416,75 @@ const SettingsDrawer = ({
           radius="xl"
           color="grape.6"
         />
+      </Box>
+
+      {/* Advanced Tracking Settings */}
+      <Box p="md" style={glassStyle} mb="xs">
+        <Title order={4} mb="xs">Advanced Tracking Settings</Title>
+        
+        {/* Landmark Visibility Settings */}
+        <Box mb="md">
+          <Text size="md" fw={500} mb="xs">Visibility Threshold: {visibilityThreshold.toFixed(2)}</Text>
+          <Text size="sm" c="dimmed" mb="xs">
+            Minimum visibility score required for landmarks to be considered visible.
+            Lower values may cause more false positives, higher values may miss some poses.
+          </Text>
+          <Slider
+            min={0.1}
+            max={0.9}
+            step={0.05}
+            value={visibilityThreshold}
+            onChange={setVisibilityThreshold}
+            mb="md"
+          />
+          
+          <Switch
+            checked={strictLandmarkVisibility}
+            onChange={() => setStrictLandmarkVisibility(!strictLandmarkVisibility)}
+            label="Strict Landmark Visibility"
+            description="When enabled, requires ALL landmarks to be visible, not just the primary ones"
+            size="md"
+            radius="xl"
+            color="grape.6"
+            mb="md"
+          />
+          
+          {/* Add new confidence-based fallback setting */}
+          <Switch
+            checked={useConfidenceAsFallback}
+            onChange={() => setUseConfidenceAsFallback(!useConfidenceAsFallback)}
+            label="Use Confidence as Fallback"
+            description="When enabled, landmarks with low visibility but high confidence will still be tracked"
+            size="md"
+            radius="xl"
+            color="grape.6"
+            mb="md"
+          />
+          
+          {/* Only show confidence threshold slider when fallback is enabled */}
+          {useConfidenceAsFallback && (
+            <>
+              <Text size="md" fw={500} mb="xs">Confidence Threshold: {confidenceThreshold.toFixed(2)}</Text>
+              <Text size="sm" c="dimmed" mb="xs">
+                Minimum confidence score required to use a landmark despite low visibility.
+                Higher values ensure more reliable tracking but may be more restrictive.
+              </Text>
+              <Slider
+                min={0.5}
+                max={0.95}
+                step={0.05}
+                value={confidenceThreshold}
+                onChange={setConfidenceThreshold}
+                mb="md"
+                marks={[
+                  { value: 0.5, label: '0.5' },
+                  { value: 0.7, label: '0.7' },
+                  { value: 0.9, label: '0.9' },
+                ]}
+              />
+            </>
+          )}
+        </Box>
       </Box>
 
       {/* Reset Settings Button */}

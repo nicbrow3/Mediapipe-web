@@ -10,12 +10,26 @@ const TRACKING_STATES = {
 const VISIBILITY_GRACE_PERIOD_MS = 300;
 
 // Checks if required landmarks for an exercise are visible
-function checkRequiredLandmarksVisible(landmarks, threshold, requireAll, selectedExercise) {
+function checkRequiredLandmarksVisible(landmarks, threshold, requireAll, selectedExercise, useConfidenceAsFallback = false, confidenceThreshold = 0.8) {
   if (!landmarks) return false;
   if (requireAll) {
     // Require ALL pose landmarks to be visible above threshold
-    return landmarks.every(lm => (lm?.visibility ?? 1) > threshold);
+    return landmarks.every(lm => {
+      // Check visibility first
+      if ((lm?.visibility ?? 1) > threshold) return true;
+      
+      // If visibility is low but we're allowed to use confidence as fallback
+      // and confidence is higher than confidenceThreshold, consider it visible
+      if (useConfidenceAsFallback && 
+          lm?.presence !== undefined && 
+          lm.presence > confidenceThreshold) {
+        return true;
+      }
+      
+      return false;
+    });
   }
+  
   // Get required indices for current exercise
   let requiredIndices = [];
   if (selectedExercise?.landmarks) {
@@ -29,11 +43,26 @@ function checkRequiredLandmarksVisible(landmarks, threshold, requireAll, selecte
     }
     requiredIndices = primaryNames.map(name => LANDMARK_MAP[name]).filter(index => index !== undefined);
   }
-  return requiredIndices.length > 0 && requiredIndices.every(idx => (landmarks[idx]?.visibility ?? 1) > threshold);
+  
+  return requiredIndices.length > 0 && requiredIndices.every(idx => {
+    const lm = landmarks[idx];
+    // Check visibility first
+    if ((lm?.visibility ?? 1) > threshold) return true;
+    
+    // If visibility is low but we're allowed to use confidence as fallback
+    // and confidence is higher than confidenceThreshold, consider it visible
+    if (useConfidenceAsFallback && 
+        lm?.presence !== undefined && 
+        lm.presence > confidenceThreshold) {
+      return true;
+    }
+    
+    return false;
+  });
 }
 
 // Checks if secondary landmarks for an exercise are visible
-function checkSecondaryLandmarksVisible(landmarks, threshold, selectedExercise) {
+function checkSecondaryLandmarksVisible(landmarks, threshold, selectedExercise, useConfidenceAsFallback = false, confidenceThreshold = 0.8) {
   if (!landmarks) return false;
   let secondaryIndices = [];
   if (selectedExercise?.landmarks) {
@@ -49,7 +78,22 @@ function checkSecondaryLandmarksVisible(landmarks, threshold, selectedExercise) 
   }
   // If there are no secondary, treat as true
   if (secondaryIndices.length === 0) return true;
-  return secondaryIndices.every(idx => (landmarks[idx]?.visibility ?? 1) > threshold);
+  
+  return secondaryIndices.every(idx => {
+    const lm = landmarks[idx];
+    // Check visibility first
+    if ((lm?.visibility ?? 1) > threshold) return true;
+    
+    // If visibility is low but we're allowed to use confidence as fallback
+    // and confidence is higher than confidenceThreshold, consider it visible
+    if (useConfidenceAsFallback && 
+        lm?.presence !== undefined && 
+        lm.presence > confidenceThreshold) {
+      return true;
+    }
+    
+    return false;
+  });
 }
 
 function inReadyPoseSide(landmarks, exercise, side) {
@@ -121,10 +165,26 @@ function updateTrackingState(
   repInProgressRef,
   wasInReadyPoseRef,
   lostVisibilityTimestampRef,
-  prevTrackingStateRef
+  prevTrackingStateRef,
+  useConfidenceAsFallback = false,
+  confidenceThreshold = 0.8
 ) {
-  const requiredVisible = checkRequiredLandmarksVisible(landmarks, visibilityThreshold, strictLandmarkVisibility, exercise);
-  const secondaryVisible = checkSecondaryLandmarksVisible(landmarks, visibilityThreshold, exercise);
+  const requiredVisible = checkRequiredLandmarksVisible(
+    landmarks, 
+    visibilityThreshold, 
+    strictLandmarkVisibility, 
+    exercise,
+    useConfidenceAsFallback,
+    confidenceThreshold
+  );
+  
+  const secondaryVisible = checkSecondaryLandmarksVisible(
+    landmarks, 
+    visibilityThreshold, 
+    exercise,
+    useConfidenceAsFallback,
+    confidenceThreshold
+  );
   
   const now = Date.now();
   let isTwoSided = exercise?.isTwoSided;

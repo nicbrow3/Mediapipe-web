@@ -16,6 +16,7 @@ function useMediaPipe(config, debugLog = console.log, progressCallback = null) {
   const poseLandmarkerRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
   const [cameraStarted, setCameraStarted] = useState(false);
+  const [modelInfo, setModelInfo] = useState(null);
 
   // Setup MediaPipe and camera
   const setupMediaPipe = async () => {
@@ -43,7 +44,18 @@ function useMediaPipe(config, debugLog = console.log, progressCallback = null) {
       canvas.height = video.videoHeight;
 
       // Initialize MediaPipe
-      poseLandmarkerRef.current = await initializePoseLandmarker(config, debugLog, progressCallback);
+      const result = await initializePoseLandmarker(config, debugLog, progressCallback);
+      
+      // If initializePoseLandmarker now returns an object with poseLandmarker and info fields
+      if (result && result.poseLandmarker) {
+        poseLandmarkerRef.current = result.poseLandmarker;
+        // Save model info like which delegate (GPU/CPU) is being used
+        setModelInfo(result.info || { delegate: 'Unknown' });
+      } else {
+        // For backward compatibility
+        poseLandmarkerRef.current = result;
+      }
+      
       debugLog(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
 
       setIsLoading(false);
@@ -74,7 +86,8 @@ function useMediaPipe(config, debugLog = console.log, progressCallback = null) {
     lastVideoTimeRef,
     cameraStarted,
     setCameraStarted,
-    setupMediaPipe
+    setupMediaPipe,
+    modelInfo
   };
 }
 

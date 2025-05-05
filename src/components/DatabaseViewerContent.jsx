@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Paper, Table, Title, Accordion, Badge, Text, Group, Button, Modal, Loader, Center, Checkbox, Stack, Tooltip } from '@mantine/core';
+import { Table, Title, Accordion, Badge, Text, Group, Button, Modal, Loader, Center, Checkbox, Stack, Tooltip } from '@mantine/core';
 import { glassStyle } from '/src/styles/uiStyles';
 import useDatabase from '../hooks/useDatabase';
 import { IconTrash, IconAlertTriangle, IconSelect, IconX, IconInfoCircle } from '@tabler/icons-react';
 // Import all available exercises
 import * as allExercises from '../exercises';
 
-const DatabaseViewer = () => {
+const DatabaseViewerContent = () => {
   const { 
     sessions, 
     sessionSets, 
@@ -199,19 +199,18 @@ const DatabaseViewer = () => {
   );
   
   if (error) return (
-    <Paper p="xl" shadow="md" radius="lg" style={glassStyle}>
-      <Group>
-        <IconAlertTriangle size={24} color="red" />
-        <Text c="red">Error loading database: {error}</Text>
-      </Group>
-    </Paper>
+    <Group>
+      <IconAlertTriangle size={24} color="red" />
+      <Text c="red">Error loading database: {error}</Text>
+    </Group>
   );
 
   // Count completed sessions (available for selection)
   const completedSessionsCount = sessions.length - activeSessionsCount;
 
   return (
-    <Paper p="xl" shadow="md" radius="lg" style={glassStyle}>
+    <>
+      {/* Main content without the Paper wrapper */}
       <Group position="apart" mb="xl">
         <Title order={2}>Database Contents</Title>
         
@@ -492,8 +491,8 @@ const DatabaseViewer = () => {
           <Button color="red" onClick={handleDeleteSelectedSessions}>Delete Selected</Button>
         </Group>
       </Modal>
-    </Paper>
+    </>
   );
 };
 
-export default DatabaseViewer; 
+export default DatabaseViewerContent; 
