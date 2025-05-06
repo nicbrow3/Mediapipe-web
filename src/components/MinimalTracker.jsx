@@ -319,6 +319,7 @@ const MinimalTracker = () => {
         <StatsDisplay 
           stats={stats} 
           cameraStarted={cameraStarted} 
+          landmarksData={landmarksData}
         />
       </div>
     </div>

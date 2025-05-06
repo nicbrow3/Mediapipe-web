@@ -1,9 +1,12 @@
 import React from 'react';
 
-const StatsDisplay = ({ stats, cameraStarted }) => {
+const StatsDisplay = ({ stats, cameraStarted, landmarksData }) => {
   if (!cameraStarted) {
     return null;
   }
+  
+  // Count landmarks if available
+  const landmarksCount = landmarksData ? landmarksData.length : 0;
   
   return (
     <div style={{
@@ -19,7 +22,7 @@ const StatsDisplay = ({ stats, cameraStarted }) => {
       fontSize: '16px',
       zIndex: 100,
     }}>
-      FPS: {stats.fps} | Inference Time: {stats.inferenceTime}ms
+      FPS: {stats.fps} | Inference Time: {stats.inferenceTime}ms | Landmarks detected: {landmarksCount}
     </div>
   );
 };
