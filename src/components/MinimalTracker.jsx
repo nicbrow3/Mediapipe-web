@@ -1,6 +1,14 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import './WorkoutTracker.css'; // Reuse existing styles
+import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils';
+import * as exercises from '../exercises';
+import VideoCanvas, { setupCamera, waitForVideoReady } from './VideoCanvas';
+import ExerciseSelector from './ExerciseSelector';
+import AngleDisplay from './AngleDisplay';
+import StatsDisplay from './StatsDisplay';
+import PhaseTrackerDisplay from './PhaseTrackerDisplay';
+import LandmarkMetricsDisplay from './LandmarkMetricsDisplay';
 
 const MinimalTracker = () => {
   // References
@@ -20,39 +28,29 @@ const MinimalTracker = () => {
     fps: 0,
     inferenceTime: 0
   });
+  const [selectedExercise, setSelectedExercise] = useState(Object.values(exercises)[0]);
+  const [trackedAngles, setTrackedAngles] = useState({});
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
+  const [landmarksData, setLandmarksData] = useState(null);
+
+  // Ref for always-current selectedExercise
+  const selectedExerciseRef = useRef(selectedExercise);
+  useEffect(() => {
+    selectedExerciseRef.current = selectedExercise;
+  }, [selectedExercise]);
 
   // Constants for performance metrics
   const MAX_SAMPLES = 30; // Store last 30 samples for smoothing
 
-  // Setup camera
-  const setupCamera = async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('Browser API navigator.mediaDevices.getUserMedia not available');
-    }
+  // Get exercise options from imported exercises
+  const exerciseOptions = Object.values(exercises).filter(e => e && e.id && e.name);
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
-      return stream;
-    } catch (error) {
-      throw new Error(`Error accessing camera: ${error.message}`);
-    }
-  };
+  useEffect(() => {
+  }, [selectedExercise]);
 
-  // Wait for video to be ready
-  const waitForVideoReady = (videoElement) => {
-    return new Promise((resolve) => {
-      videoElement.onloadedmetadata = () => {
-        videoElement.play();
-        resolve(videoElement);
-      };
-    });
-  };
+  // Log state changes
+  useEffect(() => {
+  }, [cameraStarted, selectedExercise, trackedAngles]);
 
   // Initialize MediaPipe
   const initializePoseLandmarker = async () => {
@@ -121,8 +119,6 @@ const MinimalTracker = () => {
     }
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
     
     // Calculate FPS
     const fps = 1000.0 / (now - lastFrameTimeRef.current);
@@ -144,74 +140,41 @@ const MinimalTracker = () => {
       updateStats(avgFps, avgInferenceTime);
     }
 
-    // Draw results
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // First draw the video frame
-    ctx.save();
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Then draw the landmarks if available
-    if (results.landmarks?.length > 0) {
-      for (const landmarks of results.landmarks) {
-        drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
-      }
+    // Set landmarks for rendering
+    if (results.landmarks && results.landmarks.length > 0) {
+      setLandmarksData(results.landmarks[0]);
+    } else {
+      setLandmarksData(null);
     }
-    
-    ctx.restore();
+
+    // Use the latest selectedExercise from ref
+    const exercise = selectedExerciseRef.current;
+    if (results.landmarks && results.landmarks.length > 0 && exercise && exercise.logicConfig?.type === 'angle' && Array.isArray(exercise.logicConfig.anglesToTrack)) {
+      const landmarks = results.landmarks[0];
+      const newAngles = {};
+      for (const angleConfig of exercise.logicConfig.anglesToTrack) {
+        const { side, points, id } = angleConfig;
+        // Map points to landmark names, e.g. left_shoulder, left_elbow, left_wrist
+        const pointNames = points.map(pt => (side ? `${side}_${pt}` : pt));
+        const indices = pointNames.map(name => LANDMARK_MAP[name]);
+        if (indices.every(idx => idx !== undefined)) {
+          const [a, b, c] = indices.map(idx => landmarks[idx]);
+          const angle = calculateAngle(a, b, c);
+          newAngles[id] = angle ? Math.round(angle) : null;
+        } else {
+          newAngles[id] = null;
+        }
+      }
+      console.log('Calculated angles:', newAngles);
+      setTrackedAngles(newAngles);
+    } else {
+      console.log('No landmarks or exercise config, setting empty trackedAngles');
+      setTrackedAngles({});
+    }
 
     // Continue the render loop
     requestAnimationRef.current = requestAnimationFrame(renderLoop);
   }, [updateStats]);
-
-  // Draw landmarks on canvas
-  const drawLandmarks = (ctx, landmarks, width, height) => {
-    if (!landmarks) return;
-
-    // Set styles for landmarks
-    ctx.fillStyle = 'white';
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
-    
-    // Draw each landmark
-    for (const landmark of landmarks) {
-      // Convert normalized coordinates to pixel coordinates
-      const x = landmark.x * width;
-      const y = landmark.y * height;
-      
-      // Draw landmark point
-      ctx.beginPath();
-      ctx.arc(x, y, 4, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-    
-    // Draw connections between landmarks (simplified)
-    // POSE_CONNECTIONS would normally come from MediaPipe, but we'll use a simplified subset
-    const connections = [
-      // Torso
-      [11, 12], [12, 24], [24, 23], [23, 11],
-      // Arms
-      [11, 13], [13, 15], [12, 14], [14, 16],
-      // Legs
-      [23, 25], [25, 27], [24, 26], [26, 28],
-      // Head
-      [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8]
-    ];
-    
-    ctx.beginPath();
-    for (const [i, j] of connections) {
-      if (landmarks[i] && landmarks[j]) {
-        const x1 = landmarks[i].x * width;
-        const y1 = landmarks[i].y * height;
-        const x2 = landmarks[j].x * width;
-        const y2 = landmarks[j].y * height;
-        
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-      }
-    }
-    ctx.stroke();
-  };
 
   // Start camera and tracking
   const handleStartCamera = async () => {
@@ -227,8 +190,9 @@ const MinimalTracker = () => {
       await waitForVideoReady(videoRef.current);
 
       // Set canvas dimensions to match video
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
+      const width = videoRef.current.videoWidth;
+      const height = videoRef.current.videoHeight;
+      setCanvasDimensions({ width, height });
       
       // Initialize MediaPipe
       poseLandmarkerRef.current = await initializePoseLandmarker();
@@ -271,6 +235,14 @@ const MinimalTracker = () => {
 
   return (
     <div className="workout-tracker-container">
+      {/* Exercise Dropdown (only show after camera started) */}
+      {cameraStarted && (
+        <ExerciseSelector 
+          exerciseOptions={exerciseOptions}
+          selectedExercise={selectedExercise}
+          onChange={setSelectedExercise}
+        />
+      )}
       {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
       {errorMessage && <div className="error-message">{errorMessage}</div>}
       
@@ -302,33 +274,43 @@ const MinimalTracker = () => {
       )}
 
       <div className="video-canvas-container">
-        <video 
-          ref={videoRef} 
-          className="input_video" 
-          autoPlay 
-          playsInline 
-          muted 
+        <VideoCanvas
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          landmarks={landmarksData}
+          width={canvasDimensions.width}
+          height={canvasDimensions.height}
+          cameraStarted={cameraStarted}
         />
-        <canvas ref={canvasRef} className="output_canvas" />
+        
+        {/* Phase and Rep Counter */}
+        {cameraStarted && (
+          <PhaseTrackerDisplay
+            selectedExercise={selectedExercise}
+            trackedAngles={trackedAngles}
+          />
+        )}
+        
+        {/* Angle Displays for selected exercise */}
+        <AngleDisplay 
+          selectedExercise={selectedExercise}
+          trackedAngles={trackedAngles}
+        />
+        
+        {/* Landmark Metrics Display */}
+        {cameraStarted && landmarksData && (
+          <LandmarkMetricsDisplay
+            selectedExercise={selectedExercise}
+            landmarksData={landmarksData}
+            trackedAngles={trackedAngles}
+          />
+        )}
         
         {/* Stats Display */}
-        {cameraStarted && (
-          <div style={{
-            position: 'absolute',
-            top: 20,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            color: 'white',
-            padding: '10px 20px',
-            borderRadius: '5px',
-            fontFamily: 'monospace',
-            fontSize: '16px',
-            zIndex: 100
-          }}>
-            FPS: {stats.fps} | Inference Time: {stats.inferenceTime}ms
-          </div>
-        )}
+        <StatsDisplay 
+          stats={stats} 
+          cameraStarted={cameraStarted} 
+        />
       </div>
     </div>
   );
