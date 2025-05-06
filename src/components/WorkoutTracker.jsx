@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
 import defaultConfig from '../config';
 import './WorkoutTracker.css';
 import '../App.css'; // Import global styles
@@ -63,6 +63,7 @@ const WorkoutTracker = forwardRef(({
   const previousExerciseRef = useRef(null); // Store previous exercise to detect changes
   const [modelDownloadProgress, setModelDownloadProgress] = useState(0);
   const [accelerationMode, setAccelerationMode] = useState('Loading...'); // Add state for GPU/CPU info
+  const [minimalTrackingMode, setMinimalTrackingMode] = useState(false);
   
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
@@ -121,12 +122,38 @@ const WorkoutTracker = forwardRef(({
     }
   }, [isFullScreen, onFullscreenToggle]);
   
+  // We're now using the values directly from usePoseTracking
+  
   const debugLog = (msg) => {
     if (!showDebug) return;
     setDebugLogs(prev => prev + msg + '\n');
   };
   
-  // Initialize MediaPipe hook
+  // Create a modified config for minimal tracking mode
+  const getConfigForMode = useCallback(() => {
+    if (minimalTrackingMode) {
+      // In minimal tracking mode, we ensure all landmarks are visible
+      // but use the same model type for performance comparison
+      return {
+        ...actualConfig,
+        pose: {
+          ...actualConfig.pose,
+          enableFaceLandmarks: true,
+          enableHandLandmarks: true,
+          // Keep existing model type settings
+          modelType: actualConfig.pose.modelType,
+          useLocalModel: actualConfig.pose.useLocalModel
+        }
+      };
+    }
+    // Otherwise use the actual config
+    return actualConfig;
+  }, [minimalTrackingMode, actualConfig]);
+
+  // Use the appropriate config
+  const effectiveConfig = getConfigForMode();
+  
+  // Initialize MediaPipe hook with the effective config
   const {
     videoRef,
     canvasRef,
@@ -139,7 +166,7 @@ const WorkoutTracker = forwardRef(({
     setupMediaPipe,
     modelInfo // Add this to get model info from the hook
   } = useMediaPipe(
-    actualConfig, 
+    effectiveConfig, 
     showDebug ? console.log : () => {},
     // Pass progress callback if using local model
     useLocalModel ? (progress) => setModelDownloadProgress(progress) : null
@@ -191,7 +218,14 @@ const WorkoutTracker = forwardRef(({
     frameSamplingRate, // Pass the new prop to the hook
     useConfidenceAsFallback, // Pass the confidence fallback setting
     confidenceThreshold, // Pass the confidence threshold
+    minimalTrackingMode, // Add minimal tracking mode
   });
+  
+  // Extract values from trackingState for component UI
+  const effectiveRepCount = repCount;
+  const effectiveRepHistory = repHistory;
+  const effectiveTrackingState = trackingState;
+  const effectiveRepEngineState = repEngineState;
   
   // Initialize workout session hook with expanded functionality
   const {
@@ -202,17 +236,10 @@ const WorkoutTracker = forwardRef(({
     endWorkout,
     handleCloseSummary,
     saveExerciseSet // Make sure this function exists in useWorkoutSession
-  } = useWorkoutSession(selectedExercise, repCount, showDebug);
+  } = useWorkoutSession(selectedExercise, effectiveRepCount, showDebug);
   
   // Initialize landmark renderer hook
   const { renderLandmarks } = useLandmarkRenderer(canvasRef, selectedExercise, actualConfig);
-  
-  // Start render loop when everything is set up
-  useEffect(() => {
-    if (cameraStarted && poseLandmarkerRef.current) {
-      requestAnimationFrame(renderLoop);
-    }
-  }, [cameraStarted, poseLandmarkerRef, renderLoop]);
   
   // Auto-increase rep goal when rep count exceeds goal
   useEffect(() => {
@@ -245,8 +272,8 @@ const WorkoutTracker = forwardRef(({
       
       // Check if there are any completed reps to save
       const totalReps = prevExercise.isTwoSided 
-        ? Math.min(repCount.left, repCount.right) 
-        : repCount.left;
+        ? Math.min(effectiveRepCount.left, effectiveRepCount.right) 
+        : effectiveRepCount.left;
       
       if (totalReps > 0) {
         debugLog(`Saving set for ${prevExercise.name} with ${totalReps} reps`);
@@ -254,9 +281,9 @@ const WorkoutTracker = forwardRef(({
         // Save the previous exercise as a completed set
         saveExerciseSet({
           exerciseId: prevExercise.id,
-          reps: prevExercise.isTwoSided ? null : repCount.left,
-          repsLeft: prevExercise.isTwoSided ? repCount.left : null,
-          repsRight: prevExercise.isTwoSided ? repCount.right : null,
+          reps: prevExercise.isTwoSided ? null : effectiveRepCount.left,
+          repsLeft: prevExercise.isTwoSided ? effectiveRepCount.left : null,
+          repsRight: prevExercise.isTwoSided ? effectiveRepCount.right : null,
           weight: prevExercise.hasWeight ? weight : null
         });
       }
@@ -267,10 +294,15 @@ const WorkoutTracker = forwardRef(({
   }, [selectedExercise, isSessionActive]);
   
   // Handle starting camera and workout
-  const handleStartCamera = async () => {
+  const handleStartCamera = async (minimal = false) => {
+    // Set minimal tracking mode based on parameter
+    setMinimalTrackingMode(minimal);
+    
     try {
       // Start a new workout session
       await startWorkout();
+      
+      // Reset rep counters is handled by usePoseTracking internally
       
       // Set up camera and MediaPipe
       const success = await setupMediaPipe();
@@ -289,8 +321,8 @@ const WorkoutTracker = forwardRef(({
     // Before ending workout, save the current exercise as a set if it has reps
     if (isSessionActive) {
       const totalReps = selectedExercise.isTwoSided 
-        ? Math.min(repCount.left, repCount.right)
-        : repCount.left;
+        ? Math.min(effectiveRepCount.left, effectiveRepCount.right)
+        : effectiveRepCount.left;
       
       if (totalReps > 0) {
         debugLog(`Saving final set for ${selectedExercise.name} with ${totalReps} reps`);
@@ -298,9 +330,9 @@ const WorkoutTracker = forwardRef(({
         // Save the current exercise as a completed set
         saveExerciseSet({
           exerciseId: selectedExercise.id,
-          reps: selectedExercise.isTwoSided ? null : repCount.left,
-          repsLeft: selectedExercise.isTwoSided ? repCount.left : null,
-          repsRight: selectedExercise.isTwoSided ? repCount.right : null,
+          reps: selectedExercise.isTwoSided ? null : effectiveRepCount.left,
+          repsLeft: selectedExercise.isTwoSided ? effectiveRepCount.left : null,
+          repsRight: selectedExercise.isTwoSided ? effectiveRepCount.right : null,
           weight: selectedExercise.hasWeight ? weight : null
         });
       }
@@ -364,25 +396,42 @@ const WorkoutTracker = forwardRef(({
     // - relaxed is at high angle (straight arm) - should show PlayerPause
     // - peak is at low angle (bent arm) - should show Target
     
-    if (relaxedIsHigh) {
-      // Standard icons for bicep curls etc.
-      return phaseIcons[phase] || null;
-    } else {
-      // Adjusted icons for tricep kickbacks etc.
-      const adjustedPhaseIcons = {
-        relaxed: phaseIcons.relaxed, // Same icon for relaxed
-        concentric: phaseIcons.eccentric, // Reverse the direction
-        peak: phaseIcons.peak, // Same icon for peak
-        eccentric: phaseIcons.concentric, // Reverse the direction
-        '-': phaseIcons['-'], // Same icon for paused
-      };
-      return adjustedPhaseIcons[phase] || null;
+    return phaseIcons[phase] || phaseIcons['-'];
+  };
+  
+  // Function to get current phase from rep engine state
+  const getCurrentPhase = (side) => {
+    if (!effectiveRepEngineState || !effectiveRepEngineState.angleLogic) {
+      return '-';
     }
+    
+    const sideState = effectiveRepEngineState.angleLogic[side];
+    if (!sideState) {
+      return '-';
+    }
+    
+    return sideState.phase || '-';
+  };
+  
+  // Helper to format debug info for rep engine state
+  const getRepEngineDebugInfo = () => {
+    if (!showDebug || !effectiveRepEngineState) {
+      return null;
+    }
+    
+    return (
+      <div className="ui-text-preset ui-box-preset" style={{...glassStyle, fontSize: '10px', position: 'absolute', bottom: '8px', left: '8px', maxWidth: '200px', overflowWrap: 'break-word'}}>
+        <div>Left phase: {effectiveRepEngineState?.angleLogic?.left?.phase || '-'}</div>
+        <div>Right phase: {effectiveRepEngineState?.angleLogic?.right?.phase || '-'}</div>
+        <div>Left angle: {effectiveRepEngineState?.angleLogic?.left?.angle?.toFixed(1) || '-'}</div>
+        <div>Right angle: {effectiveRepEngineState?.angleLogic?.right?.angle?.toFixed(1) || '-'}</div>
+      </div>
+    );
   };
   
   // Helper to get the appropriate phase display based on tracking state
   const getPhaseDisplay = (sidePhase) => {
-    return trackingState === TRACKING_STATES.PAUSED ? '-' : (sidePhase || 'relaxed');
+    return effectiveTrackingState === TRACKING_STATES.PAUSED ? '-' : (sidePhase || 'relaxed');
   };
 
   // Helper to determine which phase should pulse in the rep flow
@@ -416,6 +465,14 @@ const WorkoutTracker = forwardRef(({
     });
   };
   
+  // Start render loop when camera is started
+  useEffect(() => {
+    if (cameraStarted && poseLandmarkerRef.current && renderLoop) {
+      // Call the render loop from usePoseTracking
+      requestAnimationFrame(renderLoop);
+    }
+  }, [cameraStarted, poseLandmarkerRef, renderLoop]);
+  
   return (
     <div className="workout-tracker-container" ref={containerRef}>
       {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
@@ -444,26 +501,49 @@ const WorkoutTracker = forwardRef(({
 
       {/* Show Start Camera button if not started */}
       {!cameraStarted && (
-        <button 
-          onClick={handleStartCamera} 
-          className="start-camera-btn" 
-          style={{ 
-            zIndex: 10, 
-            position: 'absolute', 
-            left: '50%', 
-            top: '40%', 
-            transform: 'translate(-50%, -50%)', 
-            fontSize: 24, 
-            padding: '1em 2em', 
-            borderRadius: 8, 
-            background: '#6a55be', 
-            color: 'white', 
-            border: 'none', 
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)' 
-          }}
-        >
-          Start Camera
-        </button>
+        <div style={{
+          zIndex: 10, 
+          position: 'absolute', 
+          left: '50%', 
+          top: '40%', 
+          transform: 'translate(-50%, -50%)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          alignItems: 'center'
+        }}>
+          <button 
+            onClick={() => handleStartCamera(false)} 
+            className="start-camera-btn" 
+            style={{ 
+              fontSize: 24, 
+              padding: '1em 2em', 
+              borderRadius: 8, 
+              background: '#6a55be', 
+              color: 'white', 
+              border: 'none', 
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)' 
+            }}
+          >
+            Start Camera
+          </button>
+          
+          <button 
+            onClick={() => handleStartCamera(true)} 
+            className="minimal-tracking-btn" 
+            style={{ 
+              fontSize: 24, 
+              padding: '1em 2em', 
+              borderRadius: 8, 
+              background: '#45a29e', 
+              color: 'white', 
+              border: 'none', 
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)' 
+            }}
+          >
+            Minimal Tracking
+          </button>
+        </div>
       )}
 
       <div className="video-canvas-container">
@@ -477,68 +557,72 @@ const WorkoutTracker = forwardRef(({
         />
         <canvas ref={canvasRef} className="output_canvas" />
         
-        {/* Add FPS Counter when debug is enabled */}
-        {showDebug && <FpsCounter position="top-center" showDetails />}
+        {/* Add FPS Counter - always show in minimal tracking mode */}
+        {(showDebug || minimalTrackingMode) && <FpsCounter position="top-center" showDetails={true} />}
         
         {/* Model Indicator and Fullscreen Button moved to App level */}
 
-        {/* Top Left Controls Container */}
-        <div style={{ 
-          position: 'absolute', 
-          top: 'var(--mantine-spacing-md)', 
-          left: 'var(--mantine-spacing-md)', 
-          zIndex: 5, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: 'var(--mantine-spacing-md)'
-        }}>
-          {/* State Indicator */}
-          <div className="ui-text-preset ui-box-preset" style={getTrackingStateStyle(trackingState, glassStyle)}>
-            <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
-              <span>State: {trackingState}</span>
-            </div>
-          </div>
-          
-          {/* End Workout Button */}
-          {isSessionActive && (
-            <div 
-              className="ui-text-preset ui-box-preset" 
-              style={{ ...glassStyle, borderColor: '#e74c3c' }}
-            >
-              <div 
-                style={{ 
-                  position: 'relative', 
-                  overflow: 'hidden', 
-                  width: '100%', 
-                  height: '100%', 
-                  cursor: 'pointer' 
-                }} 
-                onClick={handleEndWorkout}
-              >
-                End Workout
+        {/* Top Left Controls Container - hide in minimal tracking mode */}
+        {!minimalTrackingMode && (
+          <div style={{ 
+            position: 'absolute', 
+            top: 'var(--mantine-spacing-md)', 
+            left: 'var(--mantine-spacing-md)', 
+            zIndex: 5, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 'var(--mantine-spacing-md)'
+          }}>
+            {/* State Indicator */}
+            <div className="ui-text-preset ui-box-preset" style={getTrackingStateStyle(effectiveTrackingState, glassStyle)}>
+              <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%' }}>
+                <span>State: {effectiveTrackingState}</span>
               </div>
             </div>
-          )}
-        </div>
+            
+            {/* End Workout Button */}
+            {isSessionActive && (
+              <div 
+                className="ui-text-preset ui-box-preset" 
+                style={{ ...glassStyle, borderColor: '#e74c3c' }}
+              >
+                <div 
+                  style={{ 
+                    position: 'relative', 
+                    overflow: 'hidden', 
+                    width: '100%', 
+                    height: '100%', 
+                    cursor: 'pointer' 
+                  }} 
+                  onClick={handleEndWorkout}
+                >
+                  End Workout
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Rep History Graph */}
-        <div style={{ position: 'absolute', top: 10, right: 10, width: '40%', minWidth: 320, zIndex: 3 }}>
-          <RepHistoryGraph
-            data={repHistory
-              .filter(d => d.trackingState === 'ACTIVE' || d.trackingState === 'READY')
-              .filter(d => Date.now() - d.timestamp <= (REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS) * 1000)}
-            showLeft={selectedExercise.isTwoSided || (!selectedExercise.isTwoSided && repHistory.some(d => d.leftAngle !== null))}
-            showRight={selectedExercise.isTwoSided && repHistory.some(d => d.rightAngle !== null)}
-            windowSeconds={REP_WINDOW_SECONDS}
-            exerciseConfig={selectedExercise}
-            visibilityThreshold={visibilityThreshold}
-            smoothingFactor={smoothingFactor}
-            useSmoothing={useSmoothedRepCounting}
-          />
-        </div>
+        {/* Rep History Graph - hide in minimal tracking mode */}
+        {!minimalTrackingMode && (
+          <div style={{ position: 'absolute', top: 10, right: 10, width: '40%', minWidth: 320, zIndex: 3 }}>
+            <RepHistoryGraph
+              data={effectiveRepHistory
+                .filter(d => d.trackingState === 'ACTIVE' || d.trackingState === 'READY')
+                .filter(d => Date.now() - d.timestamp <= (REP_WINDOW_SECONDS + EXTRA_BUFFER_SECONDS) * 1000)}
+              showLeft={selectedExercise.isTwoSided || (!selectedExercise.isTwoSided && effectiveRepHistory.some(d => d.leftAngle !== null))}
+              showRight={selectedExercise.isTwoSided && effectiveRepHistory.some(d => d.rightAngle !== null)}
+              windowSeconds={REP_WINDOW_SECONDS}
+              exerciseConfig={selectedExercise}
+              visibilityThreshold={visibilityThreshold}
+              smoothingFactor={smoothingFactor}
+              useSmoothing={useSmoothedRepCounting}
+            />
+          </div>
+        )}
         
-        {/* Weight Indicator - positioned above rep goal (only for exercises with weights) */}
-        {selectedExercise.hasWeight && (
+        {/* Weight Indicator - hide in minimal tracking mode */}
+        {selectedExercise.hasWeight && !minimalTrackingMode && (
           <div 
             className="weight-indicator ui-text-preset ui-box-preset" 
             style={{
@@ -638,8 +722,8 @@ const WorkoutTracker = forwardRef(({
           </div>
         )}
         
-        {/* State Flow Indicator - positioned above rep goal but below weight indicator if present */}
-        {showRepFlowDiagram && (
+        {/* State Flow Indicator - hide in minimal tracking mode */}
+        {showRepFlowDiagram && cameraStarted && !minimalTrackingMode && (
           <div 
             className="rep-flow ui-text-preset ui-box-preset" 
             style={{
@@ -669,7 +753,7 @@ const WorkoutTracker = forwardRef(({
                 gap: '6px'
               }}>
                 <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#3498db' }}
                 >
@@ -677,7 +761,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('concentric', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#f39c12' }}
                 >
@@ -685,7 +769,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('peak', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#27ae60' }}
                 >
@@ -693,7 +777,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('eccentric', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#9b59b6' }}
                 >
@@ -701,7 +785,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)}
                   style={{ color: '#3498db' }}
                 >
@@ -718,7 +802,7 @@ const WorkoutTracker = forwardRef(({
                 gap: '6px'
               }}>
                 <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#3498db' }}
                 >
@@ -726,7 +810,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('concentric', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#f39c12' }}
                 >
@@ -734,7 +818,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('peak', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#27ae60' }}
                 >
@@ -742,7 +826,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('eccentric', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)} 
                   style={{ color: '#9b59b6' }}
                 >
@@ -750,7 +834,7 @@ const WorkoutTracker = forwardRef(({
                 </span>
                 <span>→</span>
                 <span className={getPhaseClassName('relaxed', !selectedExercise.isTwoSided ? 
-                  getPhaseDisplay(repEngineState?.angleLogic?.left?.phase) : 
+                  getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase) : 
                   null)}
                   style={{ color: '#3498db' }}
                 >
@@ -762,106 +846,108 @@ const WorkoutTracker = forwardRef(({
           </div>
         )}
         
-        {/* Rep Goal - positioned at bottom center */}
-        <div 
-          className="rep-goal ui-text-preset ui-box-preset" 
-          style={{
-            ...glassStyle,
-            position: 'absolute',
-            bottom: 'var(--mantine-spacing-md)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 2,
-            width: '375px', // Fixed width for the container
-            textAlign: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between', // Push buttons to edges
-            gap: '8px',
-            padding: '8px 12px'
-          }}
-        >
-          {/* Left Button Group */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <button 
-              onClick={() => adjustRepGoal(-5)} 
-              style={{ 
-                background: 'rgba(255, 255, 255, 0.2)', 
-                border: 'none', 
-                borderRadius: '4px', 
-                padding: '4px 8px', 
-                color: 'white', 
-                cursor: 'pointer',
-                fontSize: '14px',
-                minWidth: '32px'
-              }}
-            >
-              -5
-            </button>
-            <button 
-              onClick={() => adjustRepGoal(-1)} 
-              style={{ 
-                background: 'rgba(255, 255, 255, 0.2)', 
-                border: 'none', 
-                borderRadius: '4px', 
-                padding: '4px 8px', 
-                color: 'white', 
-                cursor: 'pointer',
-                fontSize: '14px',
-                minWidth: '32px'
-              }}
-            >
-              -1
-            </button>
+        {/* Rep Goal Indicator - hide in minimal tracking mode */}
+        {cameraStarted && !minimalTrackingMode && (
+          <div 
+            className="rep-goal ui-text-preset ui-box-preset" 
+            style={{
+              ...glassStyle,
+              position: 'absolute',
+              bottom: 'var(--mantine-spacing-md)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 2,
+              width: '375px', // Fixed width for the container
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between', // Push buttons to edges
+              gap: '8px',
+              padding: '8px 12px'
+            }}
+          >
+            {/* Left Button Group */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button 
+                onClick={() => adjustRepGoal(-5)} 
+                style={{ 
+                  background: 'rgba(255, 255, 255, 0.2)', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  padding: '4px 8px', 
+                  color: 'white', 
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  minWidth: '32px'
+                }}
+              >
+                -5
+              </button>
+              <button 
+                onClick={() => adjustRepGoal(-1)} 
+                style={{ 
+                  background: 'rgba(255, 255, 255, 0.2)', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  padding: '4px 8px', 
+                  color: 'white', 
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  minWidth: '32px'
+                }}
+              >
+                -1
+              </button>
+            </div>
+            
+            {/* Center Text Area */}
+            <div style={{ 
+              flexGrow: 1, // Allow text area to take up remaining space
+              minWidth: '100px', // Ensure text has minimum space
+              textAlign: 'center', // Center the text within its space
+              margin: '0 8px' 
+            }}>
+              Rep Goal: {repGoal}
+            </div>
+            
+            {/* Right Button Group */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button 
+                onClick={() => adjustRepGoal(1)} 
+                style={{ 
+                  background: 'rgba(255, 255, 255, 0.2)', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  padding: '4px 8px', 
+                  color: 'white', 
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  minWidth: '32px'
+                }}
+              >
+                +1
+              </button>
+              <button 
+                onClick={() => adjustRepGoal(5)} 
+                style={{ 
+                  background: 'rgba(255, 255, 255, 0.2)', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  padding: '4px 8px', 
+                  color: 'white', 
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  minWidth: '32px'
+                }}
+              >
+                +5
+              </button>
+            </div>
           </div>
-          
-          {/* Center Text Area */}
-          <div style={{ 
-            flexGrow: 1, // Allow text area to take up remaining space
-            minWidth: '100px', // Ensure text has minimum space
-            textAlign: 'center', // Center the text within its space
-            margin: '0 8px' 
-          }}>
-            Rep Goal: {repGoal}
-          </div>
-          
-          {/* Right Button Group */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <button 
-              onClick={() => adjustRepGoal(1)} 
-              style={{ 
-                background: 'rgba(255, 255, 255, 0.2)', 
-                border: 'none', 
-                borderRadius: '4px', 
-                padding: '4px 8px', 
-                color: 'white', 
-                cursor: 'pointer',
-                fontSize: '14px',
-                minWidth: '32px'
-              }}
-            >
-              +1
-            </button>
-            <button 
-              onClick={() => adjustRepGoal(5)} 
-              style={{ 
-                background: 'rgba(255, 255, 255, 0.2)', 
-                border: 'none', 
-                borderRadius: '4px', 
-                padding: '4px 8px', 
-                color: 'white', 
-                cursor: 'pointer',
-                fontSize: '14px',
-                minWidth: '32px'
-              }}
-            >
-              +5
-            </button>
-          </div>
-        </div>
+        )}
         
-        {/* Rep Counters & State Indicators Area */}
-        {selectedExercise.isTwoSided ? (
+        {/* Rep Counters & State Indicators Area - hide in minimal tracking mode */}
+        {!minimalTrackingMode && selectedExercise.isTwoSided ? (
           <>
             {/* Left Vertical Rep Bar */}
             <Box style={{
@@ -874,7 +960,7 @@ const WorkoutTracker = forwardRef(({
               zIndex: 2
             }}>
               <VerticalRepProgressBar
-                currentReps={repCount.left}
+                currentReps={effectiveRepCount.left}
                 repGoal={repGoal}
                 height="100%" // Fill the container
                 width="100%" // Fill the container
@@ -892,7 +978,7 @@ const WorkoutTracker = forwardRef(({
               zIndex: 2
             }}>
               <VerticalRepProgressBar
-                currentReps={repCount.right}
+                currentReps={effectiveRepCount.right}
                 repGoal={repGoal}
                 height="100%"
                 width="100%"
@@ -903,7 +989,7 @@ const WorkoutTracker = forwardRef(({
             {/* Left State Indicator */}
             <div className="rep-counter-box ui-text-preset ui-box-preset" style={{ // Reuse class for styling consistency
               ...getPhaseStyle(
-                getPhaseDisplay(repEngineState?.angleLogic?.left?.phase),
+                getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase),
                 glassStyle
               ),
               position: 'absolute',
@@ -918,13 +1004,13 @@ const WorkoutTracker = forwardRef(({
               justifyContent: 'center',
               padding: 0, // Remove padding if not needed
             }}>
-              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.left?.phase), 'left')}
+              {getPhaseIcon(getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase), 'left')}
             </div>
 
             {/* Right State Indicator */}
             <div className="rep-counter-box ui-text-preset ui-box-preset" style={{ // Reuse class
               ...getPhaseStyle(
-                getPhaseDisplay(repEngineState?.angleLogic?.right?.phase),
+                getPhaseDisplay(effectiveRepEngineState?.angleLogic?.right?.phase),
                 glassStyle
               ),
               position: 'absolute',
@@ -939,13 +1025,13 @@ const WorkoutTracker = forwardRef(({
               justifyContent: 'center',
               padding: 0,
             }}>
-              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.right?.phase), 'right')}
+              {getPhaseIcon(getPhaseDisplay(effectiveRepEngineState?.angleLogic?.right?.phase), 'right')}
             </div>
           </>
-        ) : (
+        ) : !minimalTrackingMode && (
           <>
             {/* Single Vertical Rep Bar (Right Side) */}
-             <Box style={{
+            <Box style={{
               position: 'absolute',
               top: '50%',
               right: 'var(--mantine-spacing-md)',
@@ -955,7 +1041,7 @@ const WorkoutTracker = forwardRef(({
               zIndex: 2
             }}>
               <VerticalRepProgressBar
-                currentReps={repCount.left} // Single-sided uses repCount.left
+                currentReps={effectiveRepCount.left} // Single-sided uses repCount.left
                 repGoal={repGoal}
                 height="100%"
                 width="100%"
@@ -965,7 +1051,7 @@ const WorkoutTracker = forwardRef(({
             {/* State Indicator (Positioned below right bar) */}
             <div className="rep-counter-box ui-text-preset ui-box-preset" style={{ // Reuse class
               ...getPhaseStyle(
-                getPhaseDisplay(repEngineState?.angleLogic?.left?.phase), // Single-sided uses left phase
+                getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase), // Single-sided uses left phase
                 glassStyle
               ),
               position: 'absolute',
@@ -980,7 +1066,7 @@ const WorkoutTracker = forwardRef(({
               justifyContent: 'center',
               padding: 0,
             }}>
-              {getPhaseIcon(getPhaseDisplay(repEngineState?.angleLogic?.left?.phase), 'left')}
+              {getPhaseIcon(getPhaseDisplay(effectiveRepEngineState?.angleLogic?.left?.phase), 'left')}
             </div>
           </>
         )}
@@ -1038,6 +1124,98 @@ const WorkoutTracker = forwardRef(({
             />
           </Paper>
         </div>
+
+        {/* Rep State Display for Tracking */}
+        {effectiveTrackingState === TRACKING_STATES.ACTIVE && (
+          <div style={{
+            position: 'absolute',
+            bottom: '140px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            gap: '12px',
+            padding: '8px 12px',
+            background: 'rgba(0,0,0,0.5)',
+            borderRadius: '8px',
+            zIndex: 10
+          }}>
+            {/* Left Side Phase */}
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ marginBottom: '4px', fontSize: '14px', opacity: 0.8 }}>LEFT</div>
+              <div style={{ 
+                width: '40px', 
+                height: '40px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                ...getPhaseStyle(getCurrentPhase('left'), {background: 'rgba(255,255,255,0.1)', borderRadius: '50%'})
+              }}>
+                {getPhaseIcon(getCurrentPhase('left'), 'left')}
+              </div>
+              <div style={{ marginTop: '4px', fontSize: '16px' }}>{getCurrentPhase('left')}</div>
+            </div>
+
+            {/* Right Side Phase */}
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ marginBottom: '4px', fontSize: '14px', opacity: 0.8 }}>RIGHT</div>
+              <div style={{ 
+                width: '40px', 
+                height: '40px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                ...getPhaseStyle(getCurrentPhase('right'), {background: 'rgba(255,255,255,0.1)', borderRadius: '50%'})
+              }}>
+                {getPhaseIcon(getCurrentPhase('right'), 'right')}
+              </div>
+              <div style={{ marginTop: '4px', fontSize: '16px' }}>{getCurrentPhase('right')}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Rep Engine Debug Info */}
+        {getRepEngineDebugInfo()}
+
+        {/* Minimal tracking mode indicator */}
+        {minimalTrackingMode && cameraStarted && (
+          <div 
+            className="ui-text-preset ui-box-preset" 
+            style={{
+              ...glassStyle,
+              position: 'absolute',
+              bottom: 'var(--mantine-spacing-md)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 2,
+              padding: '8px 16px',
+              backgroundColor: 'rgba(32, 32, 32, 0.7)',
+              borderColor: '#45a29e'
+            }}
+          >
+            Minimal Tracking Mode - {modelInfo.modelType || 'unknown'} model - {modelInfo.delegate || 'unknown'} acceleration
+          </div>
+        )}
+
+        {/* End button for minimal tracking mode */}
+        {minimalTrackingMode && cameraStarted && (
+          <div 
+            className="ui-text-preset ui-box-preset" 
+            style={{
+              ...glassStyle,
+              position: 'absolute',
+              top: 'var(--mantine-spacing-md)',
+              right: 'var(--mantine-spacing-md)',
+              zIndex: 5,
+              padding: '8px 16px',
+              cursor: 'pointer',
+              backgroundColor: 'rgba(32, 32, 32, 0.7)',
+              borderColor: '#e74c3c'
+            }}
+            onClick={handleEndWorkout}
+          >
+            End Tracking
+          </div>
+        )}
       </div>
 
       {/* Debug window */}

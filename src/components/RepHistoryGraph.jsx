@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { AreaChart } from '@mantine/charts';
 import useRepHistoryData from '../hooks/useRepHistoryData.js';
 
@@ -24,106 +24,56 @@ const RepHistoryGraph = ({
   smoothingFactor = 0,
   useSmoothing = true
 }) => {
-  // Limit data to maximum of 400 entries to avoid performance issues in long sessions
-  const limitedData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-    // Only take the most recent data needed for the window plus buffer
-    return data.slice(-Math.min(400, data.length));
-  }, [data]);
-  
-  // Use the custom hook for data processing
-  const { 
+  // Use our custom hook to process data and get visualization config
+  const {
     containerRef,
     processedData,
-    buildReferenceLines, 
-    leftRelaxedIsHigh,
-    rightRelaxedIsHigh,
-    leftMin,
-    leftMax,
-    rightMin,
-    rightMax,
-    colors 
+    referenceLines,
+    buildSeries,
+    yAxisLabel,
+    windowSeconds: timeWindow
   } = useRepHistoryData(
-    limitedData, 
+    data, 
     exerciseConfig, 
-    windowSeconds,
-    useSmoothing ? smoothingFactor : 0
+    windowSeconds, 
+    useSmoothing ? smoothingFactor : 0 // Only apply smoothing if useSmoothing is true
   );
 
-  // Calculate the Y-axis domain
-  const calculateDomain = () => {
-    let minValue = 0;
-    let maxValue = 180;
-    
-    // Get values from exercise configuration, if available
-    if (exerciseConfig && exerciseConfig.logicConfig && exerciseConfig.logicConfig.anglesToTrack) {
-      const leftTrack = exerciseConfig.logicConfig.anglesToTrack.find(a => a.side === 'left' || !a.side);
-      const rightTrack = exerciseConfig.logicConfig.anglesToTrack.find(a => a.side === 'right');
-      
-      if (leftTrack) {
-        minValue = Math.min(minValue, leftTrack.minThreshold - 10);
-        maxValue = Math.max(maxValue, leftTrack.maxThreshold + 10);
-      }
-      
-      if (rightTrack) {
-        minValue = Math.min(minValue, rightTrack.minThreshold - 10);
-        maxValue = Math.max(maxValue, rightTrack.maxThreshold + 10);
-      }
-    }
-    
-    // Add some padding
-    return [Math.max(0, minValue - 5), maxValue + 5];
-  };
+  // Get series configuration
+  const series = buildSeries(showLeft, showRight);
 
-  const domain = calculateDomain();
-  const referenceLines = buildReferenceLines ? buildReferenceLines() : [];
-  const currentData = processedData();
-  
   return (
-    <div ref={containerRef} style={{ width: '100%', height: 180, background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: 10 }}>
+    <div ref={containerRef} style={{ width: '100%', height: 220 }}>
       <AreaChart
-        h={160}
-        data={currentData}
+        h={220}
+        data={processedData}
         dataKey="timeAgo"
-        series={[
-          ...(showLeft ? [{ name: 'leftAngle', color: colors.accentColor || 'blue' }] : []),
-          ...(showRight ? [{ name: 'rightAngle', color: colors.accentColor2 || 'green' }] : [])
-        ]}
-        curveType="linear"
-        gridAxis="none"
         withLegend
-        legendProps={{ 
-          verticalAlign: 'top', 
-          height: 20, 
-          fontSize: 10,
-          containerStyle: { marginBottom: 0 }
+        legendProps={{
+          verticalAlign: 'middle',
+          align: 'right',
+          layout: 'vertical',
+          wrapperStyle: { right: 0, top: 20 },
         }}
-        yAxisProps={{
-          domain,
-          tickCount: 5,
-          tickFormatter: (value) => `${Math.round(value)}°`,
-          fontSize: 9,
-          width: 30,
-          tickMargin: 0,
-          style: { color: colors.gridColor || '#888' }
+        series={series}
+        curveType="monotone"
+        strokeWidth={2}
+        withDots={false}
+        yAxisLabel={yAxisLabel}
+        yAxisProps={{ domain: [0, 180], tickMargin: 5 }}
+        xAxisProps={{ type: 'number', domain: [-timeWindow, 0], tickMargin: 10, tickFormatter: () => '' }}
+        valueFormatter={(value) => value !== null && value !== undefined ? value.toFixed(1) : ''}
+        tooltipProps={{
+          labelFormatter: (t) => `${t} s ago`,
         }}
-        xAxisProps={{
-          tickCount: 5,
-          tickFormatter: (value) => `${Math.round(value * -1)}s`,
-          fontSize: 9,
-          style: { color: colors.gridColor || '#888' }
-        }}
-        valueFormatter={(value) => value !== null && !isNaN(value) ? `${Math.round(value)}°` : 'N/A'}
-        referenceLines={referenceLines.map(line => ({
-          y: line.y,
-          color: line.color,
-          stroke: line.color,
-          strokeDasharray: '3 3',
-          label: { value: '', position: 'right', fill: line.color, fontSize: 9 }
-        }))}
+        referenceLines={referenceLines}
       />
+      {/*
+        If you want to visually indicate phase zones, you could overlay absolutely-positioned divs
+        or contribute a PR to Mantine to support this feature.
+      */}
     </div>
   );
 };
 
-export default React.memo(RepHistoryGraph); 
+export default RepHistoryGraph; 

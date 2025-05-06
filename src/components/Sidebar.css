@@ -1,27 +1,45 @@
 /* Sidebar.css */
 .sidebar {
-  position: fixed;
-  top: 20px;
-  right: 0;
-  max-height: calc(100vh - 40px); /* 20px top + 20px bottom padding */
-  width: 280px; /* Adjust width as needed */
-  /* Apply glass style */
+  height: 100%;
+  width: 100%;
   background-color: rgba(36, 36, 47, 0.75);
   backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   color: #fff;
-  border-radius: 8px; /* Round all corners */
-  padding: 15px; /* Match slider padding closer */
-  /* Remove or adjust previous border/shadow */
-  /* border-left: 1px solid #dee2e6; */ 
-  transform: translateX(100%); /* Initially off-screen */
-  transition: transform 0.3s ease-in-out; /* Smooth slide */
-  z-index: 1000; /* Ensure it's above other content */
+  padding: 15px;
   overflow-y: auto; /* Allow scrolling if content exceeds height */
 }
 
-.sidebar.open {
-  transform: translateX(0); /* Slide in */
-  margin-right: 20px; /* Add space between sidebar and viewport edge */
+/* Landmark section styling */
+.landmark-section h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 5px;
+}
+
+.landmark-section h4 {
+  margin-top: 15px;
+  margin-bottom: 5px;
+  font-size: 1em;
+}
+
+.landmark-section ul {
+  list-style: none;
+  padding-left: 10px;
+  margin-top: 5px;
+}
+
+.landmark-section li {
+  margin-bottom: 3px;
+  font-size: 0.9em;
+}
+
+.landmark-category {
+  font-weight: bold;
+  margin-top: 8px;
+  opacity: 0.8;
+}
+
+.visibility-score {
+  font-family: monospace;
 }

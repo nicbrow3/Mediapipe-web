@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { EXTRA_BUFFER_SECONDS } from '../logic/repHistoryProcessor';
 
 /**
@@ -45,16 +45,11 @@ const useRepHistoryData = (data, exerciseConfig, windowSeconds = 10, smoothingFa
     
     // Convert smoothingFactor to alpha (typical formula for EMA window)
     const alpha = 2 / (smoothingFactor + 1);
-    
-    // Pre-allocate array for better performance
-    const smoothed = new Array(dataPoints.length);
-    
-    // Initialize with first data point
-    smoothed[0] = { ...dataPoints[0] };
+    let smoothed = [];
     let prevLeft = dataPoints[0].leftAngle;
     let prevRight = dataPoints[0].rightAngle;
     
-    for (let i = 1; i < dataPoints.length; i++) {
+    for (let i = 0; i < dataPoints.length; i++) {
       const point = dataPoints[i];
       const left = point.leftAngle;
       const right = point.rightAngle;
@@ -80,12 +75,11 @@ const useRepHistoryData = (data, exerciseConfig, windowSeconds = 10, smoothingFa
         prevRight = smoothRight;
       }
       
-      // Only copy properties we need - create minimal object
-      smoothed[i] = {
-        timeAgo: point.timeAgo,
+      smoothed.push({
+        ...point,
         leftAngle: smoothLeft,
         rightAngle: smoothRight
-      };
+      });
     }
     
     return smoothed;
@@ -98,44 +92,22 @@ const useRepHistoryData = (data, exerciseConfig, windowSeconds = 10, smoothingFa
     const now = Date.now();
     
     // Process all data points including those beyond the visible window
-    // Use more efficient array creation with pre-allocation
-    const allProcessed = new Array(data.length);
-    
-    for (let i = 0; i < data.length; i++) {
-      const d = data[i];
-      // Only compute the minimal properties we need
-      allProcessed[i] = {
-        timeAgo: (d.timestamp - now) / 1000,
-        leftAngle: d.leftAngle == null ? null : (leftRelaxedIsHigh ? (leftMax + leftMin - d.leftAngle) : d.leftAngle),
-        rightAngle: d.rightAngle == null ? null : (rightRelaxedIsHigh ? (rightMax + rightMin - d.rightAngle) : d.rightAngle)
-      };
-    }
+    let allProcessed = data.map(d => ({
+      timeAgo: (d.timestamp - now) / 1000,
+      leftAngle: d.leftAngle == null ? null : (leftRelaxedIsHigh ? (leftMax + leftMin - d.leftAngle) : d.leftAngle),
+      rightAngle: d.rightAngle == null ? null : (rightRelaxedIsHigh ? (rightMax + rightMin - d.rightAngle) : d.rightAngle),
+      ...d // Keep other properties
+    }));
 
     // Apply smoothing to ALL data including buffer points
-    const smoothedData = smoothingFactor > 0 ? applySmoothing(allProcessed) : allProcessed;
+    if (smoothingFactor > 0) {
+      allProcessed = applySmoothing(allProcessed);
+    }
 
     // Filter to only return the visible window data for display
-    // First find how many entries are in the window
-    let visibleCount = 0;
-    for (let i = 0; i < smoothedData.length; i++) {
-      const point = smoothedData[i];
-      if (point.timeAgo >= -windowSeconds && point.timeAgo <= 0) {
-        visibleCount++;
-      }
-    }
-    
-    // Now create filtered array with just the visible data
-    const filtered = new Array(visibleCount);
-    let filteredIndex = 0;
-    
-    for (let i = 0; i < smoothedData.length; i++) {
-      const point = smoothedData[i];
-      if (point.timeAgo >= -windowSeconds && point.timeAgo <= 0) {
-        filtered[filteredIndex++] = point;
-      }
-    }
-    
-    return filtered;
+    return allProcessed.filter(point => {
+      return point.timeAgo >= -windowSeconds && point.timeAgo <= 0;
+    });
   };
 
   // Build reference lines for thresholds
@@ -201,14 +173,12 @@ const useRepHistoryData = (data, exerciseConfig, windowSeconds = 10, smoothingFa
 
   return {
     containerRef,
-    processedData,
-    buildReferenceLines,
-    leftRelaxedIsHigh,
-    rightRelaxedIsHigh,
-    leftMin,
-    leftMax,
-    rightMin,
-    rightMax,
+    processedData: processedData(),
+    referenceLines: buildReferenceLines(),
+    buildSeries,
+    gradientStops: buildGradientStops(),
+    yAxisLabel: getYAxisLabel(),
+    windowSeconds,
     colors
   };
 };

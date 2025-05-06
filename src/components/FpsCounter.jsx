@@ -12,6 +12,7 @@ import { glassStyle } from '../styles/uiStyles';
 const FpsCounter = ({ position = 'bottom-left', showDetails = false }) => {
   const [fps, setFps] = useState(0);
   const [renderTime, setRenderTime] = useState(0);
+  const [inferenceTime, setInferenceTime] = useState(0);
   const [memoryUsage, setMemoryUsage] = useState({ jsHeapSizeLimit: 0, totalJSHeapSize: 0, usedJSHeapSize: 0 });
   const frameTimeRef = useRef([]);
   const previousTimeRef = useRef(0);
@@ -21,7 +22,7 @@ const FpsCounter = ({ position = 'bottom-left', showDetails = false }) => {
   const memoryUpdateIntervalRef = useRef(null);
   const fpsHistoryRef = useRef([]);
   const updateCountRef = useRef(0);
-  const sessionStartTimeRef = useRef(performance.now());
+  const inferenceTimesRef = useRef([]);
 
   // Get position styles based on position prop
   const getPositionStyle = () => {
@@ -66,6 +67,50 @@ const FpsCounter = ({ position = 'bottom-left', showDetails = false }) => {
     };
   }, []);
 
+  // Monitor MediaPipe performance for inference time
+  useEffect(() => {
+    // Set up observer for MediaPipe inference time
+    const MAX_INFERENCE_SAMPLES = 20;
+    inferenceTimesRef.current = new Array(MAX_INFERENCE_SAMPLES).fill(0);
+    let inferenceIndex = 0;
+    
+    // Function to handle performance entries
+    const handlePerfEntries = (entries) => {
+      for (const entry of entries) {
+        // Look for MediaPipe detection measure
+        if (entry.name.includes('detectForVideo')) {
+          // Add to circular buffer
+          inferenceTimesRef.current[inferenceIndex] = entry.duration;
+          inferenceIndex = (inferenceIndex + 1) % MAX_INFERENCE_SAMPLES;
+          
+          // Calculate average inference time
+          const sum = inferenceTimesRef.current.reduce((a, b) => a + b, 0);
+          const validSamples = inferenceTimesRef.current.filter(t => t > 0).length;
+          if (validSamples > 0) {
+            const avgInferenceTime = sum / validSamples;
+            setInferenceTime(avgInferenceTime.toFixed(1));
+          }
+        }
+      }
+    };
+    
+    // Create observer if browser supports it
+    if (window.PerformanceObserver) {
+      try {
+        const observer = new PerformanceObserver(list => {
+          handlePerfEntries(list.getEntries());
+        });
+        
+        // Observe measure entries
+        observer.observe({ entryTypes: ['measure'] });
+        
+        return () => observer.disconnect();
+      } catch (e) {
+        console.error('Performance observer error:', e);
+      }
+    }
+  }, []);
+
   // Update FPS counter
   useEffect(() => {
     // Circular buffer for frame times
@@ -105,47 +150,23 @@ const FpsCounter = ({ position = 'bottom-left', showDetails = false }) => {
             
             // Track FPS history to detect degradation
             const now = Date.now();
+            fpsHistoryRef.current.push({
+              time: now,
+              fps: currentFps
+            });
             
-            // Add entry to history with more aggressive time limit (3 minutes vs 5)
-            // Only store one entry per 10 seconds to reduce memory overhead
-            const lastEntry = fpsHistoryRef.current[fpsHistoryRef.current.length - 1];
-            if (!lastEntry || (now - lastEntry.time) > 10000) {
-              fpsHistoryRef.current.push({
-                time: now,
-                fps: currentFps
-              });
-            }
-            
-            // Keep last 3 minutes of data (reduced from 5 minutes)
-            const threeMinutesAgo = now - 3 * 60 * 1000;
-            
-            // More efficient filtering with less memory usage
+            // Keep last 5 minutes of data
+            const fiveMinutesAgo = now - 5 * 60 * 1000;
+            // More efficient filtering that doesn't create a new array
             let validCount = 0;
             for (let i = 0; i < fpsHistoryRef.current.length; i++) {
-              if (fpsHistoryRef.current[i].time >= threeMinutesAgo) {
+              if (fpsHistoryRef.current[i].time >= fiveMinutesAgo) {
                 if (i !== validCount) {
                   fpsHistoryRef.current[validCount] = fpsHistoryRef.current[i];
                 }
                 validCount++;
               }
             }
-            
-            // Handle case where session is running for a very long time
-            const sessionDuration = (now - sessionStartTimeRef.current) / 1000;
-            if (sessionDuration > 20 * 60) { // More than 20 minutes
-              // Keep even less history for very long sessions - just 1 minute
-              const oneMinuteAgo = now - 1 * 60 * 1000;
-              validCount = 0;
-              for (let i = 0; i < fpsHistoryRef.current.length; i++) {
-                if (fpsHistoryRef.current[i].time >= oneMinuteAgo) {
-                  if (i !== validCount) {
-                    fpsHistoryRef.current[validCount] = fpsHistoryRef.current[i];
-                  }
-                  validCount++;
-                }
-              }
-            }
-            
             fpsHistoryRef.current.length = validCount;
           }
           
@@ -169,6 +190,7 @@ const FpsCounter = ({ position = 'bottom-left', showDetails = false }) => {
       // Clear the frame time array
       frameTimeRef.current = [];
       fpsHistoryRef.current = [];
+      inferenceTimesRef.current = [];
       previousTimeRef.current = 0;
       frameCountRef.current = 0;
       lastUpdateTimeRef.current = 0;
@@ -200,6 +222,9 @@ const FpsCounter = ({ position = 'bottom-left', showDetails = false }) => {
           <>
             <Text size="xs" c="dimmed">
               Frame time: {renderTime}ms
+            </Text>
+            <Text size="xs" c="dimmed">
+              Inference time: {inferenceTime}ms
             </Text>
             {window.performance && window.performance.memory && (
               <>

@@ -70,12 +70,17 @@ function useMediaPipe(config, debugLog = console.log, progressCallback = null) {
     }
   };
 
-  // Cleanup camera stream on unmount
+  // Cleanup camera stream and MediaPipe landmarker on unmount
   useEffect(() => {
     return () => {
       cleanupVideoStream(videoRef.current);
+      if (poseLandmarkerRef.current) {
+        poseLandmarkerRef.current.close();
+        poseLandmarkerRef.current = null;
+        debugLog('MediaPipe PoseLandmarker closed.');
+      }
     };
-  }, []);
+  }, [debugLog]);
 
   return {
     videoRef,

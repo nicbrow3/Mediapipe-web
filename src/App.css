@@ -21,6 +21,10 @@
   --accent-color: #6a55be;
   --accent-color-2: rgb(60, 138, 211);
   --accent-color-3: rgb(207, 145, 46);
+  
+  /* Sizing */
+  --navbar-height: 60px;
+  --sidebar-width: 300px;
 }
 
 /* Dark theme overrides */
@@ -44,12 +48,65 @@ body {
   background-color: var(--background-color);
   color: var(--text-color-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
+  height: 100vh;
+  overflow: hidden;
 }
 
+/* New App Container Layout */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Navigation Bar */
+.app-navbar {
+  height: var(--navbar-height);
+  background-color: var(--background-color-overlay);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+/* Sidebar */
+.app-sidebar {
+  position: fixed;
+  top: var(--navbar-height);
+  left: 0;
+  width: 0;
+  height: calc(100vh - var(--navbar-height));
+  background-color: var(--background-color-overlay);
+  transition: width 0.3s ease;
+  overflow: hidden;
+  z-index: 900;
+}
+
+.app-sidebar.open {
+  width: var(--sidebar-width);
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Main Content Area */
+.app-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  transition: margin-left 0.3s ease;
+}
+
+.app-content.sidebar-open {
+  margin-left: var(--sidebar-width);
+}
+
+/* Existing Styles */
 .app-container {
   position: relative;
-  padding: 20px;
-  transition: padding-right 0.3s ease-in-out; /* Adjust padding when sidebar opens */
+  transition: padding-right 0.3s ease-in-out;
 }
 
 .app-container.sidebar-open {
@@ -85,14 +142,6 @@ body {
 .app-container.sidebar-open .sidebar-toggle-btn {
   right: 300px; /* Sidebar width (280px) + initial padding (20px) */
 }
-
-/* Remove the old .app style if it exists and isn't needed */
-/* 
-.app {
-  text-align: center;
-  padding: 20px;
-}
-*/
 
 /* Keep existing h1 styles or add new ones */
 h1 {

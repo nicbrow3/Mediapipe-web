@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import WorkoutTracker from './components/WorkoutTracker';
+import MinimalTracker from './components/MinimalTracker'; // Import the new MinimalTracker component
 import Sidebar from './components/Sidebar'; // Assuming Sidebar component exists
 import SettingsDrawer from './components/SettingsDrawer'; // New component for settings
 import DatabaseViewerContent from './components/DatabaseViewerContent.jsx'; // Import the new component
@@ -299,6 +300,9 @@ function App() {
     setModelInfo(info);
   };
 
+  // Add state for current view
+  const [currentView, setCurrentView] = useState('main'); // 'main' or 'minimal'
+
   return (
     <MantineProvider theme={{ 
       colorScheme,
@@ -308,243 +312,186 @@ function App() {
         grape: ['#f3e7ff', '#e6d0ff', '#d2b2ff', '#ba8dff', '#a269ff', '#8a45ff', '#7920ff', '#6500fa', '#5600d8', '#4700b3'],
       }
     }}>
-      {/* Settings Drawer */}
-      <Drawer
-        opened={settingsDrawerOpen}
-        onClose={closeSettingsDrawer}
-        title="Settings"
-        position="left"
-        padding="md"
-        size="md"
-        withCloseButton={false}
-        styles={{
-          body: glassStyle, // Apply glass style to drawer body
-          header: glassStyle, // Apply glass style to drawer header
-          root: { 
-            zIndex: 1002, // Ensure proper stacking
-            backgroundColor: 'transparent', // Make the root background transparent
-          },
-          inner: {
-            backgroundColor: 'transparent', // Make the inner container transparent
-          },
-          content: {
-            backgroundColor: 'transparent', // Make the content container transparent
-          },
-          overlay: {
-            backgroundColor: 'rgba(0, 0, 0, 0.3)', // Lighter overlay to see through
-          }
-        }}
-      >
-        <SettingsDrawer
-          colorScheme={colorScheme}
-          setColorScheme={setColorScheme}
-          videoOpacity={videoOpacity}
-          setVideoOpacity={setVideoOpacity}
-          smoothingFactor={smoothingFactor}
-          setSmoothingFactor={setSmoothingFactor}
-          strictLandmarkVisibility={strictLandmarkVisibility}
-          setStrictLandmarkVisibility={setStrictLandmarkVisibility}
-          showDebug={showDebug}
-          setShowDebug={setShowDebug}
-          resetSettings={resetSettings}
-          repDebounceDuration={repDebounceDuration}
-          setRepDebounceDuration={setRepDebounceDuration}
-          useSmoothedRepCounting={useSmoothedRepCounting}
-          setUseSmoothedRepCounting={setUseSmoothedRepCounting}
-          showRepFlowDiagram={showRepFlowDiagram}
-          setShowRepFlowDiagram={setShowRepFlowDiagram}
-          visibilityThreshold={visibilityThreshold}
-          setVisibilityThreshold={setVisibilityThreshold}
-          frameSamplingRate={frameSamplingRate}
-          setFrameSamplingRate={setFrameSamplingRate}
-          enableFaceLandmarks={enableFaceLandmarks}
-          setEnableFaceLandmarks={setEnableFaceLandmarks}
-          enableHandLandmarks={enableHandLandmarks}
-          setEnableHandLandmarks={setEnableHandLandmarks}
-          modelType={modelType}
-          setModelType={setModelType}
-          useLocalModel={useLocalModel}
-          setUseLocalModel={setUseLocalModel}
-          useConfidenceAsFallback={useConfidenceAsFallback}
-          setUseConfidenceAsFallback={setUseConfidenceAsFallback}
-          confidenceThreshold={confidenceThreshold}
-          setConfidenceThreshold={setConfidenceThreshold}
-        />
-      </Drawer>
+      <div className="app-container">
+        {/* Navigation Bar */}
+        <div className="app-navbar">
+          {/* Left side of navbar */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {/* Only show sidebar toggle in main view */}
+            {currentView === 'main' && (
+              <Tooltip label="Toggle Sidebar">
+                <ActionIcon 
+                  variant="subtle" 
+                  size="lg" 
+                  onClick={toggleSidebar} 
+                  aria-label="Toggle Sidebar"
+                >
+                  <IconDatabase size={20} />
+                </ActionIcon>
+              </Tooltip>
+            )}
 
-      {/* Database Viewer Drawer */}
-      <Drawer
-        opened={showDatabaseViewer}
-        onClose={() => setShowDatabaseViewer(false)}
-        title="Database Contents"
-        position="right"
-        padding="md"
-        size="xl"
-        styles={{
-          body: { ...glassStyle, overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' }, 
-          header: glassStyle,
-          root: { 
-            zIndex: 1003, // Higher than settings drawer
-            backgroundColor: 'transparent',
-          },
-          inner: {
-            backgroundColor: 'transparent',
-          },
-          content: {
-            backgroundColor: 'transparent',
-          },
-          overlay: {
-            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-          }
-        }}
-      >
-        <DatabaseViewerContent />
-      </Drawer>
+            {/* Back to Main View button (only shown in minimal view) */}
+            {currentView === 'minimal' && (
+              <Tooltip label="Back to Main Tracker">
+                <ActionIcon
+                  variant="subtle"
+                  size="lg"
+                  onClick={() => setCurrentView('main')}
+                  aria-label="Back to Main Tracker"
+                >
+                  <IconX size={20} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </div>
 
-      <div className={`app-container ${isSidebarOpen ? 'sidebar-open' : ''}`}>
-        {/* Settings Button - Top Left */}
-        <Tooltip label="Open Settings" position="right" withArrow>
-          <ActionIcon
-            variant="filled"
-            color="grape.6"
-            size="lg"
-            radius="xl"
-            onClick={() => setSettingsDrawerOpen((o) => !o)}
-            style={{ position: 'fixed', top: '20px', left: '20px', zIndex: 1001 }}
-          >
-            <IconSettings size={20} />
-          </ActionIcon>
-        </Tooltip>
+          {/* Center title */}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>
+              {currentView === 'main' ? 'Workout Tracker' : 'Minimal Tracking'}
+            </h1>
+          </div>
 
-        {/* Top Right Vertical Button Group */}
-        <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1001, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Sidebar Toggle (Visibility) Button */}
-          <Tooltip label={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"} position="left" withArrow>
-            <ActionIcon
-              variant="filled"
-              color="grape.6"
-              size="lg"
-              radius="xl"
-              onClick={toggleSidebar}
-            >
-              <IconEye size={20} />
-            </ActionIcon>
-          </Tooltip>
-
-          {/* Fullscreen Button - Moved from WorkoutTracker */}
-          <Tooltip label={isFullScreen ? "Exit Fullscreen" : "Enter Fullscreen"} position="left" withArrow>
-            <ActionIcon
-              variant="filled"
-              color="grape.6"
-              size="lg"
-              radius="xl"
-              onClick={() => {
-                // This will trigger the toggleFullScreen function in WorkoutTracker through the ref
-                if (workoutTrackerRef.current && workoutTrackerRef.current.toggleFullScreen) {
-                  workoutTrackerRef.current.toggleFullScreen();
-                }
-              }}
-            >
-              {isFullScreen ? <IconMinimize size={20} /> : <IconMaximize size={20} />}
-            </ActionIcon>
-          </Tooltip>
-          
-          {/* Model Info Button - Moved from WorkoutTracker */}
-          <Tooltip 
-            label={
-              <div>
-                <div>Using <b>{modelInfo.modelType}</b> model{modelInfo.useLocalModel ? ' (local)' : ' (remote)'}</div>
-                <div>Acceleration: <b>{modelInfo.accelerationMode}</b></div>
-                {showDebug && modelInfo.modelType && 
-                  <div style={{fontSize: '0.85em', marginTop: '4px', opacity: 0.8}}>
-                    Model size: {modelInfo.modelType === 'lite' ? '3.8MB' : modelInfo.modelType === 'full' ? '8.5MB' : '16MB'}
-                  </div>
-                }
-              </div>
-            } 
-            position="left" 
-            withArrow
-            multiline
-            width={200}
-          >
-            <ActionIcon
-              variant="filled"
-              color={modelInfo.accelerationMode === 'GPU' ? 'teal.6' : modelInfo.accelerationMode === 'CPU' ? 'orange.6' : 'gray.6'}
-              size="lg"
-              radius="xl"
-            >
-              <IconDeviceWatch size={20} />
-            </ActionIcon>
-          </Tooltip>
-
-          {/* Database Button */}
-          <Tooltip label={showDatabaseViewer ? "Hide Database" : "View Database Contents"} position="left" withArrow>
-            <ActionIcon
-              variant="filled"
-              color="teal.7"
-              size="lg"
-              radius="xl"
-              onClick={() => setShowDatabaseViewer(prevState => !prevState)}
-            >
-              <IconDatabase size={20} />
-            </ActionIcon>
-          </Tooltip>
+          {/* Right side of navbar */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {/* Only show settings and other actions in main view */}
+            {currentView === 'main' && (
+              <>
+                {/* Existing right-side buttons */}
+                <Tooltip label="Settings">
+                  <ActionIcon 
+                    variant="subtle" 
+                    size="lg" 
+                    onClick={openSettingsDrawer} 
+                    aria-label="Settings"
+                  >
+                    <IconSettings size={20} />
+                  </ActionIcon>
+                </Tooltip>
+                {/* Switch to Minimal View button */}
+                <Tooltip label="Switch to Minimal Tracking">
+                  <ActionIcon
+                    variant="subtle"
+                    size="lg"
+                    onClick={() => setCurrentView('minimal')}
+                    aria-label="Switch to Minimal Tracking"
+                  >
+                    <IconEye size={20} />
+                  </ActionIcon>
+                </Tooltip>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* <<< ADDED: End Workout Button - Top Right >>> */}
-        {currentSessionId && (
-          <Tooltip label="End Current Workout Session" position="left" withArrow>
-            <ActionIcon
-              variant="filled"
-              color="red.7" // Use a distinct color
-              size="lg"
-              radius="xl"
-              onClick={handleEndWorkout}
-              style={{ position: 'fixed', top: '20px', right: '80px', zIndex: 1001 }}
-            >
-              <IconX size={20} />
-            </ActionIcon>
-          </Tooltip>
+        {/* Sidebar (only in main view) */}
+        {currentView === 'main' && (
+          <div className={`app-sidebar ${isSidebarOpen ? 'open' : ''}`}>
+            <Sidebar />
+          </div>
         )}
 
-        <div className="main-content">
-          {/* Add ref to the WorkoutTracker component to access its methods */}
-          <WorkoutTracker
-            ref={workoutTrackerRef}
-            onPoseResultUpdate={handlePoseResultUpdate}
-            availableExercises={availableExercises.current}
-            selectedExercise={selectedExercise}
-            onExerciseChange={handleExerciseChange}
+        {/* Main Content Area */}
+        <div className={`app-content ${isSidebarOpen && currentView === 'main' ? 'sidebar-open' : ''}`}>
+          {/* Render different tracker based on currentView */}
+          {currentView === 'main' ? (
+            <WorkoutTracker
+              ref={workoutTrackerRef}
+              onPoseResultUpdate={handlePoseResultUpdate}
+              availableExercises={availableExercises.current}
+              selectedExercise={selectedExercise}
+              onExerciseChange={handleExerciseChange}
+              videoOpacity={videoOpacity}
+              smoothingFactor={smoothingFactor}
+              strictLandmarkVisibility={strictLandmarkVisibility}
+              showDebug={showDebug}
+              repDebounceDuration={repDebounceDuration}
+              useSmoothedRepCounting={useSmoothedRepCounting}
+              showRepFlowDiagram={showRepFlowDiagram}
+              frameSamplingRate={frameSamplingRate}
+              config={{
+                ...config,
+                pose: {
+                  ...config.pose,
+                  enableFaceLandmarks,
+                  enableHandLandmarks,
+                  modelType,
+                  useLocalModel
+                }
+              }}
+              useLocalModel={useLocalModel}
+              modelType={modelType}
+              useConfidenceAsFallback={useConfidenceAsFallback}
+              confidenceThreshold={confidenceThreshold}
+              onFullscreenToggle={handleFullscreenToggle}
+              onModelInfoClick={handleModelInfoUpdate}
+            />
+          ) : (
+            <MinimalTracker />
+          )}
+        </div>
+
+        {/* Settings Drawer */}
+        <Drawer
+          opened={settingsDrawerOpen}
+          onClose={closeSettingsDrawer}
+          title="Settings"
+          position="right"
+          size="md"
+          overlayProps={{ opacity: 0.5, blur: 4 }}
+        >
+          <SettingsDrawer
             colorScheme={colorScheme}
             setColorScheme={setColorScheme}
             videoOpacity={videoOpacity}
+            setVideoOpacity={setVideoOpacity}
             smoothingFactor={smoothingFactor}
+            setSmoothingFactor={setSmoothingFactor}
             strictLandmarkVisibility={strictLandmarkVisibility}
+            setStrictLandmarkVisibility={setStrictLandmarkVisibility}
             showDebug={showDebug}
+            setShowDebug={setShowDebug}
+            resetSettings={resetSettings}
             repDebounceDuration={repDebounceDuration}
+            setRepDebounceDuration={setRepDebounceDuration}
             useSmoothedRepCounting={useSmoothedRepCounting}
+            setUseSmoothedRepCounting={setUseSmoothedRepCounting}
             showRepFlowDiagram={showRepFlowDiagram}
-            currentSessionId={currentSessionId}
-            onWorkoutStart={handleStartWorkout}
+            setShowRepFlowDiagram={setShowRepFlowDiagram}
             visibilityThreshold={visibilityThreshold}
+            setVisibilityThreshold={setVisibilityThreshold}
             frameSamplingRate={frameSamplingRate}
-            config={configWithSettings}
-            useLocalModel={useLocalModel}
+            setFrameSamplingRate={setFrameSamplingRate}
+            enableFaceLandmarks={enableFaceLandmarks}
+            setEnableFaceLandmarks={setEnableFaceLandmarks}
+            enableHandLandmarks={enableHandLandmarks}
+            setEnableHandLandmarks={setEnableHandLandmarks}
             modelType={modelType}
+            setModelType={setModelType}
+            useLocalModel={useLocalModel}
+            setUseLocalModel={setUseLocalModel}
             useConfidenceAsFallback={useConfidenceAsFallback}
+            setUseConfidenceAsFallback={setUseConfidenceAsFallback}
             confidenceThreshold={confidenceThreshold}
-            onFullscreenToggle={handleFullscreenToggle}
-            onModelInfoClick={handleModelInfoUpdate}
+            setConfidenceThreshold={setConfidenceThreshold}
           />
-        </div>
+        </Drawer>
 
-        {/* Pass selected exercise and pose data to Sidebar */}
-        <Sidebar
-          isOpen={isSidebarOpen}
-          latestPoseData={latestPoseData}
-          selectedExercise={selectedExercise}
-          visibilityThreshold={visibilityThreshold}
-        />
+        {/* Database Viewer */}
+        <Drawer
+          opened={showDatabaseViewer}
+          onClose={() => setShowDatabaseViewer(false)}
+          title="Database Viewer"
+          position="right"
+          size="xl"
+          overlayProps={{ opacity: 0.5, blur: 4 }}
+        >
+          <DatabaseViewerContent 
+            onClose={() => setShowDatabaseViewer(false)} 
+            colorScheme={colorScheme}
+          />
+        </Drawer>
       </div>
     </MantineProvider>
   );

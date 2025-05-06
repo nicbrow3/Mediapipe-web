@@ -46,11 +46,7 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
   const getMuscleGroups = () => {
     const allMuscleGroups = new Set();
     
-    // Limit the number of exercises we process to avoid performance issues in very long sessions
-    const maxExercisesToProcess = 20; // Only process the most recent 20 exercises
-    const exercisesToProcess = stats.exercises.slice(-maxExercisesToProcess);
-    
-    exercisesToProcess.forEach(exercise => {
+    stats.exercises.forEach(exercise => {
       // Find the exercise config that matches this ID
       const exerciseConfig = Object.values(allExercises).find(ex => ex.id === exercise.id);
       
@@ -178,7 +174,7 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {/* Group exercises by ID and show combined stats - limit to 15 rows max */}
+                {/* Group exercises by ID and show combined stats */}
                 {Object.entries(
                   stats.exercises.reduce((grouped, exercise) => {
                     const id = exercise.id;
@@ -202,12 +198,7 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
                     
                     return grouped;
                   }, {})
-                )
-                // Sort by total reps (descending)
-                .sort((a, b) => b[1].totalReps - a[1].totalReps)
-                // Limit to 15 rows for performance
-                .slice(0, 15)
-                .map(([id, exercise]) => (
+                ).map(([id, exercise]) => (
                   <Table.Tr key={id}>
                     <Table.Td>{getExerciseName(exercise.id)}</Table.Td>
                     <Table.Td>{exercise.totalReps}</Table.Td>
@@ -218,13 +209,6 @@ const WorkoutSummary = ({ workoutStats, onClose }) => {
                 ))}
               </Table.Tbody>
             </Table>
-            
-            {/* Show a message if exercises were truncated */}
-            {stats.exercises.length > 15 && (
-              <Text size="xs" c="dimmed" mt="xs" ta="center">
-                Showing top 15 of {stats.exercises.length} exercises
-              </Text>
-            )}
           </Paper>
         )}
         

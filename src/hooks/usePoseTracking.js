@@ -24,17 +24,16 @@ function usePoseTracking({
   showDebug,
   frameSamplingRate = 1,
   useConfidenceAsFallback = false,
-  confidenceThreshold = 0.8
+  confidenceThreshold = 0.8,
+  minimalTrackingMode = false
 }) {
   // State tracking
-  const [trackingState, setTrackingState] = useState(TRACKING_STATES.IDLE);
-  const trackingStateRef = useRef(TRACKING_STATES.IDLE);
-  const [repCount, setRepCount] = useState({ left: 0, right: 0 });
-  const [repHistory, setRepHistory] = useState([]);
-  const repHistoryRef = useRef([]);
-  const [sideStatus, setSideStatus] = useState({ 
-    left: { inReadyPose: false, repInProgress: false }, 
-    right: { inReadyPose: false, repInProgress: false } 
+  const [trackingData, setTrackingData] = useState({
+    trackingState: TRACKING_STATES.IDLE,
+    repCount: { left: 0, right: 0 },
+    repHistory: [],
+    sideStatus: { left: { inReadyPose: false, repInProgress: false }, right: { inReadyPose: false, repInProgress: false } },
+    repEngineState: null,
   });
   
   // References
@@ -51,12 +50,13 @@ function usePoseTracking({
   const repDebounceDurationRef = useRef(repDebounceDuration);
   const useSmoothedRepCountingRef = useRef(useSmoothedRepCounting);
   const repEnginePrevStateRef = useRef(null);
-  const [repEngineState, setRepEngineState] = useState(null);
   const frameSamplingRateRef = useRef(frameSamplingRate);
   const frameCounterRef = useRef(0);
   const animationFrameRef = useRef(null);
   const gcIntervalRef = useRef(null);
   const frameProcessedCountRef = useRef(0);
+  const trackingStateRef = useRef(TRACKING_STATES.IDLE);
+  const minimalTrackingModeRef = useRef(minimalTrackingMode);
   
   // Initialize the state-based rep counter
   const { 
@@ -91,11 +91,14 @@ function usePoseTracking({
   useEffect(() => {
     selectedExerciseRef.current = selectedExercise;
     // Clear rep history when exercise changes
-    repHistoryRef.current = [];
-    setRepHistory([]);
-    // Reset rep counters when exercise changes
+    trackingData.repHistory = [];
     resetRepCounts();
   }, [selectedExercise, resetRepCounts]);
+  
+  // Update minimalTrackingMode ref when prop changes
+  useEffect(() => {
+    minimalTrackingModeRef.current = minimalTrackingMode;
+  }, [minimalTrackingMode]);
   
   // Function to force garbage collection (if gc is available via Chrome flags)
   const tryForceGC = useCallback(() => {
@@ -105,31 +108,6 @@ function usePoseTracking({
     
     // Clear latest landmarks to free memory
     latestLandmarksRef.current = null;
-    
-    // Clear unnecessary history data
-    if (repHistoryRef.current && repHistoryRef.current.length > 0) {
-      // Keep only last MAX_HISTORY_LENGTH entries (more aggressive cleanup)
-      const MAX_KEEPING_LENGTH = 200; // Reduced from 300
-      if (repHistoryRef.current.length > MAX_KEEPING_LENGTH) {
-        repHistoryRef.current = repHistoryRef.current.slice(-MAX_KEEPING_LENGTH);
-      }
-    }
-    
-    // Force clear any unused landmarks or results objects
-    repEnginePrevStateRef.current = repEnginePrevStateRef.current ? {
-      angleLogic: repEnginePrevStateRef.current.angleLogic ? {
-        left: repEnginePrevStateRef.current.angleLogic.left ? {
-          phase: repEnginePrevStateRef.current.angleLogic.left.phase,
-          lastAngle: repEnginePrevStateRef.current.angleLogic.left.lastAngle,
-          lastTransitionTime: repEnginePrevStateRef.current.angleLogic.left.lastTransitionTime
-        } : undefined,
-        right: repEnginePrevStateRef.current.angleLogic.right ? {
-          phase: repEnginePrevStateRef.current.angleLogic.right.phase,
-          lastAngle: repEnginePrevStateRef.current.angleLogic.right.lastAngle,
-          lastTransitionTime: repEnginePrevStateRef.current.angleLogic.right.lastTransitionTime
-        } : undefined
-      } : undefined
-    } : null;
     
     // If window.gc is available (enabled with Chrome flags), use it
     if (window.gc) {
@@ -150,28 +128,10 @@ function usePoseTracking({
       animationFrameRef.current = requestAnimationFrame(renderLoop);
     }
     
-    // Run more frequent garbage collection as session progresses
-    let gcInterval = 30000; // Start with 30 seconds
-    let elapsedTime = 0;
-    
-    const updateGCInterval = () => {
-      elapsedTime += gcInterval;
-      
-      // Reduce GC interval as session gets longer (more aggressive cleanup)
-      if (elapsedTime > 10 * 60 * 1000) { // 10 minutes
-        gcInterval = 15000; // Every 15 seconds
-      }
-      if (elapsedTime > 20 * 60 * 1000) { // 20 minutes
-        gcInterval = 10000; // Every 10 seconds
-      }
-      
+    // Set up periodic garbage collection every 30 seconds
+    gcIntervalRef.current = setInterval(() => {
       tryForceGC();
-      
-      gcIntervalRef.current = setTimeout(updateGCInterval, gcInterval);
-    };
-    
-    // Start periodic garbage collection
-    gcIntervalRef.current = setTimeout(updateGCInterval, gcInterval);
+    }, 30000);
     
     // Cleanup function to prevent memory leaks
     return () => {
@@ -183,12 +143,12 @@ function usePoseTracking({
       
       // Clear garbage collection interval
       if (gcIntervalRef.current) {
-        clearTimeout(gcIntervalRef.current);
+        clearInterval(gcIntervalRef.current);
         gcIntervalRef.current = null;
       }
       
       // Clear all refs that could be causing memory leaks
-      repHistoryRef.current = [];
+      trackingData.repHistory = [];
       latestLandmarksRef.current = null;
       repEnginePrevStateRef.current = null;
       readyPoseHoldStartRef.current = { left: null, right: null };
@@ -196,28 +156,16 @@ function usePoseTracking({
       lostVisibilityTimestampRef.current = null;
       
       // Clear state
-      setRepEngineState(null);
-      setRepHistory([]);
+      setTrackingData(prev => ({ ...prev, repEngineState: null }));
       
       // Try to force a garbage collection
       tryForceGC();
     };
   }, [tryForceGC]);
   
-  // Update tracking state helper
-  const setTrackingStateBoth = (newState) => {
-    if (showDebug) {
-      console.log('[DEBUG] setTrackingStateBoth: newState =', newState);
-    }
-    setTrackingState(newState);
-    trackingStateRef.current = newState;
-  };
-  
-  // Create a minimal version of the landmarks with only the necessary properties
+  // Add this above processResults:
   const createMinimalLandmarks = useCallback((landmarks) => {
     if (!landmarks || !Array.isArray(landmarks)) return null;
-    
-    // Only extract the properties we need from each landmark
     return landmarks.map(landmark => {
       if (!landmark) return null;
       return {
@@ -232,14 +180,14 @@ function usePoseTracking({
   
   // Process MediaPipe results
   const processResults = useCallback((results) => {
-    if (showDebug) {
-      console.log('[DEBUG] processResults called: strictLandmarkVisibility=', 
-        strictLandmarkVisibilityRef.current, 
-        'visibilityThreshold=', 
-        visibilityThresholdRef.current,
-        'useConfidenceAsFallback=',
-        useConfidenceAsFallback);
-    }
+    // if (showDebug) {
+    //   console.log('[DEBUG] processResults called: strictLandmarkVisibility=', 
+    //     strictLandmarkVisibilityRef.current, 
+    //     'visibilityThreshold=', 
+    //     visibilityThresholdRef.current,
+    //     'useConfidenceAsFallback=',
+    //     useConfidenceAsFallback);
+    // }
     
     // Call callback if provided
     if (onPoseResultUpdate) {
@@ -256,6 +204,16 @@ function usePoseTracking({
     
     // Store a clean copy of the landmarks
     latestLandmarksRef.current = landmarks;
+    
+    // In minimal tracking mode, we just want to draw landmarks - no rep counting or complex logic
+    if (minimalTrackingModeRef.current) {
+      // Just set the tracking state to ACTIVE for rendering
+      setTrackingDataWithRef(prev => ({
+        ...prev,
+        trackingState: TRACKING_STATES.ACTIVE
+      }));
+      return;
+    }
     
     // Extract angles for tracking
     let leftAngle = null;
@@ -283,16 +241,16 @@ function usePoseTracking({
       LANDMARK_MAP
     );
     
-    if (showDebug && useConfidenceAsFallback) {
-      console.log('[DEBUG] Visibility vs Confidence:', {
-        requiredVisibility,
-        requiredConfidence,
-        secondaryVisibility,
-        secondaryConfidence,
-        useConfidenceAsFallback,
-        confidenceThreshold
-      });
-    }
+    // if (showDebug && useConfidenceAsFallback) {
+    //   console.log('[DEBUG] Visibility vs Confidence:', {
+    //     requiredVisibility,
+    //     requiredConfidence,
+    //     secondaryVisibility,
+    //     secondaryConfidence,
+    //     useConfidenceAsFallback,
+    //     confidenceThreshold
+    //   });
+    // }
     
     // Update tracking state
     const trackingResult = updateTrackingState(
@@ -301,124 +259,86 @@ function usePoseTracking({
       strictLandmarkVisibilityRef.current,
       visibilityThresholdRef.current,
       trackingStateRef,
-      sideStatus,
-      readyPoseHoldStartRef.current,
+      trackingData.sideStatus,
+      readyPoseHoldStartRef,
       readyPoseGlobalHoldStartRef,
-      repInProgressRef.current,
-      wasInReadyPoseRef.current,
+      repInProgressRef,
+      wasInReadyPoseRef,
       lostVisibilityTimestampRef,
       prevTrackingStateRef,
       useConfidenceAsFallback,
       confidenceThreshold
     );
     
-    setTrackingStateBoth(trackingResult.nextTrackingState);
-    setSideStatus(trackingResult.newSideStatus);
-    
-    // Only add to buffer and count reps if not paused
-    if ((leftAngle !== null || rightAngle !== null) && 
-        trackingStateRef.current !== TRACKING_STATES.PAUSED) {
+    // Run the rep state engine to update the exercise state if we're tracking
+    let newRepEngineState = null;
+    if (trackingResult.nextTrackingState === TRACKING_STATES.ACTIVE) {
+      // Call the rep state engine to get updated state
+      newRepEngineState = runRepStateEngine(
+        landmarks,
+        selectedExerciseRef.current,
+        repEnginePrevStateRef.current
+      );
       
-      // Update history buffer
-      repHistoryRef.current = updateRepHistoryBuffer(
-        repHistoryRef.current,
+      // Store the new state for next frame
+      repEnginePrevStateRef.current = newRepEngineState;
+    } else {
+      // If not tracking, use the last known state
+      newRepEngineState = repEnginePrevStateRef.current;
+    }
+    
+    // Update the tracking data with the new state
+    setTrackingDataWithRef(prev => ({
+      ...prev,
+      trackingState: trackingResult.nextTrackingState,
+      sideStatus: trackingResult.newSideStatus,
+      repHistory: updateRepHistoryBuffer(
+        trackingData.repHistory,
         leftAngle,
         rightAngle,
         requiredVisibility,
         secondaryVisibility,
-        trackingStateRef.current
-      );
+        trackingResult.nextTrackingState
+      ),
+      repEngineState: trackingResult.nextTrackingState === TRACKING_STATES.PAUSED ? null : newRepEngineState
+    }));
+    
+    // Only add to buffer and count reps if not paused
+    if ((leftAngle !== null || rightAngle !== null) && 
+        trackingResult.nextTrackingState !== TRACKING_STATES.PAUSED) {
       
       // Limit the size of the rep history array to prevent memory leaks
       const MAX_HISTORY_LENGTH = 300; // About 10 seconds at 30fps
-      if (repHistoryRef.current.length > MAX_HISTORY_LENGTH) {
-        repHistoryRef.current = repHistoryRef.current.slice(-MAX_HISTORY_LENGTH);
-      }
-      
-      // Only update state after a certain number of frames to reduce React renders
-      if (frameProcessedCountRef.current % 5 === 0) {
-        setRepHistory(repHistoryRef.current);
-      }
-      
-      // Use smoothed data if enabled
-      let repEngineInputHistory = useSmoothedRepCountingRef.current 
-        ? smoothRepHistoryEMA(repHistoryRef.current, smoothingFactor) 
-        : repHistoryRef.current;
-      
-      // Only process a limited window of history to save memory
-      const PROCESS_WINDOW = 60; // Process only last 60 entries (about 2 seconds at 30fps)
-      const historyToProcess = repEngineInputHistory.slice(-PROCESS_WINDOW);
-      
-      // Run rep engine on the history
-      let lastRepState = repEnginePrevStateRef.current;
-      let finalRepState = null;
-      
-      for (const entry of historyToProcess) {
-        // Add debounce duration to config
-        const patchedConfig = {
-          ...selectedExerciseRef.current,
-          logicConfig: {
-            ...selectedExerciseRef.current.logicConfig,
-            repDebounceDuration: repDebounceDurationRef.current,
-          },
-        };
-        
-        finalRepState = runRepStateEngine(
-          landmarks,
-          patchedConfig,
-          lastRepState
-        );
-        
-        lastRepState = finalRepState;
-      }
-      
-      // Clean up the state object to prevent memory leaks
-      if (finalRepState) {
-        // Keep only essential properties needed for rep counting
-        repEnginePrevStateRef.current = {
-          angleLogic: finalRepState.angleLogic ? {
-            left: finalRepState.angleLogic.left ? {
-              phase: finalRepState.angleLogic.left.phase,
-              lastAngle: finalRepState.angleLogic.left.lastAngle,
-              lastTransitionTime: finalRepState.angleLogic.left.lastTransitionTime
-            } : undefined,
-            right: finalRepState.angleLogic.right ? {
-              phase: finalRepState.angleLogic.right.phase,
-              lastAngle: finalRepState.angleLogic.right.lastAngle,
-              lastTransitionTime: finalRepState.angleLogic.right.lastTransitionTime
-            } : undefined
-          } : undefined
-        };
-      } else {
-        repEnginePrevStateRef.current = null;
+      if (trackingData.repHistory.length > MAX_HISTORY_LENGTH) {
+        trackingData.repHistory = trackingData.repHistory.slice(-MAX_HISTORY_LENGTH);
       }
       
       // Only update state every 5 frames to reduce React renders
       if (frameProcessedCountRef.current % 5 === 0) {
-        setRepEngineState(finalRepState);
+        setTrackingDataWithRef(prev => ({ ...prev, repHistory: trackingData.repHistory }));
       }
       
       // Use state-based rep counting based on phases
-      if (finalRepState && finalRepState.angleLogic) {
+      if (trackingResult.nextTrackingState === TRACKING_STATES.ACTIVE && newRepEngineState) {
         // Process left side phase if it exists
-        if (finalRepState.angleLogic.left?.phase) {
-          processPhase('left', finalRepState.angleLogic.left.phase);
+        if (newRepEngineState.angleLogic?.left?.phase) {
+          processPhase('left', newRepEngineState.angleLogic.left.phase);
         }
         
         // Process right side phase if it exists
-        if (finalRepState.angleLogic.right?.phase) {
-          processPhase('right', finalRepState.angleLogic.right.phase);
+        if (newRepEngineState.angleLogic?.right?.phase) {
+          processPhase('right', newRepEngineState.angleLogic.right.phase);
         }
         
         // Get updated rep counts from the state-based counter
         // Only update state every 5 frames to reduce React renders
         if (frameProcessedCountRef.current % 5 === 0) {
-          setRepCount(getRepCounts());
+          setTrackingDataWithRef(prev => ({ ...prev, repCount: getRepCounts() }));
         }
       }
       
-      // Try to perform memory cleanup every 100 frames instead of 200
-      if (frameProcessedCountRef.current % 100 === 0) {
+      // Try to perform memory cleanup every 200 frames
+      if (frameProcessedCountRef.current % 200 === 0) {
         // Free the results landmarks since we've already processed them
         results.landmarks = null;
         
@@ -427,7 +347,7 @@ function usePoseTracking({
           latestLandmarksRef.current = null;
           
           // Reset frame counter to prevent integer overflow
-          if (frameProcessedCountRef.current > 5000) { // Changed from 10000
+          if (frameProcessedCountRef.current > 10000) {
             frameProcessedCountRef.current = 0;
           }
         }, 0);
@@ -435,7 +355,7 @@ function usePoseTracking({
     }
     
     return landmarks;
-  }, [createMinimalLandmarks, onPoseResultUpdate, showDebug, useConfidenceAsFallback, confidenceThreshold, smoothingFactor, getRepCounts, processPhase]);
+  }, [createMinimalLandmarks, onPoseResultUpdate, showDebug, useConfidenceAsFallback, confidenceThreshold, smoothingFactor, getRepCounts, processPhase, minimalTrackingModeRef]);
   
   // Main render loop for pose detection
   const renderLoop = useCallback(() => {
@@ -449,6 +369,9 @@ function usePoseTracking({
     // Measure loop timing
     const loopStartTime = performance.now();
     
+    // In minimal tracking mode, we want to maximize frame rate
+    const isMinimalMode = minimalTrackingModeRef.current;
+    
     // Track recent frame times to adaptively adjust sampling
     if (!videoRef.current._recentFrameTimes) {
       videoRef.current._recentFrameTimes = [];
@@ -456,11 +379,10 @@ function usePoseTracking({
       videoRef.current._adaptiveSamplingRate = frameSamplingRateRef.current;
     }
     
-    // Increment frame counter for sampling
-    const currentSamplingRate = Math.max(
-      frameSamplingRateRef.current, 
-      videoRef.current._adaptiveSamplingRate || 1
-    );
+    // In minimal mode, we always sample every frame
+    const currentSamplingRate = isMinimalMode 
+      ? 1 // Always sample every frame in minimal mode for max performance measurement
+      : Math.max(frameSamplingRateRef.current, videoRef.current._adaptiveSamplingRate || 1);
     
     frameCounterRef.current = (frameCounterRef.current + 1) % Math.max(1, currentSamplingRate);
     
@@ -476,7 +398,21 @@ function usePoseTracking({
       try {
         const processingStartTime = performance.now();
         const timestamp = processingStartTime;
+        
+        // Add performance marks for measuring inference time
+        if (typeof performance.mark === 'function') {
+          performance.mark('mediapipe-detect-start');
+        }
+        
+        // Run MediaPipe detection
         const poseLandmarkerResult = poseLandmarkerRef.current.detectForVideo(video, timestamp);
+        
+        // Add performance marks for measuring inference time
+        if (typeof performance.mark === 'function') {
+          performance.mark('mediapipe-detect-end');
+          performance.measure('detectForVideo', 'mediapipe-detect-start', 'mediapipe-detect-end');
+        }
+        
         processResults(poseLandmarkerResult);
         lastVideoTimeRef.current = video.currentTime;
         
@@ -492,39 +428,20 @@ function usePoseTracking({
           videoRef.current._frameTimeIndex = (videoRef.current._frameTimeIndex + 1) % 10;
         }
         
-        // Adjust sampling rate based on average processing time and session length
-        if (recentTimes.length >= 5) {
+        // Adjust sampling rate based on average processing time (skip in minimal mode)
+        if (!isMinimalMode && recentTimes.length >= 5) {
           const avgProcessingTime = recentTimes.reduce((sum, time) => sum + time, 0) / recentTimes.length;
-          
-          // Get elapsed session time (approximate)
-          const sessionElapsedTime = videoRef.current._sessionStartTime 
-            ? (performance.now() - videoRef.current._sessionStartTime) 
-            : 0;
-          
-          // Store session start time if not already set
-          if (!videoRef.current._sessionStartTime) {
-            videoRef.current._sessionStartTime = performance.now();
-          }
-          
-          // Become more aggressive with frame sampling as session time increases
-          let timeBasedSamplingAdjustment = 0;
-          if (sessionElapsedTime > 10 * 60 * 1000) { // > 10 minutes
-            timeBasedSamplingAdjustment = 1;
-          }
-          if (sessionElapsedTime > 20 * 60 * 1000) { // > 20 minutes
-            timeBasedSamplingAdjustment = 2;
-          }
           
           // If processing is taking too long, increase the sampling rate
           // Target is to keep processing under 16ms (60fps)
-          if (avgProcessingTime > 20) { // Over 20ms (under 50fps) - more aggressive than before
-            videoRef.current._adaptiveSamplingRate = Math.min(6, videoRef.current._adaptiveSamplingRate + 1 + timeBasedSamplingAdjustment);
+          if (avgProcessingTime > 30) { // Over 30ms (under 33fps)
+            videoRef.current._adaptiveSamplingRate = Math.min(5, videoRef.current._adaptiveSamplingRate + 1);
             if (showDebug) {
-              console.log(`Adaptive sampling: increased to ${videoRef.current._adaptiveSamplingRate} (avg=${avgProcessingTime.toFixed(1)}ms, session=${Math.round(sessionElapsedTime/60000)}min)`);
+              console.log(`Adaptive sampling: increased to ${videoRef.current._adaptiveSamplingRate} (avg=${avgProcessingTime.toFixed(1)}ms)`);
             }
           } 
           // If we're processing quickly, gradually decrease sampling rate to default
-          else if (avgProcessingTime < 12 && videoRef.current._adaptiveSamplingRate > frameSamplingRateRef.current) {
+          else if (avgProcessingTime < 16 && videoRef.current._adaptiveSamplingRate > frameSamplingRateRef.current) {
             videoRef.current._adaptiveSamplingRate = Math.max(
               frameSamplingRateRef.current, 
               videoRef.current._adaptiveSamplingRate - 0.5
@@ -545,7 +462,13 @@ function usePoseTracking({
       }
     }
     
-    // Measure total loop time
+    // In minimal mode, always request next frame immediately
+    if (isMinimalMode) {
+      animationFrameRef.current = requestAnimationFrame(renderLoop);
+      return;
+    }
+    
+    // For regular mode, apply throttling if needed
     const loopTime = performance.now() - loopStartTime;
     
     // Request next frame with potential delay if we're running too hot
@@ -558,7 +481,7 @@ function usePoseTracking({
         animationFrameRef.current = requestAnimationFrame(renderLoop);
       }, 0);
     }
-  }, [processResults, showDebug, frameSamplingRateRef]);
+  }, [processResults, showDebug, frameSamplingRateRef, minimalTrackingModeRef]);
   
   // Re-check tracking state when settings change
   useEffect(() => {
@@ -575,27 +498,68 @@ function usePoseTracking({
         strictLandmarkVisibility,
         visibilityThreshold,
         trackingStateRef,
-        sideStatus,
-        readyPoseHoldStartRef.current,
+        trackingData.sideStatus,
+        readyPoseHoldStartRef,
         readyPoseGlobalHoldStartRef,
-        repInProgressRef.current,
-        wasInReadyPoseRef.current,
+        repInProgressRef,
+        wasInReadyPoseRef,
         lostVisibilityTimestampRef,
-        prevTrackingStateRef
+        prevTrackingStateRef,
+        useConfidenceAsFallback,
+        confidenceThreshold
       );
       
-      setTrackingStateBoth(trackingResult.nextTrackingState);
-      setSideStatus(trackingResult.newSideStatus);
+      // Run the rep state engine if we're tracking
+      let newRepEngineState = null;
+      if (trackingResult.nextTrackingState === TRACKING_STATES.ACTIVE) {
+        // Call the rep state engine to get updated state
+        newRepEngineState = runRepStateEngine(
+          latestLandmarksRef.current,
+          selectedExerciseRef.current,
+          repEnginePrevStateRef.current
+        );
+        
+        // Store the new state for next frame
+        repEnginePrevStateRef.current = newRepEngineState;
+      } else {
+        // If not tracking, use the last known state
+        newRepEngineState = repEnginePrevStateRef.current;
+      }
+      
+      setTrackingDataWithRef(prev => ({
+        ...prev,
+        trackingState: trackingResult.nextTrackingState,
+        sideStatus: trackingResult.newSideStatus,
+        repHistory: updateRepHistoryBuffer(
+          trackingData.repHistory,
+          trackingResult.leftAngle,
+          trackingResult.rightAngle,
+          trackingResult.requiredVisibility,
+          trackingResult.secondaryVisibility,
+          trackingResult.nextTrackingState
+        ),
+        repEngineState: trackingResult.nextTrackingState === TRACKING_STATES.PAUSED ? null : newRepEngineState
+      }));
     }
-  }, [strictLandmarkVisibility, visibilityThreshold, showDebug]);
+  }, [strictLandmarkVisibility, visibilityThreshold, showDebug, useConfidenceAsFallback, confidenceThreshold]);
+  
+  const setTrackingDataWithRef = (updater) => {
+    setTrackingData(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (next.trackingState !== prev.trackingState) {
+        trackingStateRef.current = next.trackingState;
+      }
+      return next;
+    });
+  };
   
   return {
-    trackingState,
-    repCount,
-    repHistory,
-    sideStatus,
+    trackingState: trackingData.trackingState,
+    repCount: trackingData.repCount,
+    repHistory: trackingData.repHistory,
+    sideStatus: trackingData.sideStatus,
     latestLandmarksRef,
-    repEngineState,
+    repEngineState: trackingData.repEngineState,
     processResults,
     renderLoop
   };
