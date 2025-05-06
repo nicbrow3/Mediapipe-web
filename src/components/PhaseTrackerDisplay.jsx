@@ -1,73 +1,52 @@
 import React from 'react';
 import PhaseTracker from './PhaseTracker';
 
-const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles }) => {
+const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide }) => {
   if (!selectedExercise || 
       !selectedExercise.logicConfig || 
       selectedExercise.logicConfig.type !== 'angle' || 
-      !Array.isArray(selectedExercise.logicConfig.anglesToTrack)) {
+      !Array.isArray(selectedExercise.logicConfig.anglesToTrack) ||
+      selectedExercise.logicConfig.anglesToTrack.length === 0) {
     return null;
   }
 
   const { anglesToTrack } = selectedExercise.logicConfig;
-  
-  // Check if we're tracking only a single side
-  const isOneSided = anglesToTrack.length === 1 || 
-    anglesToTrack.every(angle => angle.side === anglesToTrack[0].side);
+  let angleConfigToShow = null;
+  let displayLabel = '';
 
-  // Style object for the container
-  const containerStyle = {
-    position: 'absolute',
-    top: 70, // Position below angle display
-    left: 0,
-    right: 0,
-    display: 'flex',
-    justifyContent: isOneSided ? 'flex-end' : 'space-between', // Right-align for single side
-    padding: '0 20px',
-    zIndex: 100,
-    pointerEvents: 'none' // Allow clicks to pass through
-  };
-  
-  // For dual-sided tracking (e.g., both arms)
-  if (!isOneSided) {
-    const leftAngle = anglesToTrack.find(a => a.side === 'left');
-    const rightAngle = anglesToTrack.find(a => a.side === 'right');
-    
-    return (
-      <div style={containerStyle}>
-        {leftAngle && trackedAngles[leftAngle.id] != null && (
-          <div style={{ pointerEvents: 'auto', maxWidth: '40%' }}>
-            <PhaseTracker 
-              angle={trackedAngles[leftAngle.id]} 
-              angleConfig={leftAngle} 
-              side="Left"
-            />
-          </div>
-        )}
-        {rightAngle && trackedAngles[rightAngle.id] != null && (
-          <div style={{ pointerEvents: 'auto', maxWidth: '40%' }}>
-            <PhaseTracker 
-              angle={trackedAngles[rightAngle.id]} 
-              angleConfig={rightAngle}
-              side="Right" 
-            />
-          </div>
-        )}
-      </div>
-    );
+  if (displaySide === 'left') {
+    angleConfigToShow = anglesToTrack.find(a => a.id.toLowerCase().includes('left'));
+    if (angleConfigToShow) displayLabel = 'Left';
+  } else if (displaySide === 'right') {
+    angleConfigToShow = anglesToTrack.find(a => a.id.toLowerCase().includes('right'));
+    if (angleConfigToShow) {
+      displayLabel = 'Right';
+    } else {
+      // If no specific 'right' angle, try to find a non-'left' angle for the right display
+      angleConfigToShow = anglesToTrack.find(a => !a.id.toLowerCase().includes('left'));
+      if (angleConfigToShow) {
+        // Determine label: if it's explicitly right, use 'Right', otherwise 'Center' or angle name
+        if (angleConfigToShow.id.toLowerCase().includes('right')) {
+          displayLabel = 'Right';
+        } else {
+          displayLabel = angleConfigToShow.name || angleConfigToShow.id;
+        }
+      }
+    }
+  }
+
+  // If no suitable angle config found for the current side, or angle not tracked, render nothing
+  if (!angleConfigToShow || trackedAngles[angleConfigToShow.id] == null) {
+    return null;
   }
   
-  // For single-sided tracking (e.g., just one arm)
-  const angleConfig = anglesToTrack[0];
-  const side = angleConfig.side || 'Center';
-  
   return (
-    <div style={containerStyle}>
-      <div style={{ pointerEvents: 'auto', maxWidth: '40%' }}>
+    <div className={`phase-tracker-display ${displaySide}-side`}>
+      <div className="phase-tracker-display-item">
         <PhaseTracker 
-          angle={trackedAngles[angleConfig.id]} 
-          angleConfig={angleConfig}
-          side={side.charAt(0).toUpperCase() + side.slice(1)} 
+          angle={trackedAngles[angleConfigToShow.id]} 
+          angleConfig={angleConfigToShow} 
+          side={displayLabel} // Use the determined label
         />
       </div>
     </div>

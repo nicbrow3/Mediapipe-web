@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import './WorkoutTracker.css'; // Reuse existing styles
+import './MinimalTracker.css'; // Use new layout styles
 import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils';
 import * as exercises from '../exercises';
 import VideoCanvas, { setupCamera, waitForVideoReady } from './VideoCanvas';
@@ -44,13 +44,6 @@ const MinimalTracker = () => {
 
   // Get exercise options from imported exercises
   const exerciseOptions = Object.values(exercises).filter(e => e && e.id && e.name);
-
-  useEffect(() => {
-  }, [selectedExercise]);
-
-  // Log state changes
-  useEffect(() => {
-  }, [cameraStarted, selectedExercise, trackedAngles]);
 
   // Initialize MediaPipe
   const initializePoseLandmarker = async () => {
@@ -234,7 +227,7 @@ const MinimalTracker = () => {
   }, []);
 
   return (
-    <div className="workout-tracker-container">
+    <div className="minimal-tracker-root">
       {/* Exercise Dropdown (only show after camera started) */}
       {cameraStarted && (
         <ExerciseSelector 
@@ -245,7 +238,6 @@ const MinimalTracker = () => {
       )}
       {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
       {errorMessage && <div className="error-message">{errorMessage}</div>}
-      
       {/* Show Start Camera button if not started */}
       {!cameraStarted && (
         <div style={{
@@ -282,31 +274,48 @@ const MinimalTracker = () => {
           height={canvasDimensions.height}
           cameraStarted={cameraStarted}
         />
-        
-        {/* Phase and Rep Counter */}
-        {cameraStarted && (
-          <PhaseTrackerDisplay
-            selectedExercise={selectedExercise}
-            trackedAngles={trackedAngles}
-          />
-        )}
-        
-        {/* Angle Displays for selected exercise */}
-        <AngleDisplay 
-          selectedExercise={selectedExercise}
-          trackedAngles={trackedAngles}
-        />
-        
-        {/* Landmark Metrics Display */}
-        {cameraStarted && landmarksData && (
-          <LandmarkMetricsDisplay
-            selectedExercise={selectedExercise}
-            landmarksData={landmarksData}
-            trackedAngles={trackedAngles}
-          />
-        )}
-        
-        {/* Stats Display */}
+        {/* Overlay stacks for left and right-aligned UI */}
+        <div className="minimal-tracker-overlay">
+          <div className="minimal-tracker-stack left">
+            {/* Place left-aligned overlays here */}
+            <AngleDisplay 
+              displaySide="left"
+              selectedExercise={selectedExercise}
+              trackedAngles={trackedAngles}
+            />
+            <PhaseTrackerDisplay
+              displaySide="left"
+              selectedExercise={selectedExercise}
+              trackedAngles={trackedAngles}
+            />
+            <LandmarkMetricsDisplay
+              displaySide="left"
+              selectedExercise={selectedExercise}
+              landmarksData={landmarksData}
+              trackedAngles={trackedAngles}
+            />
+          </div>
+          <div className="minimal-tracker-stack right">
+            {/* Place overlays here for right-aligned overlays */}
+            <AngleDisplay 
+              displaySide="right"
+              selectedExercise={selectedExercise}
+              trackedAngles={trackedAngles}
+            />
+            <PhaseTrackerDisplay
+              displaySide="right"
+              selectedExercise={selectedExercise}
+              trackedAngles={trackedAngles}
+            />
+            <LandmarkMetricsDisplay
+              displaySide="right"
+              selectedExercise={selectedExercise}
+              landmarksData={landmarksData}
+              trackedAngles={trackedAngles}
+            />
+          </div>
+        </div>
+        {/* Stats Display (keep at bottom or move as needed) */}
         <StatsDisplay 
           stats={stats} 
           cameraStarted={cameraStarted} 

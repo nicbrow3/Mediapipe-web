@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { LANDMARK_MAP } from '../logic/landmarkUtils';
 
-const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles }) => {
+const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles, displaySide }) => {
   if (!selectedExercise || 
       !selectedExercise.logicConfig || 
       selectedExercise.logicConfig.type !== 'angle' || 
@@ -11,11 +11,23 @@ const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles
   }
 
   const { anglesToTrack } = selectedExercise.logicConfig;
-  
-  // Check if we're tracking only a single side
-  const isOneSided = anglesToTrack.length === 1 || 
-    anglesToTrack.every(angle => angle.side === anglesToTrack[0].side);
 
+  // Filter anglesToTrack based on displaySide
+  const filteredAnglesToTrack = anglesToTrack.filter(angleConfig => {
+    const angleId = angleConfig.id.toLowerCase();
+    const isLeftAngle = angleId.includes('left');
+    // const isRightAngle = angleId.includes('right'); // We can use this if we want to be more explicit for right side
+
+    if (displaySide === 'left') {
+      return isLeftAngle;
+    }
+    if (displaySide === 'right') {
+      // Show right-sided angles and non-specific angles (those not explicitly 'left')
+      return !isLeftAngle; 
+    }
+    return true; // Should not happen
+  });
+  
   // Log the landmark data for debugging - only once for the first landmark
   useEffect(() => {
     if (landmarksData && landmarksData.length > 0) {
@@ -52,9 +64,13 @@ const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles
     return 'N/A';
   };
 
+  if (filteredAnglesToTrack.length === 0) {
+    return null;
+  }
+
   return (
-    <>
-      {anglesToTrack.map((angleConfig) => {
+    <div className="landmark-metrics-display">
+      {filteredAnglesToTrack.map((angleConfig) => {
         const { id, side, points } = angleConfig;
         
         // Skip if this angle isn't being tracked
@@ -63,7 +79,7 @@ const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles
         }
         
         // Map points to landmark names (e.g., left_shoulder, left_elbow, left_wrist)
-        const pointNames = points.map(pt => (side ? `${side}_${pt}` : pt));
+        const pointNames = points.map(pt => (angleConfig.side ? `${angleConfig.side}_${pt}` : pt)); // Use angleConfig.side for consistency
         
         // Get indices from LANDMARK_MAP
         const indices = pointNames.map(name => LANDMARK_MAP[name]);
@@ -83,43 +99,13 @@ const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles
             };
           });
         
-        // Position with margins instead of absolute top
-        const style = {
-          position: 'absolute',
-          bottom: 20, // Position from bottom instead of top
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          padding: '6px 10px',
-          borderRadius: '5px',
-          color: 'white',
-          zIndex: 100,
-          fontSize: '12px',
-          width: 'auto',
-          minWidth: '150px'
-        };
-        
-        // If single tracker, position on right side
-        if (isOneSided) {
-          style.right = 20;
-          style.textAlign = 'right';
-        } else {
-          // For multiple trackers, position left/right based on side
-          if (side === 'left') {
-            style.left = 20;
-            style.textAlign = 'left';
-          } else if (side === 'right') {
-            style.right = 20;
-            style.textAlign = 'right';
-          } else {
-            // Center angles (rare case)
-            style.left = '50%';
-            style.transform = 'translateX(-50%)';
-            style.textAlign = 'center';
-          }
+        if (landmarkMetrics.length === 0) {
+            return null;
         }
-        
+
         return (
-          <div key={id} style={style}>
-            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Landmark Metrics:</div>
+          <div key={id} className="landmark-metrics-display-item">
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{angleConfig.name || id} Vis:</div>
             <table style={{ borderCollapse: 'collapse', width: '100%' }}>
               <thead>
                 <tr>
@@ -128,18 +114,30 @@ const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles
                 </tr>
               </thead>
               <tbody>
-                {landmarkMetrics.map((metric, index) => (
-                  <tr key={index}>
-                    <td style={{ padding: '2px' }}>{metric.name.split('_').pop()}</td>
-                    <td style={{ textAlign: 'right', padding: '2px' }}>{metric.visibility}</td>
-                  </tr>
-                ))}
+                {landmarkMetrics.map((metric, index) => {
+                  const visibilityValue = parseFloat(metric.visibility);
+                  let textColor = 'inherit'; // Default color
+                  if (!isNaN(visibilityValue)) {
+                    if (visibilityValue < 30) {
+                      textColor = 'red';
+                    } else if (visibilityValue < 60) {
+                      textColor = 'orange';
+                    }
+                  }
+
+                  return (
+                    <tr key={index}>
+                      <td style={{ padding: '2px' }}>{metric.name.split('_').pop()}</td>
+                      <td style={{ textAlign: 'right', padding: '2px', color: textColor }}>{metric.visibility}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         );
       })}
-    </>
+    </div>
   );
 };
 
