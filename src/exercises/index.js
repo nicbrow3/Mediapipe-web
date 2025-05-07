@@ -4,4 +4,4 @@ export { bicepCurls } from './bicepCurls';
 export { tricepKickbacks } from './tricepKickbacks';
 export { leftShoulder } from './leftShoulder';
 export { jumpingJacks } from './jumpingJacks'; 
-// export * from './squats'; // Add others as they are created 
+export { seatedOverheadPress } from './seatedOverheadPress';

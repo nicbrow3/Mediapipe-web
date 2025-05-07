@@ -3,10 +3,6 @@ import React from 'react';
 const ExerciseSelector = ({ exerciseOptions, selectedExercise, onChange }) => (
   <div 
     style={{
-      position: 'absolute',
-      top: 90,
-      left: '50%',
-      transform: 'translateX(-50%)',
       zIndex: 200,
       background: 'rgba(0,0,0,0.7)',
       borderRadius: 5,

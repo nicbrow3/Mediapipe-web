@@ -9,6 +9,8 @@ import AngleDisplay from './AngleDisplay';
 import StatsDisplay from './StatsDisplay';
 import PhaseTrackerDisplay from './PhaseTrackerDisplay';
 import LandmarkMetricsDisplay from './LandmarkMetricsDisplay';
+import WeightIndicator from './WeightIndicator';
+import RepGoalIndicator from './RepGoalIndicator';
 
 const MinimalTracker = () => {
   // References
@@ -19,6 +21,7 @@ const MinimalTracker = () => {
   const lastFrameTimeRef = useRef(0);
   const inferenceTimesRef = useRef([]);
   const fpsTimesRef = useRef([]);
+  const angleHistoryRef = useRef({});
   
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -30,8 +33,12 @@ const MinimalTracker = () => {
   });
   const [selectedExercise, setSelectedExercise] = useState(Object.values(exercises)[0]);
   const [trackedAngles, setTrackedAngles] = useState({});
+  const [rawAngles, setRawAngles] = useState({});
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
   const [landmarksData, setLandmarksData] = useState(null);
+  const [smoothingEnabled, setSmoothingEnabled] = useState(false);
+  const [weight, setWeight] = useState(0);
+  const [repGoal, setRepGoal] = useState(10);
 
   // Ref for always-current selectedExercise
   const selectedExerciseRef = useRef(selectedExercise);
@@ -39,8 +46,15 @@ const MinimalTracker = () => {
     selectedExerciseRef.current = selectedExercise;
   }, [selectedExercise]);
 
+  // Ref for always-current smoothingEnabled state
+  const smoothingEnabledRef = useRef(smoothingEnabled);
+  useEffect(() => {
+    smoothingEnabledRef.current = smoothingEnabled;
+  }, [smoothingEnabled]);
+
   // Constants for performance metrics
-  const MAX_SAMPLES = 30; // Store last 30 samples for smoothing
+  const MAX_SAMPLES = 300; // samples for fps and inference time
+  const ANGLE_SMOOTHING_WINDOW = 25; // Number of frames to use for angle smoothing (approx. 0.5s at 30fps)
 
   // Get exercise options from imported exercises
   const exerciseOptions = Object.values(exercises).filter(e => e && e.id && e.name);
@@ -145,29 +159,46 @@ const MinimalTracker = () => {
     if (results.landmarks && results.landmarks.length > 0 && exercise && exercise.logicConfig?.type === 'angle' && Array.isArray(exercise.logicConfig.anglesToTrack)) {
       const landmarks = results.landmarks[0];
       const newAngles = {};
+      const newRawAngles = {};
+      
       for (const angleConfig of exercise.logicConfig.anglesToTrack) {
         const { side, points, id } = angleConfig;
-        // Map points to landmark names, e.g. left_shoulder, left_elbow, left_wrist
         const pointNames = points.map(pt => (side ? `${side}_${pt}` : pt));
         const indices = pointNames.map(name => LANDMARK_MAP[name]);
+
         if (indices.every(idx => idx !== undefined)) {
           const [a, b, c] = indices.map(idx => landmarks[idx]);
-          const angle = calculateAngle(a, b, c);
-          newAngles[id] = angle ? Math.round(angle) : null;
+          const rawAngle = calculateAngle(a, b, c); // This is the raw float
+
+          // Store raw angle (rounded for display in (raw: X) part of AngleDisplay)
+          newRawAngles[id] = rawAngle !== null ? Math.round(rawAngle) : null;
+
+          // Apply smoothing if enabled, otherwise use raw angle
+          if (smoothingEnabledRef.current && rawAngle !== null) {
+            newAngles[id] = smoothAngle(id, rawAngle);
+          } else {
+            newAngles[id] = rawAngle !== null ? Math.round(rawAngle) : null;
+          }
+
         } else {
           newAngles[id] = null;
+          newRawAngles[id] = null;
         }
       }
-      console.log('Calculated angles:', newAngles);
+      
+      // Add a log here to see what's being set
+      console.log('[MinimalTracker] RenderLoop - Smoothing: ', smoothingEnabled, 'Setting newAngles:', JSON.parse(JSON.stringify(newAngles)));
       setTrackedAngles(newAngles);
+      setRawAngles(newRawAngles);
     } else {
-      console.log('No landmarks or exercise config, setting empty trackedAngles');
+      // console.log('No landmarks or exercise config, setting empty trackedAngles');
       setTrackedAngles({});
+      setRawAngles({});
     }
 
     // Continue the render loop
     requestAnimationRef.current = requestAnimationFrame(renderLoop);
-  }, [updateStats]);
+  }, [updateStats, smoothingEnabled]);
 
   // Start camera and tracking
   const handleStartCamera = async () => {
@@ -205,6 +236,14 @@ const MinimalTracker = () => {
     }
   };
 
+  // Toggle smoothing
+  const toggleSmoothing = () => {
+    const newValue = !smoothingEnabled;
+    setSmoothingEnabled(newValue);
+    // Clear angle history when toggling
+    angleHistoryRef.current = {};
+  };
+
   // Cleanup function
   useEffect(() => {
     return () => {
@@ -226,18 +265,89 @@ const MinimalTracker = () => {
     };
   }, []);
 
+  // Restore original smoothAngle function for now, as the test is in renderLoop
+  const smoothAngle = (angleId, rawAngleValue) => {
+    if (!smoothingEnabledRef.current || rawAngleValue === null) {
+      return rawAngleValue; 
+    }
+    // Original smoothing logic:
+    if (!angleHistoryRef.current[angleId]) {
+      angleHistoryRef.current[angleId] = [];
+    }
+    const history = angleHistoryRef.current[angleId];
+    history.push(rawAngleValue);
+    if (history.length > ANGLE_SMOOTHING_WINDOW) {
+      history.shift();
+    }
+    const sum = history.reduce((acc, val) => acc + val, 0);
+    return Math.round(sum / history.length);
+  };
+
+  // Reset rep goal to 10 when exercise changes
+  useEffect(() => {
+    setRepGoal(10);
+  }, [selectedExercise]);
+
   return (
     <div className="minimal-tracker-root">
-      {/* Exercise Dropdown (only show after camera started) */}
+      {/* Controls overlay - only show after camera started */}
       {cameraStarted && (
-        <ExerciseSelector 
-          exerciseOptions={exerciseOptions}
-          selectedExercise={selectedExercise}
-          onChange={setSelectedExercise}
-        />
+        <div className="tracker-controls" style={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          right: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '20px 0',
+          gap: '15px',
+          zIndex: 200
+        }}>
+          {/* Stats display at top */}
+          <StatsDisplay 
+            stats={stats} 
+            cameraStarted={cameraStarted} 
+            landmarksData={landmarksData} 
+            smoothingEnabled={smoothingEnabled}
+            smoothingWindow={ANGLE_SMOOTHING_WINDOW}
+          />
+          
+          {/* Exercise selector and controls row */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            width: '100%',
+            gap: '20px'
+          }}>
+            <ExerciseSelector 
+              exerciseOptions={exerciseOptions}
+              selectedExercise={selectedExercise}
+              onChange={setSelectedExercise}
+            />
+            
+            <button 
+              onClick={toggleSmoothing} 
+              className="smoothing-toggle"
+              style={{
+                background: smoothingEnabled ? '#45a29e' : '#1c2833',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              {smoothingEnabled ? 'Smoothing: ON' : 'Smoothing: OFF'}
+            </button>
+          </div>
+        </div>
       )}
+
       {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
       {errorMessage && <div className="error-message">{errorMessage}</div>}
+      
       {/* Show Start Camera button if not started */}
       {!cameraStarted && (
         <div style={{
@@ -274,6 +384,7 @@ const MinimalTracker = () => {
           height={canvasDimensions.height}
           cameraStarted={cameraStarted}
         />
+        
         {/* Overlay stacks for left and right-aligned UI */}
         <div className="minimal-tracker-overlay">
           <div className="minimal-tracker-stack left">
@@ -282,6 +393,8 @@ const MinimalTracker = () => {
               displaySide="left"
               selectedExercise={selectedExercise}
               trackedAngles={trackedAngles}
+              rawAngles={rawAngles}
+              smoothingEnabled={smoothingEnabled}
             />
             <PhaseTrackerDisplay
               displaySide="left"
@@ -301,6 +414,8 @@ const MinimalTracker = () => {
               displaySide="right"
               selectedExercise={selectedExercise}
               trackedAngles={trackedAngles}
+              rawAngles={rawAngles}
+              smoothingEnabled={smoothingEnabled}
             />
             <PhaseTrackerDisplay
               displaySide="right"
@@ -315,12 +430,23 @@ const MinimalTracker = () => {
             />
           </div>
         </div>
-        {/* Stats Display (keep at bottom or move as needed) */}
-        <StatsDisplay 
-          stats={stats} 
-          cameraStarted={cameraStarted} 
-          landmarksData={landmarksData}
-        />
+        {/* Bottom-center controls container */}
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 24,
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          zIndex: 400
+        }}>
+          <RepGoalIndicator repGoal={repGoal} setRepGoal={setRepGoal} />
+          {selectedExercise?.hasWeight && (
+            <WeightIndicator weight={weight} setWeight={setWeight} />
+          )}
+        </div>
       </div>
     </div>
   );

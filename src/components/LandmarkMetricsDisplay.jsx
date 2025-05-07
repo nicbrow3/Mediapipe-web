@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
 import { LANDMARK_MAP } from '../logic/landmarkUtils';
 
-const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles, displaySide }) => {
+function LandmarkMetricsDisplay(props) {
+  const { selectedExercise, landmarksData, trackedAngles, displaySide } = props;
+  
   if (!selectedExercise || 
       !selectedExercise.logicConfig || 
       selectedExercise.logicConfig.type !== 'angle' || 
@@ -33,18 +35,18 @@ const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles
     if (landmarksData && landmarksData.length > 0) {
       // Deep inspection of the landmark object
       const sampleLandmark = landmarksData[0];
-      console.log('First landmark properties:', Object.getOwnPropertyNames(sampleLandmark));
+      // console.log('First landmark properties:', Object.getOwnPropertyNames(sampleLandmark));
       
       // Check for nested properties
       for (const key in sampleLandmark) {
         const value = sampleLandmark[key];
         if (value && typeof value === 'object') {
-          console.log(`Nested property ${key}:`, Object.getOwnPropertyNames(value));
+          // console.log(`Nested property ${key}:`, Object.getOwnPropertyNames(value));
         }
       }
       
       // Log the entire first landmark for inspection
-      console.log('Complete first landmark:', JSON.stringify(sampleLandmark));
+      // console.log('Complete first landmark:', JSON.stringify(sampleLandmark));
     }
   }, [landmarksData]);
 
@@ -154,6 +156,6 @@ const LandmarkMetricsDisplay = ({ selectedExercise, landmarksData, trackedAngles
       })}
     </div>
   );
-};
+}
 
 export default LandmarkMetricsDisplay; 

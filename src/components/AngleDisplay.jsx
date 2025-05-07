@@ -1,6 +1,8 @@
 import React from 'react';
+import AngleIndicator from './AngleIndicator';
+import './AngleDisplay.css';
 
-const AngleDisplay = ({ selectedExercise, trackedAngles, displaySide }) => {
+const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEnabled, displaySide }) => {
   // Only render if we have a valid exercise with angle tracking
   if (!selectedExercise || selectedExercise.logicConfig?.type !== 'angle' || !Array.isArray(selectedExercise.logicConfig.anglesToTrack)) {
     return null;
@@ -35,9 +37,34 @@ const AngleDisplay = ({ selectedExercise, trackedAngles, displaySide }) => {
     <div className="angle-display">
       {validAngles.map(angleConfig => {
         const angle = trackedAngles[angleConfig.id];
+        const raw = rawAngles?.[angleConfig.id];
+        
+        // Determine indicator color based on side
+        const indicatorColor = displaySide === 'left' ? '#45a29e' : '#e84545';
+        
+        // Decide which value to show: smoothed (angle) or raw
+        const displayValue = smoothingEnabled ? angle : raw;
+        
         return (
           <div key={angleConfig.id} className="angle-display-item">
-            {angleConfig.name || angleConfig.id}: {angle}&deg;
+            {/* Add the angle indicator component */}
+            <AngleIndicator 
+              angle={displayValue} 
+              maxAngle={180} 
+              size={80}
+              minSize={80}
+              color={indicatorColor}
+              backgroundColor={`${indicatorColor}33`} // Add transparency to the background
+              angleConfig={angleConfig} // Pass the full angleConfig
+            />
+            
+            {/* Show only the relevant angle value */}
+            <div>
+              <span style={{color: 'white'}}>
+                {angleConfig.name || angleConfig.id}:
+              </span>
+              <span style={{color: indicatorColor}}> {displayValue}°</span>
+            </div>
           </div>
         );
       })}

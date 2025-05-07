@@ -1,6 +1,6 @@
 import React from 'react';
 
-const StatsDisplay = ({ stats, cameraStarted, landmarksData }) => {
+const StatsDisplay = ({ stats, cameraStarted, landmarksData, smoothingEnabled, smoothingWindow }) => {
   if (!cameraStarted) {
     return null;
   }
@@ -10,10 +10,6 @@ const StatsDisplay = ({ stats, cameraStarted, landmarksData }) => {
   
   return (
     <div style={{
-      position: 'absolute',
-      top: 20,
-      left: '50%',
-      transform: 'translateX(-50%)',
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
       color: 'white',
       padding: '10px 20px',
@@ -22,7 +18,10 @@ const StatsDisplay = ({ stats, cameraStarted, landmarksData }) => {
       fontSize: '16px',
       zIndex: 100,
     }}>
-      FPS: {stats.fps} | Inference Time: {stats.inferenceTime}ms | Landmarks detected: {landmarksCount}
+      FPS: {stats.fps} | Inference Time: {stats.inferenceTime}ms
+      {smoothingEnabled && (
+        <span> | Smoothing: <span style={{color: '#45a29e'}}>{smoothingWindow} frames</span></span>
+      )}
     </div>
   );
 };

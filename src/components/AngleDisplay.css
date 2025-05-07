@@ -1,0 +1,25 @@
+.angle-display {
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+  width: 250px;
+}
+
+.angle-display-item {
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.angle-display-item:last-child {
+  margin-bottom: 0;
+}
+
+.angle-display-item > div {
+  margin-top: 5px;
+  color: white;
+  font-size: 14px;
+  text-align: center;
+} 

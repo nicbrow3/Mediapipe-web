@@ -7,12 +7,12 @@ const PhaseTracker = ({ angle, angleConfig, side }) => {
   const phaseSequenceRef = useRef([]);
   
   // Add debugging logs
-  console.log(`PhaseTracker (${side || 'unknown'}) - angle:`, angle);
-  console.log(`PhaseTracker (${side || 'unknown'}) - config:`, angleConfig);
+  // console.log(`PhaseTracker (${side || 'unknown'}) - angle:`, angle);
+  // console.log(`PhaseTracker (${side || 'unknown'}) - config:`, angleConfig);
   
   useEffect(() => {
     if (angle === null || !angleConfig) {
-      console.log(`PhaseTracker (${side || 'unknown'}) - skipping due to null angle or missing config`);
+      // console.log(`PhaseTracker (${side || 'unknown'}) - skipping due to null angle or missing config`);
       return;
     }
     
@@ -46,8 +46,8 @@ const PhaseTracker = ({ angle, angleConfig, side }) => {
       }
     }
     
-    console.log(`PhaseTracker (${side || 'unknown'}) - calculated phase:`, currentPhase, 
-                `(angle: ${angle}, min: ${minThreshold}, mid: ${midpoint}, max: ${maxThreshold}, relaxedIsHigh: ${relaxedIsHigh})`);
+    // console.log(`PhaseTracker (${side || 'unknown'}) - calculated phase:`, currentPhase, 
+    //             `(angle: ${angle}, min: ${minThreshold}, mid: ${midpoint}, max: ${maxThreshold}, relaxedIsHigh: ${relaxedIsHigh})`);
     
     // Update phase
     if (currentPhase !== phase) {
