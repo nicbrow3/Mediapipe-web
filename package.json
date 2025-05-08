@@ -23,6 +23,7 @@
     "@tabler/icons-react": "^3.31.0",
     "dexie": "^4.0.11",
     "framer-motion": "^12.10.4",
+    "phosphor-react": "^1.4.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.15.3"

@@ -2,23 +2,24 @@ import React from 'react';
 import { Group, Stack } from '@mantine/core'; // Using Group for horizontal layout, Stack for overall vertical
 import ExerciseSelector from '../ExerciseSelector'; // Assuming path
 import StatsDisplay from '../StatsDisplay';     // Assuming path
-import StyledButton from './StyledButton';
+// import StyledButton from './StyledButton'; // No longer needed for smoothing toggle
 import { globalStyles } from '../../styles/globalStyles';
 
 const TrackerControlsBar = ({
   // Props from MinimalTracker that StatsDisplay needs
   stats,
   landmarksData,
-  smoothingWindow,
+  smoothingWindow, // Still needed for StatsDisplay
   // Props for ExerciseSelector
   exerciseOptions,
   selectedExercise,
   onExerciseChange,
-  // Props for Smoothing Toggle
-  smoothingEnabled,
-  onToggleSmoothing,
+  // Props for Smoothing Toggle - REMOVED
+  // smoothingEnabled, // No longer needed here, but StatsDisplay still uses it
+  // onToggleSmoothing,
   // Prop to control visibility (passed from MinimalTracker)
   cameraStarted,
+  smoothingEnabled, // Keep for StatsDisplay
 }) => {
   if (!cameraStarted) {
     return null; // Don't render if camera hasn't started
@@ -42,7 +43,7 @@ const TrackerControlsBar = ({
         stats={stats} 
         cameraStarted={cameraStarted} // Pass through needed props
         landmarksData={landmarksData} 
-        smoothingEnabled={smoothingEnabled}
+        smoothingEnabled={smoothingEnabled} // StatsDisplay still needs this
         smoothingWindow={smoothingWindow}
       />
       
@@ -54,14 +55,17 @@ const TrackerControlsBar = ({
           onChange={onExerciseChange}
         />
         
+        {/* Smoothing Toggle Button - REMOVED */}
+        {/* 
         <StyledButton
           variant="toggle"
           activeToggle={smoothingEnabled}
           onClick={onToggleSmoothing}
-          size="sm" // Example size, can be adjusted
+          size="sm"
         >
           {smoothingEnabled ? 'Smoothing: ON' : 'Smoothing: OFF'}
         </StyledButton>
+        */}
       </Group>
     </Stack>
   );

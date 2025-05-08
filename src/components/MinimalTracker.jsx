@@ -17,6 +17,9 @@ import LoadingDisplay from './common/LoadingDisplay';
 import ErrorDisplay from './common/ErrorDisplay';
 import TrackerControlsBar from './common/TrackerControlsBar';
 import BottomControls from './common/BottomControls';
+import { ActionIcon } from '@mantine/core';
+import { Gear } from 'phosphor-react';
+import SettingsOverlay from './SettingsOverlay';
 
 const MinimalTracker = () => {
   // References
@@ -36,6 +39,7 @@ const MinimalTracker = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [cameraStarted, setCameraStarted] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [stats, setStats] = useState({
     fps: 0,
     inferenceTime: 0
@@ -350,6 +354,19 @@ const MinimalTracker = () => {
 
   return (
     <div className="minimal-tracker-root">
+      {/* Settings Icon Button */}
+      {cameraStarted && !isLoading && !errorMessage && (
+        <ActionIcon
+          variant="filled"
+          color="gray"
+          size="lg"
+          onClick={() => setIsSettingsOpen(true)}
+          style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
+        >
+          <Gear size={24} />
+        </ActionIcon>
+      )}
+
       {/* Controls overlay - only show after camera started */}
       <TrackerControlsBar
         cameraStarted={cameraStarted && !isLoading && !errorMessage}
@@ -360,7 +377,6 @@ const MinimalTracker = () => {
         exerciseOptions={exerciseOptions}
         selectedExercise={selectedExercise}
         onExerciseChange={handleExerciseChange}
-        onToggleSmoothing={toggleSmoothingAndUpdateSettings}
       />
 
       {/* Show loading spinner only after camera button is clicked and while loading */}
@@ -452,6 +468,14 @@ const MinimalTracker = () => {
           onWeightChange={handleWeightChange}
         />
       </div>
+
+      {/* Settings Overlay Drawer */}
+      <SettingsOverlay 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)}
+        smoothingEnabled={smoothingEnabled}
+        onSmoothingChange={toggleSmoothingAndUpdateSettings}
+      />
     </div>
   );
 };
