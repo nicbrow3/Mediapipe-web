@@ -8,6 +8,7 @@ import { MantineProvider } from '@mantine/core'; // Keep MantineProvider
 // Removed Drawer, ActionIcon, Tooltip, Paper, Tabs, Switch, Slider, Text from Mantine if no longer needed
 // Removed specific Tabler icons if no longer needed by the simplified UI
 import '@mantine/core/styles.css';
+import { theme as appTheme } from './theme'; // Import our new theme
 // Removed db functions (startNewWorkoutSession, endWorkoutSession, getSetsForSession)
 // Removed glassStyle import
 
@@ -45,13 +46,7 @@ function App() {
   // Removed currentView state, MinimalTracker is always shown
 
   return (
-    <MantineProvider theme={{ 
-      colorScheme,
-      primaryColor: 'grape',
-      colors: {
-        grape: ['#f3e7ff', '#e6d0ff', '#d2b2ff', '#ba8dff', '#a269ff', '#8a45ff', '#7920ff', '#6500fa', '#5600d8', '#4700b3'],
-      }
-    }}>
+    <MantineProvider theme={{ ...appTheme, colorScheme }}>
       <div className="app-container">
         {/* Simplified Navigation Bar */}
         <div className="app-navbar">

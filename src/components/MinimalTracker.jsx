@@ -12,7 +12,11 @@ import PhaseTrackerDisplay from './PhaseTrackerDisplay';
 import LandmarkMetricsDisplay2 from './LandmarkMetricsDisplay2';
 import WeightIndicator from './WeightIndicator';
 import RepGoalIndicator from './RepGoalIndicator';
-import { Loader } from '@mantine/core';
+import StartButton from './common/StartButton';
+import LoadingDisplay from './common/LoadingDisplay';
+import ErrorDisplay from './common/ErrorDisplay';
+import TrackerControlsBar from './common/TrackerControlsBar';
+import BottomControls from './common/BottomControls';
 
 const MinimalTracker = () => {
   // References
@@ -239,6 +243,7 @@ const MinimalTracker = () => {
       setCameraStarted(true);
       // Then set loading to true to show the spinner
       setIsLoading(true);
+      setErrorMessage(''); // Clear previous errors
       
       const stream = await setupCamera();
       if (videoRef.current) { // Ensure videoRef is available
@@ -299,14 +304,6 @@ const MinimalTracker = () => {
     };
   }, [cameraStarted]); // Re-run if cameraStarted changes, to ensure dimensions are set after camera is up
 
-  // Toggle smoothing
-  // const toggleSmoothing = () => {
-  //   const newValue = !smoothingEnabled;
-  //   setSmoothingEnabled(newValue);
-  //   // Clear angle history when toggling
-  //   angleHistoryRef.current = {};
-  // };
-
   // Cleanup function
   useEffect(() => {
     return () => {
@@ -354,141 +351,41 @@ const MinimalTracker = () => {
   return (
     <div className="minimal-tracker-root">
       {/* Controls overlay - only show after camera started */}
-      {cameraStarted && (
-        <div className="tracker-controls" style={{ 
-          position: 'absolute', 
-          top: 0, 
-          left: 0, 
-          right: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '20px 0',
-          gap: '15px',
-          zIndex: 200
-        }}>
-          {/* Stats display at top */}
-          <StatsDisplay 
-            stats={stats} 
-            cameraStarted={cameraStarted} 
-            landmarksData={landmarksData} 
-            smoothingEnabled={smoothingEnabled}
-            smoothingWindow={ANGLE_SMOOTHING_WINDOW}
-          />
-          
-          {/* Exercise selector and controls row */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            width: '100%',
-            gap: '20px'
-          }}>
-            <ExerciseSelector 
-              exerciseOptions={exerciseOptions}
-              selectedExercise={selectedExercise}
-              onChange={handleExerciseChange}
-            />
-            
-            <button 
-              onClick={toggleSmoothingAndUpdateSettings}
-              className="smoothing-toggle"
-              style={{
-                background: smoothingEnabled ? '#45a29e' : '#1c2833',
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              {smoothingEnabled ? 'Smoothing: ON' : 'Smoothing: OFF'}
-            </button>
-          </div>
-        </div>
-      )}
+      <TrackerControlsBar
+        cameraStarted={cameraStarted && !isLoading && !errorMessage}
+        stats={stats}
+        landmarksData={landmarksData}
+        smoothingEnabled={smoothingEnabled}
+        smoothingWindow={ANGLE_SMOOTHING_WINDOW}
+        exerciseOptions={exerciseOptions}
+        selectedExercise={selectedExercise}
+        onExerciseChange={handleExerciseChange}
+        onToggleSmoothing={toggleSmoothingAndUpdateSettings}
+      />
 
       {/* Show loading spinner only after camera button is clicked and while loading */}
-      {isLoading && cameraStarted && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 100,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '15px'
-        }}>
-          <Loader size="xl" color="#45a29e" />
-          <div style={{ color: 'white', fontWeight: 'bold' }}>Loading Camera & Model...</div>
-        </div>
-      )}
+      {isLoading && cameraStarted && <LoadingDisplay />}
       
       {/* Show error message with improved styling */}
-      {errorMessage && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 100,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '15px',
-          backgroundColor: 'rgba(220, 53, 69, 0.2)',
-          padding: '20px',
-          borderRadius: '8px',
-          maxWidth: '80%'
-        }}>
-          <div style={{ color: '#ff5252', fontWeight: 'bold', textAlign: 'center' }}>{errorMessage}</div>
-          <button 
-            onClick={() => {setErrorMessage(''); setCameraStarted(false);}} 
-            style={{ 
-              fontSize: 16, 
-              padding: '0.5em 1em', 
-              borderRadius: 4, 
-              background: '#45a29e', 
-              color: 'white', 
-              border: 'none', 
-              cursor: 'pointer'
-            }}
-          >
-            Try Again
-          </button>
-        </div>
-      )}
+      {errorMessage && 
+        <ErrorDisplay 
+          message={errorMessage} 
+          onRetry={() => {
+            setErrorMessage(''); 
+            // Optionally, reset cameraStarted if retry should go back to initial start screen
+            // setCameraStarted(false); 
+            // Or directly call handleStartCamera if retry means attempting camera start again
+            handleStartCamera();
+          }}
+        />
+      }
       
-      {/* Show Start Camera button if not started */}
-      {!cameraStarted && (
-        <div style={{
-          zIndex: 10, 
-          position: 'absolute', 
-          left: '50%', 
-          top: '40%', 
-          transform: 'translate(-50%, -50%)'
-        }}>
-          <button 
-            onClick={handleStartCamera} 
-            className="start-camera-btn" 
-            style={{ 
-              fontSize: 24, 
-              padding: '1em 2em', 
-              borderRadius: 8, 
-              background: '#45a29e', 
-              color: 'white', 
-              border: 'none', 
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)' 
-            }}
-          >
-            Start Minimal Tracking
-          </button>
-        </div>
+      {/* Show Start Camera button if not started and no error is shown */}
+      {!cameraStarted && !errorMessage && (
+        <StartButton onClick={handleStartCamera} />
       )}
 
-      <div className="video-canvas-container">
+      <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible' }}>
         <VideoCanvas
           videoRef={videoRef}
           canvasRef={canvasRef}
@@ -543,23 +440,17 @@ const MinimalTracker = () => {
             />
           </div>
         </div>
-        {/* Bottom-center controls container */}
-        <div style={{
-          position: 'fixed',
-          left: '50%',
-          bottom: 24,
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 16,
-          zIndex: 400
-        }}>
-          <RepGoalIndicator repGoal={repGoal} setRepGoal={setRepGoal} />
-          {selectedExercise?.hasWeight && (
-            <WeightIndicator weight={weight} setWeight={handleWeightChange} />
-          )}
-        </div>
+        {/* Bottom-center controls container - Replaced by BottomControls component */}
+        <BottomControls 
+          cameraStarted={cameraStarted}
+          isLoading={isLoading}
+          errorMessage={errorMessage}
+          repGoal={repGoal}
+          setRepGoal={setRepGoal}
+          selectedExercise={selectedExercise}
+          weight={weight}
+          onWeightChange={handleWeightChange}
+        />
       </div>
     </div>
   );

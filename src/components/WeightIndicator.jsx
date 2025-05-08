@@ -1,45 +1,71 @@
 import React from 'react';
+import { Group, Text, Paper } from '@mantine/core';
+import StyledButton from './common/StyledButton';
 
 const WeightIndicator = ({ weight, setWeight }) => {
+  const handleAdjustWeight = (amount) => {
+    setWeight(w => {
+      const newWeight = w + amount;
+      if (newWeight < 0) return 0;
+      if (newWeight > 500) return 500;
+      return newWeight;
+    });
+  };
+
   return (
-    <div style={{
-      background: '#222',
-      borderRadius: 10,
-      padding: '12px 28px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 16,
-      boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
-      zIndex: 300
-    }}>
-      <button
-        onClick={() => setWeight(w => Math.max(0, w - 10))}
-        style={{ fontSize: 20, padding: '6px 14px', borderRadius: 6, border: 'none', background: '#444', color: 'white', cursor: 'pointer' }}
-      >
-        -10
-      </button>
-      <button
-        onClick={() => setWeight(w => Math.max(0, w - 5))}
-        style={{ fontSize: 20, padding: '6px 14px', borderRadius: 6, border: 'none', background: '#444', color: 'white', cursor: 'pointer' }}
-      >
-        -5
-      </button>
-      <span style={{ minWidth: 60, textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: 22 }}>
-        {weight} lb
-      </span>
-      <button
-        onClick={() => setWeight(w => Math.min(200, w + 5))}
-        style={{ fontSize: 20, padding: '6px 14px', borderRadius: 6, border: 'none', background: '#444', color: 'white', cursor: 'pointer' }}
-      >
-        +5
-      </button>
-      <button
-        onClick={() => setWeight(w => Math.min(200, w + 10))}
-        style={{ fontSize: 20, padding: '6px 14px', borderRadius: 6, border: 'none', background: '#444', color: 'white', cursor: 'pointer' }}
-      >
-        +10
-      </button>
-    </div>
+    <Paper 
+      shadow="md" 
+      p="sm"
+    >
+      <Group position="center" spacing="sm">
+        <StyledButton
+          variant="secondary"
+          square={true}
+          size="xl"
+          onClick={() => handleAdjustWeight(-10)}
+          aria-label="Decrease weight by 10"
+        >
+          -10
+        </StyledButton>
+        <StyledButton
+          variant="secondary"
+          square={true}
+          size="xl"
+          onClick={() => handleAdjustWeight(-5)}
+          aria-label="Decrease weight by 5"
+        >
+          -5
+        </StyledButton>
+        <Text 
+          style={{
+            minWidth: 70, 
+            textAlign: 'center', 
+            fontWeight: 700, 
+          }}
+          fz="xl"
+        >
+          {weight} lb
+        </Text>
+        <StyledButton
+          variant="secondary"
+          square={true}
+          size="xl"
+          onClick={() => handleAdjustWeight(5)}
+          aria-label="Increase weight by 5"
+        >
+          +5
+        </StyledButton>
+        <StyledButton
+          variant="secondary"
+          square={true}
+          size="xl"
+          onClick={() => handleAdjustWeight(10)}
+          aria-label="Increase weight by 10"
+        >
+          +10
+        </StyledButton>
+      </Group>
+    </Paper>
   );
 };
 
