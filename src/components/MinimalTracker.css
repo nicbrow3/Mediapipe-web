@@ -40,7 +40,6 @@
 
 /* Overlay box style for all children */
 .angle-display,
-.phase-tracker-display,
 .landmark-metrics-display {
   background: rgba(0,0,0,0.7);
   color: white;

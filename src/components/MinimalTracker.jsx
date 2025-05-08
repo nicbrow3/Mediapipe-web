@@ -3,12 +3,13 @@ import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import './MinimalTracker.css'; // Use new layout styles
 import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils';
 import * as exercises from '../exercises';
+import { useAppSettings } from '../hooks/useAppSettings';
 import VideoCanvas, { setupCamera, waitForVideoReady } from './VideoCanvas';
 import ExerciseSelector from './ExerciseSelector';
 import AngleDisplay from './AngleDisplay';
 import StatsDisplay from './StatsDisplay';
 import PhaseTrackerDisplay from './PhaseTrackerDisplay';
-import LandmarkMetricsDisplay from './LandmarkMetricsDisplay';
+import LandmarkMetricsDisplay2 from './LandmarkMetricsDisplay2';
 import WeightIndicator from './WeightIndicator';
 import RepGoalIndicator from './RepGoalIndicator';
 
@@ -23,6 +24,9 @@ const MinimalTracker = () => {
   const fpsTimesRef = useRef([]);
   const angleHistoryRef = useRef({});
   
+  // Settings Hook
+  const [appSettings, updateAppSettings] = useAppSettings();
+
   // State
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -31,13 +35,20 @@ const MinimalTracker = () => {
     fps: 0,
     inferenceTime: 0
   });
-  const [selectedExercise, setSelectedExercise] = useState(Object.values(exercises)[0]);
+  const [selectedExercise, setSelectedExercise] = useState(() => {
+    const initialExerciseId = appSettings.selectedExerciseId;
+    if (initialExerciseId) {
+      const foundExercise = Object.values(exercises).find(ex => ex.id === initialExerciseId);
+      if (foundExercise) return foundExercise;
+    }
+    return Object.values(exercises)[0]; // Default
+  });
   const [trackedAngles, setTrackedAngles] = useState({});
   const [rawAngles, setRawAngles] = useState({});
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
   const [landmarksData, setLandmarksData] = useState(null);
-  const [smoothingEnabled, setSmoothingEnabled] = useState(false);
-  const [weight, setWeight] = useState(0);
+  const [smoothingEnabled, setSmoothingEnabled] = useState(appSettings.isSmoothingEnabled);
+  const [weight, setWeight] = useState(appSettings.selectedWeights !== null ? appSettings.selectedWeights : 0);
   const [repGoal, setRepGoal] = useState(10);
 
   // Ref for always-current selectedExercise
@@ -58,6 +69,26 @@ const MinimalTracker = () => {
 
   // Get exercise options from imported exercises
   const exerciseOptions = Object.values(exercises).filter(e => e && e.id && e.name);
+
+  // Handlers that update state and appSettings
+  const handleExerciseChange = useCallback((newExercise) => {
+    setSelectedExercise(newExercise);
+    updateAppSettings({ selectedExerciseId: newExercise.id });
+  }, [updateAppSettings]);
+
+  const toggleSmoothingAndUpdateSettings = useCallback(() => {
+    setSmoothingEnabled(prev => {
+      const newValue = !prev;
+      updateAppSettings({ isSmoothingEnabled: newValue });
+      angleHistoryRef.current = {}; // Clear angle history when toggling
+      return newValue;
+    });
+  }, [updateAppSettings]);
+
+  const handleWeightChange = useCallback((newWeight) => {
+    setWeight(newWeight);
+    updateAppSettings({ selectedWeights: newWeight });
+  }, [updateAppSettings]);
 
   // Initialize MediaPipe
   const initializePoseLandmarker = async () => {
@@ -187,7 +218,7 @@ const MinimalTracker = () => {
       }
       
       // Add a log here to see what's being set
-      console.log('[MinimalTracker] RenderLoop - Smoothing: ', smoothingEnabled, 'Setting newAngles:', JSON.parse(JSON.stringify(newAngles)));
+      // console.log('[MinimalTracker] RenderLoop - Smoothing: ', smoothingEnabled, 'Setting newAngles:', JSON.parse(JSON.stringify(newAngles)));
       setTrackedAngles(newAngles);
       setRawAngles(newRawAngles);
     } else {
@@ -198,7 +229,7 @@ const MinimalTracker = () => {
 
     // Continue the render loop
     requestAnimationRef.current = requestAnimationFrame(renderLoop);
-  }, [updateStats, smoothingEnabled]);
+  }, [updateStats]);
 
   // Start camera and tracking
   const handleStartCamera = async () => {
@@ -237,12 +268,12 @@ const MinimalTracker = () => {
   };
 
   // Toggle smoothing
-  const toggleSmoothing = () => {
-    const newValue = !smoothingEnabled;
-    setSmoothingEnabled(newValue);
-    // Clear angle history when toggling
-    angleHistoryRef.current = {};
-  };
+  // const toggleSmoothing = () => {
+  //   const newValue = !smoothingEnabled;
+  //   setSmoothingEnabled(newValue);
+  //   // Clear angle history when toggling
+  //   angleHistoryRef.current = {};
+  // };
 
   // Cleanup function
   useEffect(() => {
@@ -324,11 +355,11 @@ const MinimalTracker = () => {
             <ExerciseSelector 
               exerciseOptions={exerciseOptions}
               selectedExercise={selectedExercise}
-              onChange={setSelectedExercise}
+              onChange={handleExerciseChange}
             />
             
             <button 
-              onClick={toggleSmoothing} 
+              onClick={toggleSmoothingAndUpdateSettings}
               className="smoothing-toggle"
               style={{
                 background: smoothingEnabled ? '#45a29e' : '#1c2833',
@@ -401,7 +432,7 @@ const MinimalTracker = () => {
               selectedExercise={selectedExercise}
               trackedAngles={trackedAngles}
             />
-            <LandmarkMetricsDisplay
+            <LandmarkMetricsDisplay2
               displaySide="left"
               selectedExercise={selectedExercise}
               landmarksData={landmarksData}
@@ -422,7 +453,7 @@ const MinimalTracker = () => {
               selectedExercise={selectedExercise}
               trackedAngles={trackedAngles}
             />
-            <LandmarkMetricsDisplay
+            <LandmarkMetricsDisplay2
               displaySide="right"
               selectedExercise={selectedExercise}
               landmarksData={landmarksData}
@@ -444,7 +475,7 @@ const MinimalTracker = () => {
         }}>
           <RepGoalIndicator repGoal={repGoal} setRepGoal={setRepGoal} />
           {selectedExercise?.hasWeight && (
-            <WeightIndicator weight={weight} setWeight={setWeight} />
+            <WeightIndicator weight={weight} setWeight={handleWeightChange} />
           )}
         </div>
       </div>

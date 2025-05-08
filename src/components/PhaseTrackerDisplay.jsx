@@ -42,13 +42,11 @@ const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide }) =
   
   return (
     <div className={`phase-tracker-display ${displaySide}-side`}>
-      <div className="phase-tracker-display-item">
-        <PhaseTracker 
-          angle={trackedAngles[angleConfigToShow.id]} 
-          angleConfig={angleConfigToShow} 
-          side={displayLabel} // Use the determined label
-        />
-      </div>
+      <PhaseTracker 
+        angle={trackedAngles[angleConfigToShow.id]} 
+        angleConfig={angleConfigToShow} 
+        side={displayLabel} // Use the determined label
+      />
     </div>
   );
 };
