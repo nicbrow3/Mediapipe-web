@@ -68,15 +68,21 @@ const VideoCanvas = ({
       // Clear the canvas
       ctx.clearRect(0, 0, width, height);
       
-      // Draw the video frame
-      if (videoRef.current) {
+      // Apply mirroring and draw video frame
+      if (videoRef.current && videoRef.current.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.translate(-width, 0);
+
         ctx.drawImage(videoRef.current, 0, 0, width, height);
+        
+        // Draw the landmarks (they will also be mirrored due to the transform)
+        drawLandmarks(ctx, landmarks, width, height);
+
+        ctx.restore();
       }
-      
-      // Draw the landmarks
-      drawLandmarks(ctx, landmarks, width, height);
     }
-  }, [landmarks, width, height, videoRef, canvasRef]);
+  }, [landmarks, width, height, videoRef, canvasRef, cameraStarted]);
 
   return (
     <div className="video-canvas-wrapper">
@@ -86,6 +92,7 @@ const VideoCanvas = ({
         autoPlay 
         playsInline 
         muted 
+        style={{ display: 'none' }}
       />
       <canvas 
         ref={canvasRef} 

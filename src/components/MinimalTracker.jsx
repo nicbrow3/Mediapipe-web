@@ -12,6 +12,7 @@ import PhaseTrackerDisplay from './PhaseTrackerDisplay';
 import LandmarkMetricsDisplay2 from './LandmarkMetricsDisplay2';
 import WeightIndicator from './WeightIndicator';
 import RepGoalIndicator from './RepGoalIndicator';
+import { Loader } from '@mantine/core';
 
 const MinimalTracker = () => {
   // References
@@ -234,38 +235,69 @@ const MinimalTracker = () => {
   // Start camera and tracking
   const handleStartCamera = async () => {
     try {
+      // First set cameraStarted to true so the UI changes to camera view
+      setCameraStarted(true);
+      // Then set loading to true to show the spinner
       setIsLoading(true);
       
-      // Setup camera stream
       const stream = await setupCamera();
-      videoRef.current.srcObject = stream;
-      console.log('Webcam access successful');
+      if (videoRef.current) { // Ensure videoRef is available
+        videoRef.current.srcObject = stream;
+        console.log('Webcam access successful');
 
-      // Wait for video to be ready
-      await waitForVideoReady(videoRef.current);
+        await waitForVideoReady(videoRef.current);
 
-      // Set canvas dimensions to match video
-      const width = videoRef.current.videoWidth;
-      const height = videoRef.current.videoHeight;
-      setCanvasDimensions({ width, height });
+        // Calculate initial canvas dimensions
+        const video = videoRef.current;
+        const aspectRatio = video.videoHeight / video.videoWidth;
+        const newWidth = window.innerWidth;
+        const newHeight = newWidth * aspectRatio;
+        setCanvasDimensions({ width: newWidth, height: newHeight });
+      } else {
+        throw new Error("Video element not available.");
+      }
       
-      // Initialize MediaPipe
       poseLandmarkerRef.current = await initializePoseLandmarker();
       
       console.log('Setup complete, starting render loop');
       
+      // Finally set loading to false when everything is ready
       setIsLoading(false);
-      setCameraStarted(true);
       
-      // Start the render loop
       lastFrameTimeRef.current = performance.now();
       requestAnimationRef.current = requestAnimationFrame(renderLoop);
     } catch (error) {
       console.error('Error during setup:', error);
       setErrorMessage(`Setup error: ${error.message}`);
       setIsLoading(false);
+      // If there's an error, we might want to reset cameraStarted
+      setCameraStarted(false);
     }
   };
+
+  // Handle window resize
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (videoRef.current && videoRef.current.videoWidth > 0) { // Ensure video has dimensions
+        const video = videoRef.current;
+        const aspectRatio = video.videoHeight / video.videoWidth;
+        const newWidth = window.innerWidth;
+        const newHeight = newWidth * aspectRatio;
+        setCanvasDimensions({ width: newWidth, height: newHeight });
+      }
+    };
+
+    window.addEventListener('resize', updateDimensions);
+    // Call it once initially in case the video is already ready from a previous mount
+    // or if handleStartCamera doesn't cover all scenarios (e.g. HMR)
+    if (cameraStarted && videoRef.current && videoRef.current.videoWidth > 0) {
+        updateDimensions();
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+    };
+  }, [cameraStarted]); // Re-run if cameraStarted changes, to ensure dimensions are set after camera is up
 
   // Toggle smoothing
   // const toggleSmoothing = () => {
@@ -376,8 +408,58 @@ const MinimalTracker = () => {
         </div>
       )}
 
-      {isLoading && <div className="loading-overlay">Loading Camera & Model...</div>}
-      {errorMessage && <div className="error-message">{errorMessage}</div>}
+      {/* Show loading spinner only after camera button is clicked and while loading */}
+      {isLoading && cameraStarted && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 100,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '15px'
+        }}>
+          <Loader size="xl" color="#45a29e" />
+          <div style={{ color: 'white', fontWeight: 'bold' }}>Loading Camera & Model...</div>
+        </div>
+      )}
+      
+      {/* Show error message with improved styling */}
+      {errorMessage && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 100,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '15px',
+          backgroundColor: 'rgba(220, 53, 69, 0.2)',
+          padding: '20px',
+          borderRadius: '8px',
+          maxWidth: '80%'
+        }}>
+          <div style={{ color: '#ff5252', fontWeight: 'bold', textAlign: 'center' }}>{errorMessage}</div>
+          <button 
+            onClick={() => {setErrorMessage(''); setCameraStarted(false);}} 
+            style={{ 
+              fontSize: 16, 
+              padding: '0.5em 1em', 
+              borderRadius: 4, 
+              background: '#45a29e', 
+              color: 'white', 
+              border: 'none', 
+              cursor: 'pointer'
+            }}
+          >
+            Try Again
+          </button>
+        </div>
+      )}
       
       {/* Show Start Camera button if not started */}
       {!cameraStarted && (

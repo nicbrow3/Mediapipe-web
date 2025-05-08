@@ -3,7 +3,7 @@
 
 // Import logic functions (placeholders for now)
 import { calculateAngle } from '../logic/landmarkUtils';
-import { angleBasedRepLogic } from '../logic/angleBasedRepLogic';
+import { angleBasedRepLogic } from '../logic/angleBasedRepLogic.js';
 
 export const bicepCurls = {
     // --- Basic Info ---

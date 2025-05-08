@@ -7,13 +7,18 @@ This document outlines the component structure of the MinimalTracker application
 ```
 MinimalTracker
 ├── ExerciseSelector
-├── StartCameraButton (currently inline)
-├── LoadingOverlay (currently inline)
-├── ErrorMessage (currently inline)
-└── VideoCanvasContainer
-    ├── VideoCanvas
-    ├── AngleDisplay
-    └── StatsDisplay
+├── StatsDisplay
+├── VideoCanvasContainer  // Conceptual grouping (implemented as a <div> in MinimalTracker.jsx)
+│   │                     // for elements related to the video feed and tracking display.
+│   ├── VideoCanvas
+│   ├── AngleDisplay
+│   │   └── AngleIndicator
+│   ├── PhaseTrackerDisplay
+│   │   └── PhaseTracker
+│   ├── LandmarkMetricsDisplay2
+│   ├── RepGoalIndicator
+│   └── WeightIndicator
+└── FpsCounter            // Standalone diagnostic tool, not a child of StatsDisplay
 ```
 
 ## Component Responsibilities
@@ -60,12 +65,89 @@ MinimalTracker
 
 ### StatsDisplay
 **Purpose**: Shows performance metrics for the tracking.
-- Displays FPS (frames per second)
-- Displays inference time for pose detection
+- Displays FPS (frames per second) and inference time for pose detection, passed via props.
+- Indicates smoothing status and window if enabled.
 
 **Props**:
-- `stats`: Object containing performance statistics
+- `stats`: Object containing performance statistics (FPS, inferenceTime)
 - `cameraStarted`: Boolean indicating if camera is active
+- `landmarksData`: Array of pose landmarks (used to count landmarks, though not directly displayed)
+- `smoothingEnabled`: Boolean indicating if angle smoothing is active
+- `smoothingWindow`: Number of frames used for smoothing
+
+### PhaseTrackerDisplay
+**Purpose**: Manages the display of exercise phase tracking for different sides (left/right).
+- Determines which angle configuration to use based on `displaySide`.
+- Renders a `PhaseTracker` component for the relevant angle.
+
+**Props**:
+- `selectedExercise`: Current exercise configuration
+- `trackedAngles`: Object containing calculated angle values
+- `displaySide`: String indicating side to display for ('left' or 'right')
+
+### PhaseTracker
+**Purpose**: Tracks and displays the current phase of an exercise movement and counts repetitions.
+- Calculates the current movement phase (e.g., relaxed, starting, peak) based on the input angle and thresholds from `angleConfig`.
+- Implements logic to count repetitions based on a sequence of phases.
+- Visually indicates the current phase.
+
+**Props**:
+- `angle`: Current value of the angle being tracked
+- `angleConfig`: Configuration for the specific angle (thresholds, etc.)
+- `side`: Label for the display (e.g., 'Left', 'Right')
+
+### LandmarkMetricsDisplay2
+**Purpose**: Displays metrics related to pose landmarks (current implementation in `MinimalTracker.jsx` seems to pass props but the component itself might be a placeholder or have its logic elsewhere if not directly using them for display).
+- Intended to show data derived from landmarks, specific to the exercise.
+
+**Props**:
+- `displaySide`: String indicating side to display for ('left' or 'right')
+- `selectedExercise`: Current exercise configuration
+- `landmarksData`: Array of pose landmarks
+- `trackedAngles`: Object containing calculated angle values
+
+### RepGoalIndicator
+**Purpose**: Allows the user to set and view a repetition goal for the current exercise.
+- Displays the current rep goal.
+- Provides functionality to increase or decrease the rep goal.
+
+**Props**:
+- `repGoal`: Current repetition goal value
+- `setRepGoal`: Callback function to update the rep goal
+
+### WeightIndicator
+**Purpose**: Allows the user to set and view the weight used for a weighted exercise.
+- Displays the current weight.
+- Provides functionality to adjust the weight.
+- Only shown if the `selectedExercise` has the `hasWeight` property.
+
+**Props**:
+- `weight`: Current weight value
+- `setWeight`: Callback function to update the weight
+
+### AngleIndicator
+**Purpose**: Provides a visual representation of a single angle.
+- Displays an angle as a line on a semi-circular background.
+- Can show threshold markers (min/max) for the angle based on `angleConfig`.
+
+**Props**:
+- `angle`: Current value of the angle to display
+- `maxAngle`: Maximum possible value for the angle (e.g., 180 degrees)
+- `size`: Size of the indicator
+- `color`: Color of the indicator line
+- `backgroundColor`: Background color of the indicator
+- `angleConfig`: Configuration for the angle, including thresholds
+- `minSize`: Minimum size of the indicator
+
+### FpsCounter
+**Purpose**: A standalone diagnostic tool that displays detailed performance metrics.
+- Calculates and displays FPS (frames per second).
+- Shows render time, MediaPipe inference time, and JavaScript memory usage (if available).
+- Can be positioned on screen and can show detailed or summary views.
+
+**Props**:
+- `position`: String to control screen position (e.g., 'bottom-left')
+- `showDetails`: Boolean to toggle detailed metrics view
 
 ## Data Flow
 

@@ -11,6 +11,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@chakra-ui/react": "^3.17.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "@headlessui/react": "^2.2.2",
     "@heroicons/react": "^2.2.0",
     "@mantine/charts": "^7.17.5",
@@ -19,6 +22,7 @@
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "@tabler/icons-react": "^3.31.0",
     "dexie": "^4.0.11",
+    "framer-motion": "^12.10.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.15.3"

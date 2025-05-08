@@ -3,7 +3,7 @@
 
 // Import logic functions
 import { calculateAngle } from '../logic/landmarkUtils';
-import { angleBasedRepLogic } from '../logic/angleBasedRepLogic';
+import { angleBasedRepLogic } from '../logic/angleBasedRepLogic.js';
 
 export const leftShoulder = {
     // --- Basic Info ---
