@@ -5,13 +5,9 @@ import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils';
 import * as exercises from '../exercises';
 import { useAppSettings } from '../hooks/useAppSettings';
 import VideoCanvas, { setupCamera, waitForVideoReady } from './VideoCanvas';
-import ExerciseSelector from './ExerciseSelector';
 import AngleDisplay from './AngleDisplay';
-import StatsDisplay from './StatsDisplay';
 import PhaseTrackerDisplay from './PhaseTrackerDisplay';
 import LandmarkMetricsDisplay2 from './LandmarkMetricsDisplay2';
-import WeightIndicator from './WeightIndicator';
-import RepGoalIndicator from './RepGoalIndicator';
 import StartButton from './common/StartButton';
 import LoadingDisplay from './common/LoadingDisplay';
 import ErrorDisplay from './common/ErrorDisplay';
@@ -52,6 +48,7 @@ const MinimalTracker = () => {
     }
     return Object.values(exercises)[0]; // Default
   });
+  // console.log('[MinimalTracker] Initial selectedExercise state:', JSON.parse(JSON.stringify(selectedExercise)));
   const [trackedAngles, setTrackedAngles] = useState({});
   const [rawAngles, setRawAngles] = useState({});
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
@@ -81,6 +78,7 @@ const MinimalTracker = () => {
 
   // Handlers that update state and appSettings
   const handleExerciseChange = useCallback((newExercise) => {
+    // console.log('[MinimalTracker] handleExerciseChange - newExercise (full):', JSON.parse(JSON.stringify(newExercise)));
     setSelectedExercise(newExercise);
     updateAppSettings({ selectedExerciseId: newExercise.id });
   }, [updateAppSettings]);
@@ -196,6 +194,7 @@ const MinimalTracker = () => {
 
     // Use the latest selectedExercise from ref
     const exercise = selectedExerciseRef.current;
+    // console.log('[MinimalTracker] renderLoop - selectedExerciseRef.current:', JSON.parse(JSON.stringify(exercise)));
     if (results.landmarks && results.landmarks.length > 0 && exercise && exercise.logicConfig?.type === 'angle' && Array.isArray(exercise.logicConfig.anglesToTrack)) {
       const landmarks = results.landmarks[0];
       const newAngles = {};

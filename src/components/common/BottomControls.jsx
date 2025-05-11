@@ -16,15 +16,17 @@ const BottomControls = ({
 }) => {
   // Only show if camera has started, not loading, and no error
   if (!cameraStarted || isLoading || errorMessage) {
+    console.log('BottomControls - Not rendering because camera not started, loading, or error');
     return null;
   }
 
   return (
+
     <Stack
       style={{
         position: 'fixed',
         left: '50%',
-        bottom: globalStyles.controlPaddings.md, // Use global style for spacing from bottom
+        bottom: globalStyles.controlPaddings.md.split(' ')[0], // Use the first value for bottom spacing
         transform: 'translateX(-50%)',
         alignItems: 'center',
         gap: globalStyles.controlPaddings.md, // Use global style for gap
@@ -32,6 +34,7 @@ const BottomControls = ({
       }}
     >
       <RepGoalIndicator repGoal={repGoal} setRepGoal={setRepGoal} />
+      {console.log('BottomControls - Rendering RepGoalIndicator and WeightIndicator')}
       {selectedExercise?.hasWeight && (
         <WeightIndicator weight={weight} setWeight={onWeightChange} />
       )}

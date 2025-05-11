@@ -65,7 +65,7 @@ const AngleIndicator = ({
                     fontSize="10px"
                     textAnchor="middle"
                   >
-                    
+                    {minThreshold}°
                   </text>
                 </>
               );
@@ -90,7 +90,7 @@ const AngleIndicator = ({
                     fontSize="10px"
                     textAnchor="middle"
                   >
-                    
+                    {maxThreshold}°
                   </text>
                 </>
               );

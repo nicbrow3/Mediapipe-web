@@ -2,6 +2,8 @@ import React from 'react';
 import { Modal, Box, Text, Title, Divider, Switch, Stack } from '@mantine/core';
 
 const SettingsOverlay = ({ isOpen, onClose, smoothingEnabled, onSmoothingChange }) => {
+  // console.log('SettingsOverlay component rendering. isOpen:', isOpen);
+
   return (
     <Modal
       opened={isOpen}

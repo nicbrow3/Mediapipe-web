@@ -3,6 +3,11 @@ import AngleIndicator from './AngleIndicator';
 import './AngleDisplay.css';
 
 const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEnabled, displaySide }) => {
+  // console.log(`[AngleDisplay] Side: ${displaySide} - Received selectedExercise:`, JSON.parse(JSON.stringify(selectedExercise))); // Deep log
+  if (selectedExercise && selectedExercise.logicConfig && selectedExercise.logicConfig.anglesToTrack && selectedExercise.logicConfig.anglesToTrack.length > 0) {
+    // console.log(`[AngleDisplay] Side: ${displaySide} - DIRECT CHECK minThreshold from prop:`, selectedExercise.logicConfig.anglesToTrack[0].minThreshold, "for angle ID:", selectedExercise.logicConfig.anglesToTrack[0].id);
+  }
+  // console.log(`[AngleDisplay] Side: ${displaySide} - Tracked Angles:`, JSON.parse(JSON.stringify(trackedAngles)));
   // Only render if we have a valid exercise with angle tracking
   if (!selectedExercise || selectedExercise.logicConfig?.type !== 'angle' || !Array.isArray(selectedExercise.logicConfig.anglesToTrack)) {
     return null;
@@ -36,6 +41,8 @@ const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEna
   return (
     <div className="angle-display">
       {validAngles.map(angleConfig => {
+        // console.log(`[AngleDisplay] Side: ${displaySide} - Processing angleConfig for Indicator:`, JSON.parse(JSON.stringify(angleConfig)));
+
         const angle = trackedAngles[angleConfig.id];
         const raw = rawAngles?.[angleConfig.id];
         
