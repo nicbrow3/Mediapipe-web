@@ -56,6 +56,7 @@ const MinimalTracker = () => {
   const [smoothingEnabled, setSmoothingEnabled] = useState(appSettings.isSmoothingEnabled);
   const [weight, setWeight] = useState(appSettings.selectedWeights !== null ? appSettings.selectedWeights : 0);
   const [repGoal, setRepGoal] = useState(10);
+  const [useThreePhases, setUseThreePhases] = useState(appSettings.useThreePhases);
 
   // Workout Mode State
   const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual' or 'session'
@@ -90,6 +91,16 @@ const MinimalTracker = () => {
       const newValue = !prev;
       updateAppSettings({ isSmoothingEnabled: newValue });
       angleHistoryRef.current = {}; // Clear angle history when toggling
+      return newValue;
+    });
+  }, [updateAppSettings]);
+
+  const togglePhaseModeAndUpdateSettings = useCallback((checked) => {
+    // If checked is passed directly from the Switch component, use it
+    // Otherwise toggle the current value
+    setUseThreePhases(prev => {
+      const newValue = checked !== undefined ? checked : !prev;
+      updateAppSettings({ useThreePhases: newValue });
       return newValue;
     });
   }, [updateAppSettings]);
@@ -485,6 +496,7 @@ const MinimalTracker = () => {
               displaySide="left"
               selectedExercise={selectedExercise}
               trackedAngles={trackedAngles}
+              useThreePhases={useThreePhases}
             />
             <LandmarkMetricsDisplay2
               displaySide="left"
@@ -506,6 +518,7 @@ const MinimalTracker = () => {
               displaySide="right"
               selectedExercise={selectedExercise}
               trackedAngles={trackedAngles}
+              useThreePhases={useThreePhases}
             />
             <LandmarkMetricsDisplay2
               displaySide="right"
@@ -534,6 +547,8 @@ const MinimalTracker = () => {
         onClose={() => setIsSettingsOpen(false)}
         smoothingEnabled={smoothingEnabled}
         onSmoothingChange={toggleSmoothingAndUpdateSettings}
+        useThreePhases={useThreePhases}
+        onPhaseModeChange={togglePhaseModeAndUpdateSettings}
       />
     </div>
   );

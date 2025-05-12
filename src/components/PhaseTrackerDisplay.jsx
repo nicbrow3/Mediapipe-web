@@ -1,7 +1,7 @@
 import React from 'react';
 import PhaseTracker from './PhaseTracker';
 
-const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide }) => {
+const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, useThreePhases }) => {
   if (!selectedExercise || 
       !selectedExercise.logicConfig || 
       selectedExercise.logicConfig.type !== 'angle' || 
@@ -45,7 +45,8 @@ const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide }) =
       <PhaseTracker 
         angle={trackedAngles[angleConfigToShow.id]} 
         angleConfig={angleConfigToShow} 
-        side={displayLabel} // Use the determined label
+        side={displayLabel}
+        useThreePhases={useThreePhases}
       />
     </div>
   );

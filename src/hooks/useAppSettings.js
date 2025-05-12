@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   selectedExerciseId: null,
   isSmoothingEnabled: false,
   selectedWeights: null, // Or a default weight object/value
+  useThreePhases: false, // Controls whether to use 3 or 4 phases
   // Add other future settings keys here with default values
   // e.g., theme: 'light',
 };
