@@ -16,7 +16,6 @@ const BottomControls = ({
 }) => {
   // Only show if camera has started, not loading, and no error
   if (!cameraStarted || isLoading || errorMessage) {
-    console.log('BottomControls - Not rendering because camera not started, loading, or error');
     return null;
   }
 
@@ -34,7 +33,6 @@ const BottomControls = ({
       }}
     >
       <RepGoalIndicator repGoal={repGoal} setRepGoal={setRepGoal} />
-      {console.log('BottomControls - Rendering RepGoalIndicator and WeightIndicator')}
       {selectedExercise?.hasWeight && (
         <WeightIndicator weight={weight} setWeight={onWeightChange} />
       )}

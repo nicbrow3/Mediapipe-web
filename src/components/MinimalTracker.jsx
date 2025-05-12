@@ -4,6 +4,7 @@ import './MinimalTracker.css'; // Use new layout styles
 import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils';
 import * as exercises from '../exercises';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { useSessionLogic } from '../hooks/useSessionLogic'; // Import the new hook
 import VideoCanvas, { setupCamera, waitForVideoReady } from './VideoCanvas';
 import AngleDisplay from './AngleDisplay';
 import PhaseTrackerDisplay from './PhaseTrackerDisplay';
@@ -48,7 +49,6 @@ const MinimalTracker = () => {
     }
     return Object.values(exercises)[0]; // Default
   });
-  // console.log('[MinimalTracker] Initial selectedExercise state:', JSON.parse(JSON.stringify(selectedExercise)));
   const [trackedAngles, setTrackedAngles] = useState({});
   const [rawAngles, setRawAngles] = useState({});
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
@@ -56,6 +56,9 @@ const MinimalTracker = () => {
   const [smoothingEnabled, setSmoothingEnabled] = useState(appSettings.isSmoothingEnabled);
   const [weight, setWeight] = useState(appSettings.selectedWeights !== null ? appSettings.selectedWeights : 0);
   const [repGoal, setRepGoal] = useState(10);
+
+  // Workout Mode State
+  const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual' or 'session'
 
   // Ref for always-current selectedExercise
   const selectedExerciseRef = useRef(selectedExercise);
@@ -78,7 +81,6 @@ const MinimalTracker = () => {
 
   // Handlers that update state and appSettings
   const handleExerciseChange = useCallback((newExercise) => {
-    // console.log('[MinimalTracker] handleExerciseChange - newExercise (full):', JSON.parse(JSON.stringify(newExercise)));
     setSelectedExercise(newExercise);
     updateAppSettings({ selectedExerciseId: newExercise.id });
   }, [updateAppSettings]);
@@ -96,6 +98,57 @@ const MinimalTracker = () => {
     setWeight(newWeight);
     updateAppSettings({ selectedWeights: newWeight });
   }, [updateAppSettings]);
+
+  // Select a random exercise (passed to useSessionLogic)
+  const selectRandomExercise = useCallback(() => {
+    if (exerciseOptions && exerciseOptions.length > 0) {
+      let randomExercise;
+      const currentExercise = selectedExerciseRef.current;
+      
+      // If we have more than one exercise option
+      if (exerciseOptions.length > 1) {
+        // Keep selecting until we get a different exercise
+        do {
+          randomExercise = exerciseOptions[Math.floor(Math.random() * exerciseOptions.length)];
+        } while (randomExercise.id === currentExercise?.id);
+      } else {
+        // If we only have one exercise, use it
+        randomExercise = exerciseOptions[0];
+      }
+      
+      // Don't call handleExerciseChange here - it's causing the duplicate logs
+      console.log('[MinimalTracker] Random exercise selected:', randomExercise?.name);
+      return randomExercise;
+    }
+    return null;
+  }, [exerciseOptions]);
+
+  // Use the session logic hook
+  // The duration constants (EXERCISE_SET_DURATION, REST_PERIOD_DURATION) are now managed within the hook or can be passed as args
+  const {
+    isSessionActive,
+    sessionPhase,
+    currentTimerValue,
+    handleToggleSession,
+    // EXERCISE_SET_DURATION, // Not directly needed here if hook manages it
+    // REST_PERIOD_DURATION,
+    currentExercise,
+    upcomingExercise,
+  } = useSessionLogic(selectRandomExercise /*, pass custom durations here if needed */);
+
+  // Handler to change workout mode
+  const handleWorkoutModeChange = (mode) => {
+    if (isSessionActive) {
+      console.warn("Cannot change workout mode while a session is active. Please stop the session first.");
+      return;
+    }
+    setWorkoutMode(mode);
+    // Resetting session explicitly via hook if needed, or ensure hook handles it.
+    // For now, assuming starting a new session or hook's initial state is sufficient.
+    if (mode === 'manual' && isSessionActive) {
+        handleToggleSession(); // Stop session if switching to manual and session is active
+    }
+  };
 
   // Initialize MediaPipe
   const initializePoseLandmarker = async () => {
@@ -194,7 +247,6 @@ const MinimalTracker = () => {
 
     // Use the latest selectedExercise from ref
     const exercise = selectedExerciseRef.current;
-    // console.log('[MinimalTracker] renderLoop - selectedExerciseRef.current:', JSON.parse(JSON.stringify(exercise)));
     if (results.landmarks && results.landmarks.length > 0 && exercise && exercise.logicConfig?.type === 'angle' && Array.isArray(exercise.logicConfig.anglesToTrack)) {
       const landmarks = results.landmarks[0];
       const newAngles = {};
@@ -376,6 +428,14 @@ const MinimalTracker = () => {
         exerciseOptions={exerciseOptions}
         selectedExercise={selectedExercise}
         onExerciseChange={handleExerciseChange}
+        isSessionActive={isSessionActive}
+        currentTimerValue={currentTimerValue}
+        onToggleSession={handleToggleSession}
+        workoutMode={workoutMode}
+        onWorkoutModeChange={handleWorkoutModeChange}
+        currentExercise={currentExercise}
+        upcomingExercise={upcomingExercise}
+        sessionPhase={sessionPhase}
       />
 
       {/* Show loading spinner only after camera button is clicked and while loading */}
