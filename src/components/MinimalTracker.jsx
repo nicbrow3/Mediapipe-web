@@ -15,10 +15,10 @@ import LoadingDisplay from './common/LoadingDisplay';
 import ErrorDisplay from './common/ErrorDisplay';
 import TrackerControlsBar from './common/TrackerControlsBar';
 import BottomControls from './common/BottomControls';
-import { ActionIcon } from '@mantine/core';
+import { ActionIcon, Text } from '@mantine/core';
 import { Gear } from 'phosphor-react';
 import SettingsOverlay from './SettingsOverlay';
-import { RepCounterProvider } from './RepCounterContext';
+import { RepCounterProvider, useRepCounter } from './RepCounterContext';
 import RepGoalDisplayContainer from './RepGoalDisplayContainer';
 
 // Get exercise options once outside the component to avoid re-computation
@@ -26,7 +26,7 @@ const exerciseOptions = Object.values(exercises)
   .filter(e => e && e.id && e.name)
   .sort((a, b) => a.name.localeCompare(b.name)); // Pre-sort the options
 
-const MinimalTracker = () => {
+const MinimalTrackerContent = () => {
   // References
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -69,6 +69,15 @@ const MinimalTracker = () => {
   // Workout Mode State
   const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual', 'session', or 'ladder'
 
+  // Access the rep counter functionality
+  const { resetRepCounts } = useRepCounter();
+  
+  // Add exercise change notification state
+  const [exerciseChangeNotification, setExerciseChangeNotification] = useState({
+    visible: false,
+    exerciseName: ''
+  });
+
   // Ref for always-current selectedExercise
   const selectedExerciseRef = useRef(selectedExercise);
   useEffect(() => {
@@ -85,12 +94,7 @@ const MinimalTracker = () => {
   const MAX_SAMPLES = 300; // samples for fps and inference time
   const ANGLE_SMOOTHING_WINDOW = 25; // Number of frames to use for angle smoothing (approx. 0.5s at 30fps)
 
-  // Handlers that update state and appSettings
-  const handleExerciseChange = useCallback((newExercise) => {
-    setSelectedExercise(newExercise);
-    updateAppSettings({ selectedExerciseId: newExercise.id });
-  }, [updateAppSettings]);
-
+  // Functions for settings updates
   const toggleSmoothingAndUpdateSettings = useCallback(() => {
     setSmoothingEnabled(prev => {
       const newValue = !prev;
@@ -149,7 +153,7 @@ const MinimalTracker = () => {
     updateSessionSettings,
     sessionSettings,
   } = useSessionLogic(selectRandomExercise);
-
+  
   // Use the ladder session logic hook
   const {
     isSessionActive: isLadderSessionActive,
@@ -167,6 +171,42 @@ const MinimalTracker = () => {
     selectedExercise: selectedLadderExercise,
     selectExerciseForLadder,
   } = useLadderSessionLogic(selectRandomExercise);
+
+  // Handler for ladder exercise selection
+  const handleLadderExerciseChange = useCallback((exercise) => {
+    selectExerciseForLadder(exercise);
+    // Also update the main selected exercise to keep them in sync
+    setSelectedExercise(exercise);
+    updateAppSettings({ selectedExerciseId: exercise.id });
+    
+    // Reset rep counter when changing exercises
+    resetRepCounts();
+    
+    // Show temporary notification
+    setExerciseChangeNotification({
+      visible: true,
+      exerciseName: exercise.name
+    });
+    
+    // Clear notification after 3 seconds
+    setTimeout(() => {
+      setExerciseChangeNotification(prev => ({ ...prev, visible: false }));
+    }, 3000);
+  }, [selectExerciseForLadder, updateAppSettings, resetRepCounts]);
+
+  // Also reset rep counter when exercise changes via the main selector
+  const handleExerciseChange = useCallback((newExercise) => {
+    setSelectedExercise(newExercise);
+    updateAppSettings({ selectedExerciseId: newExercise.id });
+    
+    // Reset rep counter
+    resetRepCounts();
+    
+    // When changing main exercise, also update ladder exercise if in ladder mode
+    if (workoutMode === 'ladder') {
+      selectExerciseForLadder(newExercise);
+    }
+  }, [updateAppSettings, workoutMode, selectExerciseForLadder, resetRepCounts]);
 
   // Memoize combined session state based on current workout mode
   const isSessionActive = useMemo(() => 
@@ -198,10 +238,13 @@ const MinimalTracker = () => {
     }
   }, [workoutMode, handleToggleTimedSession, handleToggleLadderSession]);
 
-  // Handler for ladder exercise selection
-  const handleLadderExerciseChange = useCallback((exercise) => {
-    selectExerciseForLadder(exercise);
-  }, [selectExerciseForLadder]);
+  // Effect to synchronize selectedExercise and selectedLadderExercise when ladder mode is activated
+  useEffect(() => {
+    if (workoutMode === 'ladder' && selectedLadderExercise && selectedExercise?.id !== selectedLadderExercise?.id) {
+      // When switching to ladder mode, update ladder exercise to match main exercise
+      selectExerciseForLadder(selectedExercise);
+    }
+  }, [workoutMode, selectedExercise, selectedLadderExercise, selectExerciseForLadder]);
 
   // Handler to change workout mode - memoized to avoid recreation
   const handleWorkoutModeChange = useCallback((mode) => {
@@ -478,6 +521,13 @@ const MinimalTracker = () => {
     setRepGoal(10);
   }, [selectedExercise]);
 
+  // Memoize the active exercise determination to avoid repetitive logic
+  const getActiveExercise = useMemo(() => {
+    return workoutMode === 'ladder' && isLadderSessionActive && currentExercise
+      ? currentExercise
+      : selectedExercise;
+  }, [workoutMode, isLadderSessionActive, currentExercise, selectedExercise]);
+
   // Memoize TrackerControlsBar props to minimize recalculations during rendering
   const trackerControlsProps = useMemo(() => ({
     cameraStarted: cameraStarted && !isLoading && !errorMessage,
@@ -557,132 +607,162 @@ const MinimalTracker = () => {
     errorMessage,
     repGoal,
     selectedExercise,
-    weight,
-    handleWeightChange
+    weight
   ]);
 
   return (
-    <RepCounterProvider>
-      <div className="minimal-tracker-root">
-        {/* Settings Icon Button */}
-        {cameraStarted && !isLoading && !errorMessage && (
-          <ActionIcon
-            variant="filled"
-            color="gray"
-            size="lg"
-            onClick={() => setIsSettingsOpen(true)}
-            style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
-          >
-            <Gear size={24} />
-          </ActionIcon>
-        )}
+    <div className="minimal-tracker-root">
+      {/* Settings Icon Button */}
+      {cameraStarted && !isLoading && !errorMessage && (
+        <ActionIcon
+          variant="filled"
+          color="gray"
+          size="lg"
+          onClick={() => setIsSettingsOpen(true)}
+          style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
+        >
+          <Gear size={24} />
+        </ActionIcon>
+      )}
 
-        {/* Use memoized props */}
-        <TrackerControlsBar {...trackerControlsProps} />
-
-        {/* Show loading spinner only after camera button is clicked and while loading */}
-        {isLoading && cameraStarted && <LoadingDisplay />}
-        
-        {/* Show error message with improved styling */}
-        {errorMessage && 
-          <ErrorDisplay 
-            message={errorMessage} 
-            onRetry={() => {
-              setErrorMessage(''); 
-              // Optionally, reset cameraStarted if retry should go back to initial start screen
-              // setCameraStarted(false); 
-              // Or directly call handleStartCamera if retry means attempting camera start again
-              handleStartCamera();
-            }}
-          />
-        }
-        
-        {/* Show Start Camera button if not started and no error is shown */}
-        {!cameraStarted && !errorMessage && (
-          <StartButton onClick={handleStartCamera} />
-        )}
-
-        <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible' }}>
-          <VideoCanvas
-            videoRef={videoRef}
-            canvasRef={canvasRef}
-            landmarks={landmarksData}
-            width={canvasDimensions.width}
-            height={canvasDimensions.height}
-            cameraStarted={cameraStarted}
-          />
-          
-          {/* Overlay stacks for left and right-aligned UI */}
-          <div className="minimal-tracker-overlay">
-            <div className="minimal-tracker-stack left">
-              {/* Place left-aligned overlays here */}
-              <AngleDisplay 
-                displaySide="left"
-                selectedExercise={selectedExercise}
-                trackedAngles={trackedAngles}
-                rawAngles={rawAngles}
-                smoothingEnabled={smoothingEnabled}
-              />
-              <PhaseTrackerDisplay
-                displaySide="left"
-                selectedExercise={selectedExercise}
-                trackedAngles={trackedAngles}
-                useThreePhases={useThreePhases}
-              />
-              <LandmarkMetricsDisplay2
-                displaySide="left"
-                selectedExercise={selectedExercise}
-                landmarksData={landmarksData}
-                trackedAngles={trackedAngles}
-              />
-            </div>
-            <div className="minimal-tracker-stack right">
-              {/* Place overlays here for right-aligned overlays */}
-              <AngleDisplay 
-                displaySide="right"
-                selectedExercise={selectedExercise}
-                trackedAngles={trackedAngles}
-                rawAngles={rawAngles}
-                smoothingEnabled={smoothingEnabled}
-              />
-              <PhaseTrackerDisplay
-                displaySide="right"
-                selectedExercise={selectedExercise}
-                trackedAngles={trackedAngles}
-                useThreePhases={useThreePhases}
-              />
-              <LandmarkMetricsDisplay2
-                displaySide="right"
-                selectedExercise={selectedExercise}
-                landmarksData={landmarksData}
-                trackedAngles={trackedAngles}
-              />
-            </div>
-          </div>
-          
-          {/* Rep Goal Display Container */}
-          {cameraStarted && !isLoading && !errorMessage && (
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
-              <RepGoalDisplayContainer 
-                repGoal={repGoal}
-                isTwoSided={selectedExercise.isTwoSided}
-              />
-            </div>
-          )}
-          
-          <BottomControls {...bottomControlsProps} />
+      {/* Exercise Change Notification */}
+      {exerciseChangeNotification.visible && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '10px 20px',
+            background: 'rgba(38, 50, 56, 0.85)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '8px',
+            zIndex: 2000,
+            boxShadow: '0 4px 30px rgba(0, 0, 0, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}
+        >
+          <Text align="center" color="white" weight={600}>
+            Exercise changed to: {exerciseChangeNotification.exerciseName}
+          </Text>
         </div>
+      )}
 
-        {/* Settings Overlay Drawer */}
-        <SettingsOverlay 
-          isOpen={isSettingsOpen} 
-          onClose={() => setIsSettingsOpen(false)}
-          smoothingEnabled={smoothingEnabled}
-          onSmoothingChange={toggleSmoothingAndUpdateSettings}
-          useThreePhases={useThreePhases}
-          onPhaseModeChange={togglePhaseModeAndUpdateSettings}
+      {/* Use memoized props */}
+      <TrackerControlsBar {...trackerControlsProps} />
+
+      {/* Show loading spinner only after camera button is clicked and while loading */}
+      {isLoading && cameraStarted && <LoadingDisplay />}
+      
+      {/* Show error message with improved styling */}
+      {errorMessage && 
+        <ErrorDisplay 
+          message={errorMessage} 
+          onRetry={() => {
+            setErrorMessage(''); 
+            // Optionally, reset cameraStarted if retry should go back to initial start screen
+            // setCameraStarted(false); 
+            // Or directly call handleStartCamera if retry means attempting camera start again
+            handleStartCamera();
+          }}
         />
+      }
+      
+      {/* Show Start Camera button if not started and no error is shown */}
+      {!cameraStarted && !errorMessage && (
+        <StartButton onClick={handleStartCamera} />
+      )}
+
+      <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible' }}>
+        <VideoCanvas
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          landmarks={landmarksData}
+          width={canvasDimensions.width}
+          height={canvasDimensions.height}
+          cameraStarted={cameraStarted}
+        />
+        
+        {/* Overlay stacks for left and right-aligned UI */}
+        <div className="minimal-tracker-overlay">
+          <div className="minimal-tracker-stack left">
+            {/* Place left-aligned overlays here */}
+            <AngleDisplay 
+              displaySide="left"
+              selectedExercise={getActiveExercise}
+              trackedAngles={trackedAngles}
+              rawAngles={rawAngles}
+              smoothingEnabled={smoothingEnabled}
+            />
+            <PhaseTrackerDisplay
+              displaySide="left"
+              selectedExercise={getActiveExercise}
+              trackedAngles={trackedAngles}
+              useThreePhases={useThreePhases}
+            />
+            <LandmarkMetricsDisplay2
+              displaySide="left"
+              selectedExercise={getActiveExercise}
+              landmarksData={landmarksData}
+              trackedAngles={trackedAngles}
+            />
+          </div>
+          <div className="minimal-tracker-stack right">
+            {/* Place overlays here for right-aligned overlays */}
+            <AngleDisplay 
+              displaySide="right"
+              selectedExercise={getActiveExercise}
+              trackedAngles={trackedAngles}
+              rawAngles={rawAngles}
+              smoothingEnabled={smoothingEnabled}
+            />
+            <PhaseTrackerDisplay
+              displaySide="right"
+              selectedExercise={getActiveExercise}
+              trackedAngles={trackedAngles}
+              useThreePhases={useThreePhases}
+            />
+            <LandmarkMetricsDisplay2
+              displaySide="right"
+              selectedExercise={getActiveExercise}
+              landmarksData={landmarksData}
+              trackedAngles={trackedAngles}
+            />
+          </div>
+        </div>
+        
+        {/* Rep Goal Display Container */}
+        {cameraStarted && !isLoading && !errorMessage && (
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
+            <RepGoalDisplayContainer 
+              repGoal={repGoal}
+              isTwoSided={getActiveExercise.isTwoSided}
+              ladderReps={workoutMode === 'ladder' && isLadderSessionActive ? currentReps : null}
+            />
+          </div>
+        )}
+        
+        <BottomControls {...bottomControlsProps} />
       </div>
+
+      {/* Settings Overlay Drawer */}
+      <SettingsOverlay 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)}
+        smoothingEnabled={smoothingEnabled}
+        onSmoothingChange={toggleSmoothingAndUpdateSettings}
+        useThreePhases={useThreePhases}
+        onPhaseModeChange={togglePhaseModeAndUpdateSettings}
+      />
+    </div>
+  );
+};
+
+// Wrapper component that provides the RepCounterProvider context
+const MinimalTracker = () => {
+  return (
+    <RepCounterProvider>
+      <MinimalTrackerContent />
     </RepCounterProvider>
   );
 };

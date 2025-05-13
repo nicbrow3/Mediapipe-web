@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useRepCounter } from '../components/RepCounterContext';
 
 /**
  * useLadderSessionLogic Hook
@@ -23,6 +24,7 @@ export const useLadderSessionLogic = (
     endReps: 1,
     increment: 1,
     restTimePerRep: 3, // seconds of rest per rep in current set
+    autoAdvance: false, // Whether to automatically advance when rep count is reached
   }
 ) => {
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -33,6 +35,9 @@ export const useLadderSessionLogic = (
   const [currentReps, setCurrentReps] = useState(initialSettings.startReps);
   const [direction, setDirection] = useState('up'); // 'up' or 'down'
   const [ladderSettings, setLadderSettings] = useState(initialSettings);
+  
+  // Get rep count data from context
+  const { repCount, resetRepCounts } = useRepCounter();
 
   // Calculate where we are in the ladder sequence (for progress display)
   const calculateTotalSets = useCallback(() => {
@@ -138,6 +143,7 @@ export const useLadderSessionLogic = (
         setSessionPhase('exercising');
         setCurrentTimerValue(0); // No timer for exercise phase
         setCurrentSetNumber(1); // Start with the first set
+        resetRepCounts(); // Reset rep counters when starting a new session
       } else {
         setSessionPhase('idle');
         setCurrentTimerValue(0);
@@ -148,7 +154,7 @@ export const useLadderSessionLogic = (
       }
       return newIsActive;
     });
-  }, [selectRandomExercise, ladderSettings.startReps, selectedExercise]);
+  }, [selectRandomExercise, ladderSettings.startReps, selectedExercise, resetRepCounts]);
 
   // Function to move to next step in the ladder
   const moveToNextStep = useCallback(() => {
@@ -177,7 +183,8 @@ export const useLadderSessionLogic = (
     setSessionPhase('exercising');
     setCurrentTimerValue(0); // No timer for exercise phase
     setCurrentSetNumber(prev => prev + 1);
-  }, [isLadderComplete, calculateNextReps, ladderSettings, direction]);
+    resetRepCounts(); // Reset rep counters when moving to next ladder level
+  }, [isLadderComplete, calculateNextReps, ladderSettings, direction, resetRepCounts]);
 
   // Handler for completing a set of reps
   const completeCurrentSet = useCallback(() => {
@@ -190,6 +197,37 @@ export const useLadderSessionLogic = (
     
     console.log(`[useLadderSessionLogic] Completed ${currentReps} reps. Resting for ${restTime}s.`);
   }, [isSessionActive, sessionPhase, currentReps, calculateRestTime]);
+
+  // Check if rep count has been reached for auto-advancing
+  useEffect(() => {
+    if (isSessionActive && 
+        sessionPhase === 'exercising' && 
+        ladderSettings.autoAdvance && 
+        currentExercise) {
+      
+      const isTwoSided = currentExercise.isTwoSided;
+      const leftReached = repCount.left >= currentReps;
+      const rightReached = repCount.right >= currentReps;
+      
+      // For two-sided exercises, both sides must reach the goal
+      // For single-sided exercises, only check the left side
+      if ((isTwoSided && leftReached && rightReached) || 
+          (!isTwoSided && leftReached)) {
+        
+        console.log(`[useLadderSessionLogic] Auto-advancing: Rep goal of ${currentReps} reached.`);
+        completeCurrentSet();
+      }
+    }
+  }, [
+    isSessionActive,
+    sessionPhase,
+    ladderSettings.autoAdvance,
+    currentExercise,
+    repCount.left,
+    repCount.right,
+    currentReps,
+    completeCurrentSet
+  ]);
 
   // Timer countdown effect
   useEffect(() => {

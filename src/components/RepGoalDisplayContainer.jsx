@@ -10,10 +10,14 @@ import { useRepCounter } from './RepCounterContext';
  * @param {Object} props
  * @param {number} props.repGoal - Target repetition goal
  * @param {boolean} props.isTwoSided - Whether exercise tracks both sides separately
+ * @param {number} props.ladderReps - Current ladder session rep target (if in ladder mode)
  */
-const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false }) => {
+const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false, ladderReps = null }) => {
   // Get rep count data from context
   const { repCount } = useRepCounter();
+  
+  // Use ladder reps as the goal if provided, otherwise use repGoal
+  const goalReps = ladderReps !== null ? ladderReps : repGoal;
   
   if (isTwoSided) {
     // For two-sided exercises, position displays in bottom left and right corners
@@ -33,7 +37,7 @@ const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false }) => {
         >
           <LargeRepGoalDisplay 
             currentReps={repCount.left} 
-            goalReps={repGoal} 
+            goalReps={goalReps} 
             side="left" 
           />
         </div>
@@ -52,7 +56,7 @@ const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false }) => {
         >
           <LargeRepGoalDisplay 
             currentReps={repCount.right} 
-            goalReps={repGoal} 
+            goalReps={goalReps} 
             side="right" 
           />
         </div>
@@ -74,7 +78,7 @@ const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false }) => {
       >
         <LargeRepGoalDisplay 
           currentReps={repCount.left} 
-          goalReps={repGoal} 
+          goalReps={goalReps} 
         />
       </div>
     );

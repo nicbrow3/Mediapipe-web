@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Stack, Group, Text, NumberInput } from '@mantine/core';
+import { Stack, Group, Text, NumberInput, Checkbox } from '@mantine/core';
 import { globalStyles } from '../../styles/globalStyles';
 
 /**
@@ -11,6 +11,7 @@ import { globalStyles } from '../../styles/globalStyles';
  * - Ending rep count (usually 1, but could be 2-5)
  * - Increment amount (how many reps to add/subtract between sets)
  * - Rest time per rep (e.g., 3 seconds per rep in the current set)
+ * - Auto-advance when rep count is reached (automatically moves to next level)
  * 
  * Settings are disabled during active sessions to prevent mid-session changes.
  */
@@ -21,6 +22,7 @@ const LadderSessionSettings = ({
     endReps: 1,
     increment: 1,
     restTimePerRep: 3,
+    autoAdvance: false,
   },
   onSettingsChange,
   isSessionActive = false,
@@ -113,6 +115,14 @@ const LadderSessionSettings = ({
         step={1}
         disabled={isSessionActive}
         style={{ width: '100%' }}
+      />
+      
+      <Checkbox
+        label="Auto-advance to next level when rep count is reached"
+        checked={localSettings.autoAdvance}
+        onChange={(event) => handleSettingChange('autoAdvance', event.currentTarget.checked)}
+        disabled={isSessionActive}
+        style={{ marginTop: '10px' }}
       />
     </Stack>
   );

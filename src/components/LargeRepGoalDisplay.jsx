@@ -39,7 +39,7 @@ const LargeRepGoalDisplay = ({ currentReps = 0, goalReps = 10, side = null }) =>
         display: 'block',
         pointerEvents: 'auto', // Make sure controls within are clickable
         '&:hover': {
-          backgroundColor: 'rgba(38, 50, 56, 0.9)',
+          backgroundColor: 'rgba(110, 37, 162, 0.9)',
         },
       })}
     >

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Group, Text, Paper } from '@mantine/core';
 import StyledButton from './common/StyledButton';
-// import { globalStyles } from '../styles/globalStyles'; // No longer needed
 
 const RepGoalIndicator = ({ repGoal, setRepGoal }) => {
   const handleAdjustRepGoal = (amount) => {
