@@ -4,7 +4,8 @@ import './MinimalTracker.css'; // Use new layout styles
 import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils';
 import * as exercises from '../exercises';
 import { useAppSettings } from '../hooks/useAppSettings';
-import { useSessionLogic } from '../hooks/useSessionLogic'; // Import the new hook
+import { useSessionLogic } from '../hooks/useSessionLogic'; // Timed session hook
+import { useLadderSessionLogic } from '../hooks/useLadderSessionLogic'; // New ladder session hook
 import VideoCanvas, { setupCamera, waitForVideoReady } from './VideoCanvas';
 import AngleDisplay from './AngleDisplay';
 import PhaseTrackerDisplay from './PhaseTrackerDisplay';
@@ -61,7 +62,7 @@ const MinimalTracker = () => {
   const [useThreePhases, setUseThreePhases] = useState(appSettings.useThreePhases);
 
   // Workout Mode State
-  const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual' or 'session'
+  const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual', 'session', or 'ladder'
 
   // Ref for always-current selectedExercise
   const selectedExerciseRef = useRef(selectedExercise);
@@ -136,20 +137,59 @@ const MinimalTracker = () => {
     return null;
   }, [exerciseOptions]);
 
-  // Use the session logic hook
-  // The duration constants (EXERCISE_SET_DURATION, REST_PERIOD_DURATION) are now managed within the hook or can be passed as args
+  // Use the timed session logic hook
   const {
-    isSessionActive,
-    sessionPhase,
-    currentTimerValue,
-    handleToggleSession,
-    currentExercise,
-    upcomingExercise,
-    totalSets,
-    currentSetNumber,
+    isSessionActive: isTimedSessionActive,
+    sessionPhase: timedSessionPhase,
+    currentTimerValue: timedSessionTimerValue,
+    handleToggleSession: handleToggleTimedSession,
+    currentExercise: timedSessionCurrentExercise,
+    upcomingExercise: timedSessionUpcomingExercise,
+    totalSets: timedSessionTotalSets,
+    currentSetNumber: timedSessionCurrentSetNumber,
     updateSessionSettings,
     sessionSettings,
   } = useSessionLogic(selectRandomExercise);
+
+  // Use the ladder session logic hook
+  const {
+    isSessionActive: isLadderSessionActive,
+    sessionPhase: ladderSessionPhase,
+    currentTimerValue: ladderSessionTimerValue,
+    handleToggleSession: handleToggleLadderSession,
+    completeCurrentSet,
+    currentExercise: ladderSessionCurrentExercise,
+    currentReps,
+    totalSets: ladderTotalSets,
+    currentSetNumber: ladderCurrentSetNumber,
+    updateLadderSettings,
+    ladderSettings,
+    direction,
+    selectedExercise: selectedLadderExercise,
+    selectExerciseForLadder,
+  } = useLadderSessionLogic(selectRandomExercise);
+
+  // Combined session state based on current workout mode
+  const isSessionActive = workoutMode === 'session' ? isTimedSessionActive : 
+                            workoutMode === 'ladder' ? isLadderSessionActive : false;
+  
+  const sessionPhase = workoutMode === 'session' ? timedSessionPhase : 
+                        workoutMode === 'ladder' ? ladderSessionPhase : 'idle';
+  
+  const currentTimerValue = workoutMode === 'session' ? timedSessionTimerValue : 
+                             workoutMode === 'ladder' ? ladderSessionTimerValue : 0;
+  
+  const currentExercise = workoutMode === 'session' ? timedSessionCurrentExercise : 
+                           workoutMode === 'ladder' ? ladderSessionCurrentExercise : null;
+  
+  // Handler to toggle the active session based on workout mode
+  const handleToggleSession = useCallback(() => {
+    if (workoutMode === 'session') {
+      handleToggleTimedSession();
+    } else if (workoutMode === 'ladder') {
+      handleToggleLadderSession();
+    }
+  }, [workoutMode, handleToggleTimedSession, handleToggleLadderSession]);
 
   // Handler to change workout mode
   const handleWorkoutModeChange = (mode) => {
@@ -158,12 +198,19 @@ const MinimalTracker = () => {
       return;
     }
     setWorkoutMode(mode);
-    // Resetting session explicitly via hook if needed, or ensure hook handles it.
-    // For now, assuming starting a new session or hook's initial state is sufficient.
-    if (mode === 'manual' && isSessionActive) {
-        handleToggleSession(); // Stop session if switching to manual and session is active
+    // Reset any active sessions when changing modes
+    if (isTimedSessionActive) {
+      handleToggleTimedSession();
+    }
+    if (isLadderSessionActive) {
+      handleToggleLadderSession();
     }
   };
+
+  // Handler for ladder exercise selection
+  const handleLadderExerciseChange = useCallback((exercise) => {
+    selectExerciseForLadder(exercise);
+  }, [selectExerciseForLadder]);
 
   // Initialize MediaPipe
   const initializePoseLandmarker = async () => {
@@ -450,12 +497,23 @@ const MinimalTracker = () => {
           workoutMode={workoutMode}
           onWorkoutModeChange={handleWorkoutModeChange}
           currentExercise={currentExercise}
-          upcomingExercise={upcomingExercise}
+          upcomingExercise={timedSessionUpcomingExercise}  // Only used in timed mode
           sessionPhase={sessionPhase}
-          totalSets={totalSets}
-          currentSetNumber={currentSetNumber}
+          // Timed session specific props
+          totalSets={workoutMode === 'session' ? timedSessionTotalSets : 
+                     workoutMode === 'ladder' ? ladderTotalSets : 0}
+          currentSetNumber={workoutMode === 'session' ? timedSessionCurrentSetNumber : 
+                            workoutMode === 'ladder' ? ladderCurrentSetNumber : 0}
           onSessionSettingsChange={updateSessionSettings}
           sessionSettings={sessionSettings}
+          // Ladder session specific props
+          currentReps={currentReps}
+          onCompleteSet={completeCurrentSet}
+          onLadderSettingsChange={updateLadderSettings}
+          ladderSettings={ladderSettings}
+          direction={direction}
+          selectedLadderExercise={selectedLadderExercise}
+          onLadderExerciseChange={handleLadderExerciseChange}
         />
 
         {/* Show loading spinner only after camera button is clicked and while loading */}

@@ -5,6 +5,7 @@ import StatsDisplay from '../StatsDisplay';     // Assuming path
 // import StyledButton from './StyledButton'; // No longer needed for smoothing toggle
 import { globalStyles } from '../../styles/globalStyles';
 import SessionControls from './SessionControls'; // Import the new component
+import LadderSessionControls from './LadderSessionControls'; // Import the ladder session component
 
 const TrackerControlsBar = ({
   // Props from MinimalTracker that StatsDisplay needs
@@ -33,6 +34,15 @@ const TrackerControlsBar = ({
   currentSetNumber,
   onSessionSettingsChange,
   sessionSettings,
+  // Ladder session props
+  currentReps,
+  onCompleteSet,
+  onLadderSettingsChange,
+  ladderSettings,
+  direction, // New prop for ladder direction
+  // New props for ladder exercise selection
+  selectedLadderExercise,
+  onLadderExerciseChange,
 }) => {
   if (!cameraStarted) {
     return null; // Don't render if camera hasn't started
@@ -63,6 +73,26 @@ const TrackerControlsBar = ({
         onSettingsChange={onSessionSettingsChange}
       />
     );
+  } else if (workoutMode === 'ladder') {
+    modeSpecificControls = (
+      <LadderSessionControls
+        isSessionActive={isSessionActive}
+        currentTimerValue={currentTimerValue}
+        onToggleSession={onToggleSession}
+        onCompleteSet={onCompleteSet}
+        currentExercise={currentExercise}
+        currentReps={currentReps}
+        sessionPhase={sessionPhase}
+        totalSets={totalSets}
+        currentSetNumber={currentSetNumber}
+        onSettingsChange={onLadderSettingsChange}
+        ladderSettings={ladderSettings}
+        direction={direction} // Pass the direction prop
+        exerciseOptions={exerciseOptions} // Pass the exercise options
+        selectedExercise={selectedLadderExercise} // Pass the selected ladder exercise
+        onExerciseChange={onLadderExerciseChange} // Pass the callback to change the selected exercise
+      />
+    );
   }
 
   return (
@@ -90,10 +120,11 @@ const TrackerControlsBar = ({
       {/* Workout Mode Toggle */}
       <SegmentedControl
         value={workoutMode}
-        onChange={onWorkoutModeChange} // This will pass 'manual' or 'session' string directly
+        onChange={onWorkoutModeChange} // This will pass the selected mode string directly
         data={[
-          { label: 'Manual Exercise', value: 'manual' },
-          { label: 'Timed Session', value: 'session' },
+          { label: 'Manual', value: 'manual' },
+          { label: 'Timed', value: 'session' },
+          { label: 'Ladder', value: 'ladder' },
         ]}
         color="blue"
         disabled={isSessionActive} // Disable mode switch if a session is active

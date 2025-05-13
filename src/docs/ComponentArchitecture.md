@@ -8,10 +8,12 @@ This document outlines the component structure of the MinimalTracker application
 MinimalTracker
 ├── TrackerControlsBar
 │   ├── StatsDisplay
-│   ├── SegmentedControl (for workout mode toggle)
+│   ├── SegmentedControl (for workout mode toggle between manual/timed/ladder)
 │   ├── ExerciseSelector (shown in 'manual' mode)
-│   └── SessionControls (shown in 'session' mode)
-│       └── SessionSettings (collapsible panel)
+│   ├── SessionControls (shown in 'timed session' mode)
+│   │   └── SessionSettings (collapsible panel)
+│   └── LadderSessionControls (shown in 'ladder session' mode)
+│       └── LadderSessionSettings (collapsible panel)
 ├── VideoCanvasContainer  // Conceptual grouping (implemented as a <div> in MinimalTracker.jsx)
 │   │                     // for elements related to the video feed and tracking display.
 │   ├── VideoCanvas
@@ -156,15 +158,20 @@ MinimalTracker
 ### TrackerControlsBar
 **Purpose**: Container for the top controls bar with conditional rendering based on workout mode.
 - Houses StatsDisplay for performance metrics
-- Provides workout mode toggle (manual/session)
-- Conditionally renders either ExerciseSelector or SessionControls based on mode
+- Provides workout mode toggle (manual/timed session/ladder session)
+- Conditionally renders one of three components based on mode:
+  - ExerciseSelector in manual mode
+  - SessionControls in timed session mode
+  - LadderSessionControls in ladder session mode
 
 **Props**:
 - Various props passed from MinimalTracker including exercise options, session state, etc.
-- `workoutMode`: Current mode ('manual' or 'session')
+- `workoutMode`: Current mode ('manual', 'session', or 'ladder')
 - `onWorkoutModeChange`: Handler for mode changes
-- `sessionSettings`: Current session configuration values
-- `onSessionSettingsChange`: Handler for session setting updates
+- `sessionSettings`: Current timed session configuration values
+- `onSessionSettingsChange`: Handler for timed session setting updates
+- `ladderSettings`: Current ladder session configuration values
+- `onLadderSettingsChange`: Handler for ladder session setting updates
 
 ### SessionControls
 **Purpose**: Manages the interface for timed workout sessions.
@@ -201,6 +208,41 @@ MinimalTracker
 - `onSettingsChange`: Handler for session setting updates
 - `isSessionActive`: Boolean to disable settings during active sessions
 
+### LadderSessionControls
+**Purpose**: Manages the interface for ladder workout sessions.
+- Displays a collapsible settings panel for configuration
+- Shows current rep count and direction (going up or down the ladder)
+- Displays a timer countdown during rest phases
+- Provides exercise name and set progress
+- Includes a "Complete Set" button to mark the current set as done
+
+**Props**:
+- `isSessionActive`: Boolean indicating if a session is currently running
+- `currentTimerValue`: Current countdown timer value in seconds (for rest periods)
+- `onToggleSession`: Handler to start/stop the session
+- `onCompleteSet`: Handler to mark the current set as completed
+- `currentExercise`: The exercise currently being performed
+- `currentReps`: Number of reps to perform in current set
+- `sessionPhase`: Current phase ('exercising' or 'resting')
+- `totalSets`: Total number of sets in the ladder
+- `currentSetNumber`: Current set number being performed
+- `onSettingsChange`: Handler for ladder setting updates
+- `ladderSettings`: Current ladder configuration values
+
+### LadderSessionSettings
+**Purpose**: Provides a configuration interface for ladder workout sessions.
+- Allows setting starting rep count
+- Allows setting top rep count (max reps in the ladder)
+- Allows setting ending rep count
+- Allows setting increment amount between sets
+- Allows setting rest time per rep
+- Disables settings during active sessions
+
+**Props**:
+- `ladderSettings`: Current ladder configuration values
+- `onSettingsChange`: Handler for ladder setting updates
+- `isSessionActive`: Boolean to disable settings during active sessions
+
 ## Data Flow
 
 1. User starts camera via the start button
@@ -210,8 +252,9 @@ MinimalTracker
 5. Angles are calculated based on the selectedExercise configuration
 6. Calculated angles are passed to AngleDisplay for visualization
 7. Performance metrics are updated and displayed via StatsDisplay
-8. User can select different exercises via ExerciseSelector or start a timed session
+8. User can select different exercises via ExerciseSelector, start a timed session, or start a ladder session
 9. If using timed sessions, SessionControls manages the workout flow through useSessionLogic
+10. If using ladder sessions, LadderSessionControls manages the workout flow through useLadderSessionLogic
 
 ## Session Management Flow
 
@@ -221,6 +264,21 @@ MinimalTracker
 4. The hook selects random exercises, manages timer countdown, and transitions between phases
 5. SessionControls displays the current timer, exercise, and set progress
 6. After all sets are completed, the session automatically ends
+
+## Ladder Session Flow
+
+1. User switches to "Ladder Session" mode using the SegmentedControl
+2. User configures ladder parameters via LadderSessionSettings
+   - Starting rep count
+   - Maximum (top) rep count
+   - Ending rep count
+   - Increment between sets
+   - Rest time per rep
+3. When "Start Ladder" is clicked, LadderSessionControls triggers useLadderSessionLogic hook
+4. The user performs the specified reps and clicks "Complete Set"
+5. The app enters a rest period based on the number of reps just completed
+6. After rest, the next set begins with incremented/decremented reps
+7. The ladder progresses up to the top rep count and then back down to the end rep count
 
 ## State Management
 
@@ -233,7 +291,7 @@ MinimalTracker manages the following state:
 - `trackedAngles`: Calculated angles for current frame
 - `canvasDimensions`: Width and height of the canvas
 - `landmarksData`: Detected pose landmarks
-- `workoutMode`: Current workout mode ('manual' or 'session')
+- `workoutMode`: Current workout mode ('manual', 'session', or 'ladder')
 
 The useSessionLogic hook manages the following session-specific state:
 - `isSessionActive`: Whether a session is currently running
@@ -244,6 +302,17 @@ The useSessionLogic hook manages the following session-specific state:
 - `totalSets`: Total number of sets configured
 - `currentSetNumber`: Current set being performed
 - `sessionSettings`: Configuration values for the session
+
+The useLadderSessionLogic hook manages the following ladder-specific state:
+- `isSessionActive`: Whether a ladder session is currently running
+- `sessionPhase`: Current phase ('idle', 'exercising', or 'resting')
+- `currentTimerValue`: Countdown timer for rest phase
+- `currentExercise`: Current exercise being performed
+- `currentReps`: Number of reps to perform in the current set
+- `direction`: Whether the ladder is going 'up' or 'down'
+- `totalSets`: Total number of sets calculated from ladder parameters
+- `currentSetNumber`: Current set being performed
+- `ladderSettings`: Configuration values for the ladder
 
 ## Helper Functions
 

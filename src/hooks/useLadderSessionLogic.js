@@ -1,0 +1,241 @@
+import { useState, useCallback, useEffect } from 'react';
+
+/**
+ * useLadderSessionLogic Hook
+ * 
+ * Manages the core logic for ladder workout sessions:
+ * - Controls session state (active/inactive)
+ * - Handles progression through a ladder (incrementing/decrementing reps)
+ * - Maintains countdown timer for rest periods based on reps
+ * - Tracks current exercise and rep count
+ * - Automatically cycles through the ladder sequence
+ * - Provides configuration options for ladder parameters
+ * 
+ * @param {Function} selectRandomExercise - Function to select a random exercise (fallback)
+ * @param {Object} initialSettings - Initial ladder settings
+ * @returns {Object} Ladder session state and control functions
+ */
+export const useLadderSessionLogic = (
+  selectRandomExercise,
+  initialSettings = {
+    startReps: 1,
+    topReps: 10,
+    endReps: 1,
+    increment: 1,
+    restTimePerRep: 3, // seconds of rest per rep in current set
+  }
+) => {
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sessionPhase, setSessionPhase] = useState('idle'); // 'idle', 'exercising', 'resting'
+  const [currentTimerValue, setCurrentTimerValue] = useState(0);
+  const [currentExercise, setCurrentExercise] = useState(null);
+  const [selectedExercise, setSelectedExercise] = useState(null); // Store the selected exercise
+  const [currentReps, setCurrentReps] = useState(initialSettings.startReps);
+  const [direction, setDirection] = useState('up'); // 'up' or 'down'
+  const [ladderSettings, setLadderSettings] = useState(initialSettings);
+
+  // Calculate where we are in the ladder sequence (for progress display)
+  const calculateTotalSets = useCallback(() => {
+    const { startReps, topReps, endReps, increment } = ladderSettings;
+    
+    // Calculate steps going up
+    const stepsUp = Math.ceil((topReps - startReps) / increment) + 1; // +1 to include the top
+    
+    // Calculate steps going down
+    const stepsDown = Math.ceil((topReps - endReps) / increment);
+    
+    return stepsUp + stepsDown;
+  }, [ladderSettings]);
+
+  const [totalSets, setTotalSets] = useState(calculateTotalSets());
+  const [currentSetNumber, setCurrentSetNumber] = useState(0);
+
+  // Recalculate total sets when settings change
+  useEffect(() => {
+    setTotalSets(calculateTotalSets());
+  }, [ladderSettings, calculateTotalSets]);
+
+  /**
+   * Updates ladder session configuration settings
+   * Only allowed when session is not active
+   */
+  const updateLadderSettings = useCallback((newSettings) => {
+    if (!isSessionActive) {
+      setLadderSettings(prev => ({
+        ...prev,
+        ...newSettings
+      }));
+    }
+  }, [isSessionActive]);
+
+  /**
+   * Sets the selected exercise for the ladder session
+   * Only allowed when session is not active
+   */
+  const selectExerciseForLadder = useCallback((exercise) => {
+    if (!isSessionActive) {
+      setSelectedExercise(exercise);
+    }
+  }, [isSessionActive]);
+
+  /**
+   * Calculate the next rep count in the ladder sequence
+   */
+  const calculateNextReps = useCallback(() => {
+    const { startReps, topReps, endReps, increment } = ladderSettings;
+    
+    if (direction === 'up') {
+      const nextReps = currentReps + increment;
+      
+      // If we've reached or exceeded the top, start going down
+      if (nextReps >= topReps) {
+        // Only set the direction to down when we're actually at the top
+        // Don't change it when calculating, we'll do that after setting currentReps
+        return topReps;
+      }
+      
+      return nextReps;
+    } else { // direction === 'down'
+      const nextReps = currentReps - increment;
+      
+      // If we've reached or gone below the end, we're done
+      if (nextReps <= endReps) {
+        return endReps;
+      }
+      
+      return nextReps;
+    }
+  }, [currentReps, direction, ladderSettings]);
+
+  /**
+   * Check if the ladder session is complete
+   */
+  const isLadderComplete = useCallback(() => {
+    return direction === 'down' && currentReps <= ladderSettings.endReps;
+  }, [direction, currentReps, ladderSettings.endReps]);
+
+  /**
+   * Calculate rest time based on current reps
+   */
+  const calculateRestTime = useCallback(() => {
+    return currentReps * ladderSettings.restTimePerRep;
+  }, [currentReps, ladderSettings.restTimePerRep]);
+
+  /**
+   * Toggles the session between active and inactive states
+   * Initializes session when starting
+   */
+  const handleToggleSession = useCallback(() => {
+    setIsSessionActive(prevIsActive => {
+      const newIsActive = !prevIsActive;
+      if (newIsActive) {
+        // Use the selected exercise or fall back to random if none is selected
+        const exercise = selectedExercise || selectRandomExercise();
+        console.log('[useLadderSessionLogic] Starting ladder with exercise:', exercise?.name);
+        setCurrentExercise(exercise);
+        setDirection('up');
+        setCurrentReps(ladderSettings.startReps);
+        setSessionPhase('exercising');
+        setCurrentTimerValue(0); // No timer for exercise phase
+        setCurrentSetNumber(1); // Start with the first set
+      } else {
+        setSessionPhase('idle');
+        setCurrentTimerValue(0);
+        setCurrentExercise(null);
+        setCurrentSetNumber(0);
+        setCurrentReps(ladderSettings.startReps);
+        setDirection('up');
+      }
+      return newIsActive;
+    });
+  }, [selectRandomExercise, ladderSettings.startReps, selectedExercise]);
+
+  // Function to move to next step in the ladder
+  const moveToNextStep = useCallback(() => {
+    if (isLadderComplete()) {
+      // End the session
+      console.log('[useLadderSessionLogic] Ladder completed. Ending session.');
+      setIsSessionActive(false);
+      setSessionPhase('idle');
+      setCurrentExercise(null);
+      setCurrentSetNumber(0);
+      setCurrentReps(ladderSettings.startReps);
+      setDirection('up');
+      return;
+    }
+    
+    // Move to next rep count and increment set counter
+    const nextReps = calculateNextReps();
+    setCurrentReps(nextReps);
+    
+    // Check if we need to change direction
+    // Only change to down if we're at the top rep count
+    if (direction === 'up' && nextReps >= ladderSettings.topReps) {
+      setDirection('down');
+    }
+    
+    setSessionPhase('exercising');
+    setCurrentTimerValue(0); // No timer for exercise phase
+    setCurrentSetNumber(prev => prev + 1);
+  }, [isLadderComplete, calculateNextReps, ladderSettings, direction]);
+
+  // Handler for completing a set of reps
+  const completeCurrentSet = useCallback(() => {
+    if (!isSessionActive || sessionPhase !== 'exercising') return;
+    
+    // Move to rest phase after completing reps
+    setSessionPhase('resting');
+    const restTime = calculateRestTime();
+    setCurrentTimerValue(restTime);
+    
+    console.log(`[useLadderSessionLogic] Completed ${currentReps} reps. Resting for ${restTime}s.`);
+  }, [isSessionActive, sessionPhase, currentReps, calculateRestTime]);
+
+  // Timer countdown effect
+  useEffect(() => {
+    let timerInterval;
+
+    if (isSessionActive && sessionPhase === 'resting' && currentTimerValue > 0) {
+      timerInterval = setInterval(() => {
+        setCurrentTimerValue(prevTime => {
+          const newTime = prevTime - 1;
+          if (newTime < 0) {
+            clearInterval(timerInterval);
+            return 0;
+          }
+          return newTime;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+    };
+  }, [isSessionActive, sessionPhase, currentTimerValue]);
+
+  // Phase transition effect - handles rest completion and moving to next ladder step
+  useEffect(() => {
+    if (isSessionActive && sessionPhase === 'resting' && currentTimerValue === 0) {
+      moveToNextStep();
+    }
+  }, [isSessionActive, sessionPhase, currentTimerValue, moveToNextStep]);
+
+  return {
+    isSessionActive,
+    sessionPhase,
+    currentTimerValue,
+    handleToggleSession,
+    completeCurrentSet,
+    currentExercise,
+    currentReps,
+    totalSets,
+    currentSetNumber,
+    updateLadderSettings,
+    ladderSettings,
+    direction,
+    selectedExercise,
+    selectExerciseForLadder,
+  };
+}; 
