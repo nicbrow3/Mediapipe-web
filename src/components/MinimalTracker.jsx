@@ -17,6 +17,8 @@ import BottomControls from './common/BottomControls';
 import { ActionIcon } from '@mantine/core';
 import { Gear } from 'phosphor-react';
 import SettingsOverlay from './SettingsOverlay';
+import { RepCounterProvider } from './RepCounterContext';
+import RepGoalDisplayContainer from './RepGoalDisplayContainer';
 
 const MinimalTracker = () => {
   // References
@@ -141,11 +143,13 @@ const MinimalTracker = () => {
     sessionPhase,
     currentTimerValue,
     handleToggleSession,
-    // EXERCISE_SET_DURATION, // Not directly needed here if hook manages it
-    // REST_PERIOD_DURATION,
     currentExercise,
     upcomingExercise,
-  } = useSessionLogic(selectRandomExercise /*, pass custom durations here if needed */);
+    totalSets,
+    currentSetNumber,
+    updateSessionSettings,
+    sessionSettings,
+  } = useSessionLogic(selectRandomExercise);
 
   // Handler to change workout mode
   const handleWorkoutModeChange = (mode) => {
@@ -415,142 +419,159 @@ const MinimalTracker = () => {
   }, [selectedExercise]);
 
   return (
-    <div className="minimal-tracker-root">
-      {/* Settings Icon Button */}
-      {cameraStarted && !isLoading && !errorMessage && (
-        <ActionIcon
-          variant="filled"
-          color="gray"
-          size="lg"
-          onClick={() => setIsSettingsOpen(true)}
-          style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
-        >
-          <Gear size={24} />
-        </ActionIcon>
-      )}
+    <RepCounterProvider>
+      <div className="minimal-tracker-root">
+        {/* Settings Icon Button */}
+        {cameraStarted && !isLoading && !errorMessage && (
+          <ActionIcon
+            variant="filled"
+            color="gray"
+            size="lg"
+            onClick={() => setIsSettingsOpen(true)}
+            style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
+          >
+            <Gear size={24} />
+          </ActionIcon>
+        )}
 
-      {/* Controls overlay - only show after camera started */}
-      <TrackerControlsBar
-        cameraStarted={cameraStarted && !isLoading && !errorMessage}
-        stats={stats}
-        landmarksData={landmarksData}
-        smoothingEnabled={smoothingEnabled}
-        smoothingWindow={ANGLE_SMOOTHING_WINDOW}
-        exerciseOptions={exerciseOptions}
-        selectedExercise={selectedExercise}
-        onExerciseChange={handleExerciseChange}
-        isSessionActive={isSessionActive}
-        currentTimerValue={currentTimerValue}
-        onToggleSession={handleToggleSession}
-        workoutMode={workoutMode}
-        onWorkoutModeChange={handleWorkoutModeChange}
-        currentExercise={currentExercise}
-        upcomingExercise={upcomingExercise}
-        sessionPhase={sessionPhase}
-      />
-
-      {/* Show loading spinner only after camera button is clicked and while loading */}
-      {isLoading && cameraStarted && <LoadingDisplay />}
-      
-      {/* Show error message with improved styling */}
-      {errorMessage && 
-        <ErrorDisplay 
-          message={errorMessage} 
-          onRetry={() => {
-            setErrorMessage(''); 
-            // Optionally, reset cameraStarted if retry should go back to initial start screen
-            // setCameraStarted(false); 
-            // Or directly call handleStartCamera if retry means attempting camera start again
-            handleStartCamera();
-          }}
-        />
-      }
-      
-      {/* Show Start Camera button if not started and no error is shown */}
-      {!cameraStarted && !errorMessage && (
-        <StartButton onClick={handleStartCamera} />
-      )}
-
-      <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible' }}>
-        <VideoCanvas
-          videoRef={videoRef}
-          canvasRef={canvasRef}
-          landmarks={landmarksData}
-          width={canvasDimensions.width}
-          height={canvasDimensions.height}
-          cameraStarted={cameraStarted}
-        />
-        
-        {/* Overlay stacks for left and right-aligned UI */}
-        <div className="minimal-tracker-overlay">
-          <div className="minimal-tracker-stack left">
-            {/* Place left-aligned overlays here */}
-            <AngleDisplay 
-              displaySide="left"
-              selectedExercise={selectedExercise}
-              trackedAngles={trackedAngles}
-              rawAngles={rawAngles}
-              smoothingEnabled={smoothingEnabled}
-            />
-            <PhaseTrackerDisplay
-              displaySide="left"
-              selectedExercise={selectedExercise}
-              trackedAngles={trackedAngles}
-              useThreePhases={useThreePhases}
-            />
-            <LandmarkMetricsDisplay2
-              displaySide="left"
-              selectedExercise={selectedExercise}
-              landmarksData={landmarksData}
-              trackedAngles={trackedAngles}
-            />
-          </div>
-          <div className="minimal-tracker-stack right">
-            {/* Place overlays here for right-aligned overlays */}
-            <AngleDisplay 
-              displaySide="right"
-              selectedExercise={selectedExercise}
-              trackedAngles={trackedAngles}
-              rawAngles={rawAngles}
-              smoothingEnabled={smoothingEnabled}
-            />
-            <PhaseTrackerDisplay
-              displaySide="right"
-              selectedExercise={selectedExercise}
-              trackedAngles={trackedAngles}
-              useThreePhases={useThreePhases}
-            />
-            <LandmarkMetricsDisplay2
-              displaySide="right"
-              selectedExercise={selectedExercise}
-              landmarksData={landmarksData}
-              trackedAngles={trackedAngles}
-            />
-          </div>
-        </div>
-        {/* Bottom-center controls container - Replaced by BottomControls component */}
-        <BottomControls 
-          cameraStarted={cameraStarted}
-          isLoading={isLoading}
-          errorMessage={errorMessage}
-          repGoal={repGoal}
-          setRepGoal={setRepGoal}
+        {/* Controls overlay - only show after camera started */}
+        <TrackerControlsBar
+          cameraStarted={cameraStarted && !isLoading && !errorMessage}
+          stats={stats}
+          landmarksData={landmarksData}
+          smoothingEnabled={smoothingEnabled}
+          smoothingWindow={ANGLE_SMOOTHING_WINDOW}
+          exerciseOptions={exerciseOptions}
           selectedExercise={selectedExercise}
-          weight={weight}
-          onWeightChange={handleWeightChange}
+          onExerciseChange={handleExerciseChange}
+          isSessionActive={isSessionActive}
+          currentTimerValue={currentTimerValue}
+          onToggleSession={handleToggleSession}
+          workoutMode={workoutMode}
+          onWorkoutModeChange={handleWorkoutModeChange}
+          currentExercise={currentExercise}
+          upcomingExercise={upcomingExercise}
+          sessionPhase={sessionPhase}
+          totalSets={totalSets}
+          currentSetNumber={currentSetNumber}
+          onSessionSettingsChange={updateSessionSettings}
+          sessionSettings={sessionSettings}
+        />
+
+        {/* Show loading spinner only after camera button is clicked and while loading */}
+        {isLoading && cameraStarted && <LoadingDisplay />}
+        
+        {/* Show error message with improved styling */}
+        {errorMessage && 
+          <ErrorDisplay 
+            message={errorMessage} 
+            onRetry={() => {
+              setErrorMessage(''); 
+              // Optionally, reset cameraStarted if retry should go back to initial start screen
+              // setCameraStarted(false); 
+              // Or directly call handleStartCamera if retry means attempting camera start again
+              handleStartCamera();
+            }}
+          />
+        }
+        
+        {/* Show Start Camera button if not started and no error is shown */}
+        {!cameraStarted && !errorMessage && (
+          <StartButton onClick={handleStartCamera} />
+        )}
+
+        <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible' }}>
+          <VideoCanvas
+            videoRef={videoRef}
+            canvasRef={canvasRef}
+            landmarks={landmarksData}
+            width={canvasDimensions.width}
+            height={canvasDimensions.height}
+            cameraStarted={cameraStarted}
+          />
+          
+          {/* Overlay stacks for left and right-aligned UI */}
+          <div className="minimal-tracker-overlay">
+            <div className="minimal-tracker-stack left">
+              {/* Place left-aligned overlays here */}
+              <AngleDisplay 
+                displaySide="left"
+                selectedExercise={selectedExercise}
+                trackedAngles={trackedAngles}
+                rawAngles={rawAngles}
+                smoothingEnabled={smoothingEnabled}
+              />
+              <PhaseTrackerDisplay
+                displaySide="left"
+                selectedExercise={selectedExercise}
+                trackedAngles={trackedAngles}
+                useThreePhases={useThreePhases}
+              />
+              <LandmarkMetricsDisplay2
+                displaySide="left"
+                selectedExercise={selectedExercise}
+                landmarksData={landmarksData}
+                trackedAngles={trackedAngles}
+              />
+            </div>
+            <div className="minimal-tracker-stack right">
+              {/* Place overlays here for right-aligned overlays */}
+              <AngleDisplay 
+                displaySide="right"
+                selectedExercise={selectedExercise}
+                trackedAngles={trackedAngles}
+                rawAngles={rawAngles}
+                smoothingEnabled={smoothingEnabled}
+              />
+              <PhaseTrackerDisplay
+                displaySide="right"
+                selectedExercise={selectedExercise}
+                trackedAngles={trackedAngles}
+                useThreePhases={useThreePhases}
+              />
+              <LandmarkMetricsDisplay2
+                displaySide="right"
+                selectedExercise={selectedExercise}
+                landmarksData={landmarksData}
+                trackedAngles={trackedAngles}
+              />
+            </div>
+          </div>
+          
+          {/* Rep Goal Display Container */}
+          {cameraStarted && !isLoading && !errorMessage && (
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
+              <RepGoalDisplayContainer 
+                repGoal={repGoal}
+                isTwoSided={selectedExercise.isTwoSided}
+              />
+            </div>
+          )}
+          
+          {/* Bottom-center controls container - Replaced by BottomControls component */}
+          <BottomControls 
+            cameraStarted={cameraStarted}
+            isLoading={isLoading}
+            errorMessage={errorMessage}
+            repGoal={repGoal}
+            setRepGoal={setRepGoal}
+            selectedExercise={selectedExercise}
+            weight={weight}
+            onWeightChange={handleWeightChange}
+          />
+        </div>
+
+        {/* Settings Overlay Drawer */}
+        <SettingsOverlay 
+          isOpen={isSettingsOpen} 
+          onClose={() => setIsSettingsOpen(false)}
+          smoothingEnabled={smoothingEnabled}
+          onSmoothingChange={toggleSmoothingAndUpdateSettings}
+          useThreePhases={useThreePhases}
+          onPhaseModeChange={togglePhaseModeAndUpdateSettings}
         />
       </div>
-
-      {/* Settings Overlay Drawer */}
-      <SettingsOverlay 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)}
-        smoothingEnabled={smoothingEnabled}
-        onSmoothingChange={toggleSmoothingAndUpdateSettings}
-        useThreePhases={useThreePhases}
-        onPhaseModeChange={togglePhaseModeAndUpdateSettings}
-      />
-    </div>
+    </RepCounterProvider>
   );
 };
 

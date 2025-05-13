@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './PhaseTracker.css';
+import { useRepCounter } from './RepCounterContext';
 
 const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
   const [phase, setPhase] = useState(0);
   const [repCount, setRepCount] = useState(0);
   const phaseSequenceRef = useRef([]);
+  
+  // Get the updateRepCount function from context
+  const { updateRepCount } = useRepCounter();
   
   // Add debugging logs
   // console.log(`PhaseTracker (${side || 'unknown'}) - angle:`, angle);
@@ -86,12 +90,20 @@ const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
       const patternStr = pattern.join('');
       
       if (sequence.includes(patternStr)) {
-        setRepCount(prev => prev + 1);
+        const newRepCount = repCount + 1;
+        setRepCount(newRepCount);
         // Reset sequence after counting a rep
         phaseSequenceRef.current = [currentPhase];
+        
+        // Update the rep count in context when it changes
+        if (side === 'left' || side === 'Left') {
+          updateRepCount('left', newRepCount);
+        } else if (side === 'right' || side === 'Right') {
+          updateRepCount('right', newRepCount);
+        }
       }
     }
-  }, [angle, angleConfig, phase, useThreePhases]);
+  }, [angle, angleConfig, phase, useThreePhases, repCount, side, updateRepCount]);
   
   // Visual representation of phases
   const getPhaseDisplay = () => {

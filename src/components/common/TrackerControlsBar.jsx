@@ -28,6 +28,11 @@ const TrackerControlsBar = ({
   currentExercise,
   upcomingExercise,
   sessionPhase,
+  // New props for session configuration
+  totalSets,
+  currentSetNumber,
+  onSessionSettingsChange,
+  sessionSettings,
 }) => {
   if (!cameraStarted) {
     return null; // Don't render if camera hasn't started
@@ -51,6 +56,11 @@ const TrackerControlsBar = ({
         currentExercise={currentExercise}
         upcomingExercise={upcomingExercise}
         sessionPhase={sessionPhase}
+        exerciseSetDuration={sessionSettings?.exerciseSetDuration}
+        restPeriodDuration={sessionSettings?.restPeriodDuration}
+        totalSets={totalSets}
+        currentSetNumber={currentSetNumber}
+        onSettingsChange={onSessionSettingsChange}
       />
     );
   }

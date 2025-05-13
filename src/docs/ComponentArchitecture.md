@@ -6,8 +6,12 @@ This document outlines the component structure of the MinimalTracker application
 
 ```
 MinimalTracker
-├── ExerciseSelector
-├── StatsDisplay
+├── TrackerControlsBar
+│   ├── StatsDisplay
+│   ├── SegmentedControl (for workout mode toggle)
+│   ├── ExerciseSelector (shown in 'manual' mode)
+│   └── SessionControls (shown in 'session' mode)
+│       └── SessionSettings (collapsible panel)
 ├── VideoCanvasContainer  // Conceptual grouping (implemented as a <div> in MinimalTracker.jsx)
 │   │                     // for elements related to the video feed and tracking display.
 │   ├── VideoCanvas
@@ -149,6 +153,54 @@ MinimalTracker
 - `position`: String to control screen position (e.g., 'bottom-left')
 - `showDetails`: Boolean to toggle detailed metrics view
 
+### TrackerControlsBar
+**Purpose**: Container for the top controls bar with conditional rendering based on workout mode.
+- Houses StatsDisplay for performance metrics
+- Provides workout mode toggle (manual/session)
+- Conditionally renders either ExerciseSelector or SessionControls based on mode
+
+**Props**:
+- Various props passed from MinimalTracker including exercise options, session state, etc.
+- `workoutMode`: Current mode ('manual' or 'session')
+- `onWorkoutModeChange`: Handler for mode changes
+- `sessionSettings`: Current session configuration values
+- `onSessionSettingsChange`: Handler for session setting updates
+
+### SessionControls
+**Purpose**: Manages the interface for timed workout sessions.
+- Displays a collapsible settings panel for configuration
+- Shows a timer countdown during active sessions
+- Displays current/upcoming exercise information
+- Shows set progress (current set / total sets)
+- Provides start/stop button for session control
+
+**Props**:
+- `isSessionActive`: Boolean indicating if a session is currently running
+- `currentTimerValue`: Current countdown timer value in seconds
+- `onToggleSession`: Handler to start/stop the session
+- `currentExercise`: The exercise currently being performed
+- `upcomingExercise`: The next exercise in the queue
+- `sessionPhase`: Current phase ('exercising' or 'resting')
+- `exerciseSetDuration`: Duration of exercise period in seconds
+- `restPeriodDuration`: Duration of rest period in seconds
+- `totalSets`: Total number of sets to perform
+- `currentSetNumber`: Current set number being performed
+- `onSettingsChange`: Handler for session setting updates
+
+### SessionSettings
+**Purpose**: Provides a configuration interface for timed workout sessions.
+- Allows setting exercise duration (seconds)
+- Allows setting rest duration (seconds)
+- Allows setting total number of sets
+- Disables settings during active sessions
+
+**Props**:
+- `exerciseSetDuration`: Current exercise duration in seconds
+- `restPeriodDuration`: Current rest duration in seconds
+- `totalSets`: Current total sets value
+- `onSettingsChange`: Handler for session setting updates
+- `isSessionActive`: Boolean to disable settings during active sessions
+
 ## Data Flow
 
 1. User starts camera via the start button
@@ -158,7 +210,17 @@ MinimalTracker
 5. Angles are calculated based on the selectedExercise configuration
 6. Calculated angles are passed to AngleDisplay for visualization
 7. Performance metrics are updated and displayed via StatsDisplay
-8. User can select different exercises via ExerciseSelector
+8. User can select different exercises via ExerciseSelector or start a timed session
+9. If using timed sessions, SessionControls manages the workout flow through useSessionLogic
+
+## Session Management Flow
+
+1. User switches to "Timed Session" mode using the SegmentedControl
+2. User configures session parameters via SessionSettings (exercise time, rest time, total sets)
+3. When "Start Session" is clicked, SessionControls triggers useSessionLogic hook
+4. The hook selects random exercises, manages timer countdown, and transitions between phases
+5. SessionControls displays the current timer, exercise, and set progress
+6. After all sets are completed, the session automatically ends
 
 ## State Management
 
@@ -171,6 +233,17 @@ MinimalTracker manages the following state:
 - `trackedAngles`: Calculated angles for current frame
 - `canvasDimensions`: Width and height of the canvas
 - `landmarksData`: Detected pose landmarks
+- `workoutMode`: Current workout mode ('manual' or 'session')
+
+The useSessionLogic hook manages the following session-specific state:
+- `isSessionActive`: Whether a session is currently running
+- `sessionPhase`: Current phase ('idle', 'exercising', or 'resting')
+- `currentTimerValue`: Countdown timer for current phase
+- `currentExercise`: Current exercise being performed
+- `upcomingExercise`: Next exercise in queue
+- `totalSets`: Total number of sets configured
+- `currentSetNumber`: Current set being performed
+- `sessionSettings`: Configuration values for the session
 
 ## Helper Functions
 
@@ -192,16 +265,32 @@ Potential future refactoring:
 4. Implement a state management solution for more complex applications
 5. Add TypeScript type definitions for props and state
 
+## Custom Hooks
+
+The architecture includes several custom hooks:
+- `useAppSettings`: Manages persistent application settings
+- `useSessionLogic`: Manages timed workout session logic including:
+  - Session state (active/inactive)
+  - Phase transitions (exercising/resting)
+  - Timer countdown
+  - Exercise selection
+  - Set tracking and completion
+
 ## Component Communication Diagram
 
 ```
 User Input → ExerciseSelector → MinimalTracker → AngleDisplay
-                                       ↓
-           Camera → VideoCanvas ← MinimalTracker → StatsDisplay
+                    ↑               ↓
+WorkoutMode → TrackerControlsBar ←→ MinimalTracker → StatsDisplay
+                    ↓
+               SessionControls → useSessionLogic
+                    ↓
+              SessionSettings
 ```
 
 This architecture promotes:
 - **Separation of concerns**: Each component has a clear, single responsibility
 - **Reusability**: Components can be reused in other parts of the application
 - **Maintainability**: Changes to one aspect don't require modifying the entire application
-- **Testability**: Smaller components with clear inputs/outputs are easier to test 
+- **Testability**: Smaller components with clear inputs/outputs are easier to test
+- **Scalability**: The session system can be extended to support more features like muscle group targeting 

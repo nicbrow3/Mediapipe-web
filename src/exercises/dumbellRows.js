@@ -2,13 +2,13 @@
 // Now uses pluggable logic system
 
 // Import logic functions (placeholders for now)
-import { calculateAngle } from '../logic/landmarkUtils';
+import { calculateAngle } from '../logic/landmarkUtils.js';
 import { angleBasedRepLogic } from '../logic/angleBasedRepLogic.js';
 
-export const bicepCurls = {
+export const dumbellRows = {
     // --- Basic Info ---
-    id: 'bicep-curls',
-    name: 'Bicep Curls',
+    id: 'dumbell-rows',
+    name: 'Dumbell Rows',
     isTwoSided: true,
     hasWeight: true,
 
@@ -33,20 +33,20 @@ export const bicepCurls = {
 
     // --- Starting Position Requirements ---
     startPosition: {
-        description: "Stand tall, arms fully extended downwards by your sides.",
+        description: "Straight back, bent over at the waist, dumbell at your side.",
         requiredAngles: [
             {
                 id: 'leftElbowStart',
                 side: 'left',
                 points: ['shoulder', 'elbow', 'wrist'], // Mapped to MediaPipe names in logic
-                targetAngle: 170,
+                targetAngle: 160,
                 tolerance: 15
             },
             {
                 id: 'rightElbowStart',
                 side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'],
-                targetAngle: 170,
+                targetAngle: 160,
                 tolerance: 15
             },
         ],
@@ -58,7 +58,7 @@ export const bicepCurls = {
         type: 'angle',
         anglesToTrack: [
              {
-                id: 'leftElbowCurlAngle',
+                id: 'leftRowAngle',
                 side: 'left',
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
                 minThreshold: 90,
@@ -67,7 +67,7 @@ export const bicepCurls = {
                 relaxedIsHigh: true
              },
              {
-                id: 'rightElbowCurlAngle',
+                id: 'rightRowAngle',
                 side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
                 minThreshold: 90,
@@ -84,6 +84,6 @@ export const bicepCurls = {
 
     // --- Optional Metadata ---
     instructions: "Keep your elbows tucked in. Control the movement.",
-    tips: ["Full stretch at the bottom, full squeeze at the top.", "Control the movement, don't swing the weight.", "Engage your core and keep your back straight."],
-    muscleGroups: ["Biceps", "Forearms"]
+    tips: ["Pull with your back, not your biceps.", "Engage your core and keep your back straight.", "Eyes focused slightly ahead on the floor.", "Chest up, back flat."],
+    muscleGroups: ["Back"]
 }; 

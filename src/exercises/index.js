@@ -8,3 +8,5 @@ export { seatedOverheadPress } from './seatedOverheadPress';
 export { dumbbellRenegadeRows } from './dumbbellRenegadeRows';
 export { squats } from './squats';
 export { pushUpTest } from './pushUpTest';
+export { kettlebellSwings } from './kettlebellSwings';
+export { dumbellRows } from './dumbellRows';
