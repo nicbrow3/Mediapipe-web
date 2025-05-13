@@ -6,6 +6,7 @@ const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
   const [phase, setPhase] = useState(0);
   const [repCount, setRepCount] = useState(0);
   const phaseSequenceRef = useRef([]);
+  const lastPhaseRef = useRef(null);
   
   // Get the updateRepCount function from context
   const { updateRepCount } = useRepCounter();
@@ -75,31 +76,50 @@ const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
     //             `(angle: ${angle}, min: ${minThreshold}, mid: ${midpoint}, max: ${maxThreshold}, relaxedIsHigh: ${relaxedIsHigh})`);
     
     // Update phase
-    if (currentPhase !== phase) {
+    if (currentPhase !== lastPhaseRef.current) {
+      lastPhaseRef.current = currentPhase;
       setPhase(currentPhase);
       
-      // Track phase sequence for rep counting
+      // Add phase to sequence only if it's different from the last one
       const newSequence = [...phaseSequenceRef.current, currentPhase];
-      phaseSequenceRef.current = newSequence.slice(-8); // Keep last 8 phases
+      phaseSequenceRef.current = newSequence.slice(-12); // Increased buffer size
       
-      // Check for complete rep pattern
       const pattern = useThreePhases ? [0,1,2,1,0] : [0,1,2,3,2,1,0];
       
-      // Check if sequence contains pattern for rep
-      const sequence = phaseSequenceRef.current.join('');
-      const patternStr = pattern.join('');
-      
-      if (sequence.includes(patternStr)) {
-        const newRepCount = repCount + 1;
-        setRepCount(newRepCount);
-        // Reset sequence after counting a rep
-        phaseSequenceRef.current = [currentPhase];
+      // Check for complete phase cycle (relaxed -> peak -> relaxed)
+      if (currentPhase === 0 && phaseSequenceRef.current.length >= 3) {
+        // Find key phases in the sequence
+        const hasRelaxedPhase = phaseSequenceRef.current.includes(0);
+        const hasPeakPhase = useThreePhases 
+          ? phaseSequenceRef.current.includes(2) 
+          : phaseSequenceRef.current.includes(3);
         
-        // Update the rep count in context when it changes
-        if (side === 'left' || side === 'Left') {
-          updateRepCount('left', newRepCount);
-        } else if (side === 'right' || side === 'Right') {
-          updateRepCount('right', newRepCount);
+        // Get last cycle - from last relaxed phase, we should have gone through peak and back
+        const lastRelaxedIndex = phaseSequenceRef.current.lastIndexOf(0, phaseSequenceRef.current.length - 2);
+        
+        // If we've gone from relaxed (0) through peak phase and back to relaxed (0)
+        if (hasRelaxedPhase && hasPeakPhase && lastRelaxedIndex !== -1) {
+          const cycle = phaseSequenceRef.current.slice(lastRelaxedIndex);
+          
+          // Check if this cycle contains the peak contraction phase
+          const containsPeak = useThreePhases 
+            ? cycle.includes(2) 
+            : cycle.includes(3);
+            
+          if (containsPeak) {
+            const newRepCount = repCount + 1;
+            setRepCount(newRepCount);
+            
+            // Update the rep count in context when it changes
+            if (side === 'left' || side === 'Left') {
+              updateRepCount('left', newRepCount);
+            } else if (side === 'right' || side === 'Right') {
+              updateRepCount('right', newRepCount);
+            }
+            
+            // Keep only the latest phase after counting a rep
+            phaseSequenceRef.current = [currentPhase];
+          }
         }
       }
     }

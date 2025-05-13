@@ -68,6 +68,9 @@ export const theme = createTheme({
     md: '1rem',
     lg: '1.125rem',
     xl: '1.25rem',
+    h1: '48px',
+    h2: '36px',
+    h3: '24px',
   },
 
   spacing: {
@@ -78,6 +81,18 @@ export const theme = createTheme({
     xl: '14px',
   },
 
+  //Headings
+  headings: {
+    fontWeight: 400,
+    sizes: {
+      h1: { fontSize: 48 },
+      h2: { fontSize: 36 },
+      h3: { fontSize: 24 },
+      h4: { fontSize: 20 },
+    },
+  },
+
+  // Components
   components: {
     Button: {
       defaultProps: {
@@ -104,17 +119,26 @@ export const theme = createTheme({
             },
           },
         }),
-        // The 'toggle' variant from globalStyles was a function:
-        // toggle: (active) => ({...})
-        // Mantine variants can also be functions if they need to react to props
-        // For simplicity, I'm omitting the toggle variant for now,
-        // It can be added later if StyledButton is refactored.
+      },
+    },
+    RingProgress: {
+      defaultProps: {
+        transition: 'all 0.3s ease',
       },
     },
     Paper: {
       defaultProps: {
         radius: 'md',
         shadow: 'md',
+        p: 'md',
+        bg: 'rgba(38, 50, 56, 0.64)',
+        backdropfilter: 'blur(5px)',
+        boxshadow: '0 4px 30px rgba(0, 0, 0, 0.2)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        transition: 'all 0.3s ease',
+        width: '100%',
+        bg: 'rgba(38, 50, 56, 0.64)',
+        
       },
       styles: (theme) => ({
         root: {
@@ -123,6 +147,5 @@ export const theme = createTheme({
         },
       }),
     }
-    // ... other component overrides
   },
 }); 
