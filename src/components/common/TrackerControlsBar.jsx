@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Stack, SegmentedControl, Box } from '@mantine/core'; // Removed Group as it might not be needed directly here now
 import ExerciseSelector from '../ExerciseSelector'; // Assuming path
 import StatsDisplay from '../StatsDisplay';     // Assuming path
-// import StyledButton from './StyledButton'; // No longer needed for smoothing toggle
 import { globalStyles } from '../../styles/globalStyles';
 import SessionControls from './SessionControls'; // Import the new component
 import LadderSessionControls from './LadderSessionControls'; // Import the ladder session component
@@ -48,94 +47,143 @@ const TrackerControlsBar = ({
     return null; // Don't render if camera hasn't started
   }
 
-  let modeSpecificControls = null;
-  if (workoutMode === 'manual') {
-    modeSpecificControls = (
-      <ExerciseSelector 
-        exerciseOptions={exerciseOptions}
-        selectedExercise={selectedExercise}
-        onChange={onExerciseChange}
-      />
-    );
-  } else if (workoutMode === 'session') {
-    modeSpecificControls = (
-      <SessionControls 
-        isSessionActive={isSessionActive}
-        currentTimerValue={currentTimerValue}
-        onToggleSession={onToggleSession}
-        currentExercise={currentExercise}
-        upcomingExercise={upcomingExercise}
-        sessionPhase={sessionPhase}
-        exerciseSetDuration={sessionSettings?.exerciseSetDuration}
-        restPeriodDuration={sessionSettings?.restPeriodDuration}
-        totalSets={totalSets}
-        currentSetNumber={currentSetNumber}
-        onSettingsChange={onSessionSettingsChange}
-      />
-    );
-  } else if (workoutMode === 'ladder') {
-    modeSpecificControls = (
-      <LadderSessionControls
-        isSessionActive={isSessionActive}
-        currentTimerValue={currentTimerValue}
-        onToggleSession={onToggleSession}
-        onCompleteSet={onCompleteSet}
-        currentExercise={currentExercise}
-        currentReps={currentReps}
-        sessionPhase={sessionPhase}
-        totalSets={totalSets}
-        currentSetNumber={currentSetNumber}
-        onSettingsChange={onLadderSettingsChange}
-        ladderSettings={ladderSettings}
-        direction={direction} // Pass the direction prop
-        exerciseOptions={exerciseOptions} // Pass the exercise options
-        selectedExercise={selectedLadderExercise} // Pass the selected ladder exercise
-        onExerciseChange={onLadderExerciseChange} // Pass the callback to change the selected exercise
-      />
-    );
-  }
+  // Memoize the workout mode options to prevent recreation on each render
+  const workoutModeOptions = useMemo(() => [
+    { label: 'Manual', value: 'manual' },
+    { label: 'Timed', value: 'session' },
+    { label: 'Ladder', value: 'ladder' },
+  ], []);
+
+  // Memoize mode-specific controls to prevent unnecessary re-renders
+  const modeSpecificControls = useMemo(() => {
+    if (workoutMode === 'manual') {
+      return (
+        <Box style={{ width: '100%', maxWidth: '400px' }}>
+          <ExerciseSelector 
+            exerciseOptions={exerciseOptions}
+            selectedExercise={selectedExercise}
+            onChange={onExerciseChange}
+          />
+        </Box>
+      );
+    } else if (workoutMode === 'session') {
+      return (
+        <SessionControls 
+          isSessionActive={isSessionActive}
+          currentTimerValue={currentTimerValue}
+          onToggleSession={onToggleSession}
+          currentExercise={currentExercise}
+          upcomingExercise={upcomingExercise}
+          sessionPhase={sessionPhase}
+          exerciseSetDuration={sessionSettings?.exerciseSetDuration}
+          restPeriodDuration={sessionSettings?.restPeriodDuration}
+          totalSets={totalSets}
+          currentSetNumber={currentSetNumber}
+          onSettingsChange={onSessionSettingsChange}
+        />
+      );
+    } else if (workoutMode === 'ladder') {
+      return (
+        <LadderSessionControls
+          isSessionActive={isSessionActive}
+          currentTimerValue={currentTimerValue}
+          onToggleSession={onToggleSession}
+          onCompleteSet={onCompleteSet}
+          currentExercise={currentExercise}
+          currentReps={currentReps}
+          sessionPhase={sessionPhase}
+          totalSets={totalSets}
+          currentSetNumber={currentSetNumber}
+          onSettingsChange={onLadderSettingsChange}
+          ladderSettings={ladderSettings}
+          direction={direction}
+          exerciseOptions={exerciseOptions}
+          selectedExercise={selectedLadderExercise}
+          onExerciseChange={onLadderExerciseChange}
+        />
+      );
+    }
+    return null;
+  }, [
+    workoutMode,
+    // Manual mode dependencies
+    exerciseOptions, 
+    selectedExercise, 
+    onExerciseChange,
+    // Session mode dependencies
+    isSessionActive,
+    currentTimerValue,
+    onToggleSession,
+    currentExercise,
+    upcomingExercise,
+    sessionPhase,
+    sessionSettings,
+    totalSets,
+    currentSetNumber,
+    onSessionSettingsChange,
+    // Ladder mode dependencies
+    onCompleteSet,
+    currentReps,
+    onLadderSettingsChange,
+    ladderSettings,
+    direction,
+    selectedLadderExercise,
+    onLadderExerciseChange
+  ]);
+
+  // Use consistent styling objects to prevent recreation on each render
+  const stackStyle = useMemo(() => ({
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    padding: `${globalStyles.controlPaddings.md} 0`,
+    gap: globalStyles.controlPaddings.md,
+    zIndex: 200,
+  }), []);
+
+  const segmentedControlStyle = useMemo(() => ({
+    maxWidth: '400px', 
+    width: '100%'
+  }), []);
+
+  const boxStyle = useMemo(() => ({ 
+    minHeight: '50px', 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: '400px'
+  }), []);
 
   return (
-    <Stack 
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-        padding: `${globalStyles.controlPaddings.md} 0`, // Use global padding
-        gap: globalStyles.controlPaddings.md, // Increased gap slightly for the new control
-        zIndex: 200,
-      }}
-    >
+    <Stack style={stackStyle}>
       {/* Stats display at top */}
       <StatsDisplay 
         stats={stats} 
-        cameraStarted={cameraStarted} // Pass through needed props
+        cameraStarted={cameraStarted}
         landmarksData={landmarksData} 
-        smoothingEnabled={smoothingEnabled} // StatsDisplay still needs this
+        smoothingEnabled={smoothingEnabled}
         smoothingWindow={smoothingWindow}
       />
       
       {/* Workout Mode Toggle */}
       <SegmentedControl
         value={workoutMode}
-        onChange={onWorkoutModeChange} // This will pass the selected mode string directly
-        data={[
-          { label: 'Manual', value: 'manual' },
-          { label: 'Timed', value: 'session' },
-          { label: 'Ladder', value: 'ladder' },
-        ]}
+        onChange={onWorkoutModeChange}
+        data={workoutModeOptions}
         color="blue"
-        disabled={isSessionActive} // Disable mode switch if a session is active
+        disabled={isSessionActive}
+        style={segmentedControlStyle}
       />
 
       {/* Conditional Controls based on workoutMode */}
-      <Box style={{ minHeight: '50px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <Box style={boxStyle}>
         {modeSpecificControls}
       </Box>
     </Stack>
   );
 };
 
-export default TrackerControlsBar; 
+export default React.memo(TrackerControlsBar); 

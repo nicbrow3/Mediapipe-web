@@ -1,32 +1,39 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Select } from '@mantine/core';
 
-const ExerciseSelector = ({ exerciseOptions, selectedExercise, onChange }) => (
-  <div 
-    style={{
-      zIndex: 200,
-      background: 'rgba(0,0,0,0.7)',
-      borderRadius: 5,
-      padding: '8px 16px',
-      color: 'white',
-      fontFamily: 'monospace',
-      fontSize: 16
-    }}
-  >
-    <label htmlFor="exercise-select" style={{ marginRight: 8 }}>Exercise:</label>
-    <select
-      id="exercise-select"
-      value={selectedExercise?.id}
-      onChange={e => {
-        const selected = exerciseOptions.find(opt => opt.id === e.target.value);
-        if (selected) onChange(selected);
-      }}
-      style={{ fontSize: 16, borderRadius: 4, padding: '2px 8px' }}
-    >
-      {exerciseOptions.map(opt => (
-        <option key={opt.id} value={opt.id}>{opt.name}</option>
-      ))}
-    </select>
-  </div>
-);
+const ExerciseSelector = ({ exerciseOptions, selectedExercise, onChange }) => {
+  // Memoize the formatted and sorted options to prevent recalculation on every render
+  const formattedExerciseOptions = useMemo(() => {
+    if (!exerciseOptions || exerciseOptions.length === 0) return [];
+    
+    return [...exerciseOptions]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(exercise => ({
+        value: exercise.id,
+        label: exercise.name
+      }));
+  }, [exerciseOptions]); // Only recalculate when exerciseOptions changes
 
-export default ExerciseSelector; 
+  // Memoize the onChange handler to prevent new function creation on every render
+  const handleChange = useMemo(() => {
+    return (exerciseId) => {
+      const exercise = exerciseOptions?.find(ex => ex.id === exerciseId);
+      if (exercise) {
+        onChange(exercise);
+      }
+    };
+  }, [exerciseOptions, onChange]);
+
+  return (
+    <Select
+      label="Select Exercise"
+      placeholder="Choose an exercise"
+      data={formattedExerciseOptions}
+      value={selectedExercise?.id || ''}
+      onChange={handleChange}
+      style={{ width: '100%' }}
+    />
+  );
+};
+
+export default React.memo(ExerciseSelector); // Prevent re-render if props haven't changed 

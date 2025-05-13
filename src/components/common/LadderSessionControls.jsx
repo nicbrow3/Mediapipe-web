@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Text, Button, Group, Stack, Collapse, ActionIcon, Badge, Select } from '@mantine/core';
 import { globalStyles } from '../../styles/globalStyles';
 import LadderSessionSettings from './LadderSessionSettings';
@@ -45,18 +45,37 @@ const LadderSessionControls = ({
   // Check if we're at the peak (top reps)
   const isAtPeak = currentReps === ladderSettings.topReps;
   
-  // Format exercise options for Select component
-  const formattedExerciseOptions = exerciseOptions?.map(exercise => ({
-    value: exercise.id,
-    label: exercise.name
-  })) || [];
+  // Memoize the formatted and sorted options to prevent recalculation on every render
+  const formattedExerciseOptions = useMemo(() => {
+    if (!exerciseOptions || exerciseOptions.length === 0) return [];
+    
+    return [...exerciseOptions]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(exercise => ({
+        value: exercise.id,
+        label: exercise.name
+      }));
+  }, [exerciseOptions]); // Only recalculate when exerciseOptions changes
+  
+  // Memoize the onChange handler to prevent new function creation on every render
+  const handleExerciseChange = useCallback((exerciseId) => {
+    const exercise = exerciseOptions?.find(ex => ex.id === exerciseId);
+    if (exercise) {
+      onExerciseChange(exercise);
+    }
+  }, [exerciseOptions, onExerciseChange]);
+
+  // Memoize the toggle settings handler
+  const handleToggleSettings = useCallback(() => {
+    setShowSettings(prev => !prev);
+  }, []);
 
   return (
     <Stack spacing="xs" align="center" style={{ width: '100%' }}>
       <Group position="apart" style={{ width: '100%', alignItems: 'center' }}>
         <Text size="md" weight={500}>Ladder Session</Text>
         <ActionIcon 
-          onClick={() => setShowSettings(!showSettings)} 
+          onClick={handleToggleSettings}
           variant="subtle"
           disabled={isSessionActive}
         >
@@ -79,12 +98,7 @@ const LadderSessionControls = ({
           placeholder="Choose an exercise"
           data={formattedExerciseOptions}
           value={selectedExercise?.id || ''}
-          onChange={(exerciseId) => {
-            const exercise = exerciseOptions?.find(ex => ex.id === exerciseId);
-            if (exercise) {
-              onExerciseChange(exercise);
-            }
-          }}
+          onChange={handleExerciseChange}
           style={{ width: '100%', marginBottom: '10px' }}
         />
       )}
@@ -158,4 +172,4 @@ const LadderSessionControls = ({
   );
 };
 
-export default LadderSessionControls; 
+export default React.memo(LadderSessionControls); 

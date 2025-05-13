@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import './MinimalTracker.css'; // Use new layout styles
 import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils';
@@ -20,6 +20,11 @@ import { Gear } from 'phosphor-react';
 import SettingsOverlay from './SettingsOverlay';
 import { RepCounterProvider } from './RepCounterContext';
 import RepGoalDisplayContainer from './RepGoalDisplayContainer';
+
+// Get exercise options once outside the component to avoid re-computation
+const exerciseOptions = Object.values(exercises)
+  .filter(e => e && e.id && e.name)
+  .sort((a, b) => a.name.localeCompare(b.name)); // Pre-sort the options
 
 const MinimalTracker = () => {
   // References
@@ -47,10 +52,10 @@ const MinimalTracker = () => {
   const [selectedExercise, setSelectedExercise] = useState(() => {
     const initialExerciseId = appSettings.selectedExerciseId;
     if (initialExerciseId) {
-      const foundExercise = Object.values(exercises).find(ex => ex.id === initialExerciseId);
+      const foundExercise = exerciseOptions.find(ex => ex.id === initialExerciseId);
       if (foundExercise) return foundExercise;
     }
-    return Object.values(exercises)[0]; // Default
+    return exerciseOptions[0]; // Default
   });
   const [trackedAngles, setTrackedAngles] = useState({});
   const [rawAngles, setRawAngles] = useState({});
@@ -80,9 +85,6 @@ const MinimalTracker = () => {
   const MAX_SAMPLES = 300; // samples for fps and inference time
   const ANGLE_SMOOTHING_WINDOW = 25; // Number of frames to use for angle smoothing (approx. 0.5s at 30fps)
 
-  // Get exercise options from imported exercises
-  const exerciseOptions = Object.values(exercises).filter(e => e && e.id && e.name);
-
   // Handlers that update state and appSettings
   const handleExerciseChange = useCallback((newExercise) => {
     setSelectedExercise(newExercise);
@@ -99,8 +101,6 @@ const MinimalTracker = () => {
   }, [updateAppSettings]);
 
   const togglePhaseModeAndUpdateSettings = useCallback((checked) => {
-    // If checked is passed directly from the Switch component, use it
-    // Otherwise toggle the current value
     setUseThreePhases(prev => {
       const newValue = checked !== undefined ? checked : !prev;
       updateAppSettings({ useThreePhases: newValue });
@@ -130,12 +130,11 @@ const MinimalTracker = () => {
         randomExercise = exerciseOptions[0];
       }
       
-      // Don't call handleExerciseChange here - it's causing the duplicate logs
       console.log('[MinimalTracker] Random exercise selected:', randomExercise?.name);
       return randomExercise;
     }
     return null;
-  }, [exerciseOptions]);
+  }, []);  // No dependencies needed since exerciseOptions is now static
 
   // Use the timed session logic hook
   const {
@@ -169,18 +168,26 @@ const MinimalTracker = () => {
     selectExerciseForLadder,
   } = useLadderSessionLogic(selectRandomExercise);
 
-  // Combined session state based on current workout mode
-  const isSessionActive = workoutMode === 'session' ? isTimedSessionActive : 
-                            workoutMode === 'ladder' ? isLadderSessionActive : false;
+  // Memoize combined session state based on current workout mode
+  const isSessionActive = useMemo(() => 
+    workoutMode === 'session' ? isTimedSessionActive : 
+    workoutMode === 'ladder' ? isLadderSessionActive : false,
+  [workoutMode, isTimedSessionActive, isLadderSessionActive]);
   
-  const sessionPhase = workoutMode === 'session' ? timedSessionPhase : 
-                        workoutMode === 'ladder' ? ladderSessionPhase : 'idle';
+  const sessionPhase = useMemo(() => 
+    workoutMode === 'session' ? timedSessionPhase : 
+    workoutMode === 'ladder' ? ladderSessionPhase : 'idle',
+  [workoutMode, timedSessionPhase, ladderSessionPhase]);
   
-  const currentTimerValue = workoutMode === 'session' ? timedSessionTimerValue : 
-                             workoutMode === 'ladder' ? ladderSessionTimerValue : 0;
+  const currentTimerValue = useMemo(() => 
+    workoutMode === 'session' ? timedSessionTimerValue : 
+    workoutMode === 'ladder' ? ladderSessionTimerValue : 0,
+  [workoutMode, timedSessionTimerValue, ladderSessionTimerValue]);
   
-  const currentExercise = workoutMode === 'session' ? timedSessionCurrentExercise : 
-                           workoutMode === 'ladder' ? ladderSessionCurrentExercise : null;
+  const currentExercise = useMemo(() => 
+    workoutMode === 'session' ? timedSessionCurrentExercise : 
+    workoutMode === 'ladder' ? ladderSessionCurrentExercise : null,
+  [workoutMode, timedSessionCurrentExercise, ladderSessionCurrentExercise]);
   
   // Handler to toggle the active session based on workout mode
   const handleToggleSession = useCallback(() => {
@@ -191,8 +198,13 @@ const MinimalTracker = () => {
     }
   }, [workoutMode, handleToggleTimedSession, handleToggleLadderSession]);
 
-  // Handler to change workout mode
-  const handleWorkoutModeChange = (mode) => {
+  // Handler for ladder exercise selection
+  const handleLadderExerciseChange = useCallback((exercise) => {
+    selectExerciseForLadder(exercise);
+  }, [selectExerciseForLadder]);
+
+  // Handler to change workout mode - memoized to avoid recreation
+  const handleWorkoutModeChange = useCallback((mode) => {
     if (isSessionActive) {
       console.warn("Cannot change workout mode while a session is active. Please stop the session first.");
       return;
@@ -205,12 +217,13 @@ const MinimalTracker = () => {
     if (isLadderSessionActive) {
       handleToggleLadderSession();
     }
-  };
-
-  // Handler for ladder exercise selection
-  const handleLadderExerciseChange = useCallback((exercise) => {
-    selectExerciseForLadder(exercise);
-  }, [selectExerciseForLadder]);
+  }, [
+    isSessionActive, 
+    isTimedSessionActive, 
+    isLadderSessionActive, 
+    handleToggleTimedSession, 
+    handleToggleLadderSession
+  ]);
 
   // Initialize MediaPipe
   const initializePoseLandmarker = async () => {
@@ -465,6 +478,89 @@ const MinimalTracker = () => {
     setRepGoal(10);
   }, [selectedExercise]);
 
+  // Memoize TrackerControlsBar props to minimize recalculations during rendering
+  const trackerControlsProps = useMemo(() => ({
+    cameraStarted: cameraStarted && !isLoading && !errorMessage,
+    stats,
+    landmarksData,
+    smoothingEnabled,
+    smoothingWindow: ANGLE_SMOOTHING_WINDOW,
+    exerciseOptions,
+    selectedExercise,
+    onExerciseChange: handleExerciseChange,
+    isSessionActive,
+    currentTimerValue,
+    onToggleSession: handleToggleSession,
+    workoutMode,
+    onWorkoutModeChange: handleWorkoutModeChange,
+    currentExercise,
+    upcomingExercise: timedSessionUpcomingExercise,
+    sessionPhase,
+    totalSets: workoutMode === 'session' ? timedSessionTotalSets : 
+               workoutMode === 'ladder' ? ladderTotalSets : 0,
+    currentSetNumber: workoutMode === 'session' ? timedSessionCurrentSetNumber : 
+                      workoutMode === 'ladder' ? ladderCurrentSetNumber : 0,
+    onSessionSettingsChange: updateSessionSettings,
+    sessionSettings,
+    currentReps,
+    onCompleteSet: completeCurrentSet,
+    onLadderSettingsChange: updateLadderSettings,
+    ladderSettings,
+    direction,
+    selectedLadderExercise,
+    onLadderExerciseChange: handleLadderExerciseChange,
+  }), [
+    cameraStarted,
+    isLoading,
+    errorMessage,
+    stats,
+    landmarksData,
+    smoothingEnabled,
+    selectedExercise,
+    handleExerciseChange,
+    isSessionActive,
+    currentTimerValue,
+    handleToggleSession,
+    workoutMode,
+    handleWorkoutModeChange,
+    currentExercise,
+    timedSessionUpcomingExercise,
+    sessionPhase,
+    timedSessionTotalSets,
+    ladderTotalSets,
+    timedSessionCurrentSetNumber,
+    ladderCurrentSetNumber,
+    updateSessionSettings,
+    sessionSettings,
+    currentReps,
+    completeCurrentSet,
+    updateLadderSettings,
+    ladderSettings,
+    direction,
+    selectedLadderExercise,
+    handleLadderExerciseChange
+  ]);
+  
+  // Use useMemo for BottomControls props as well
+  const bottomControlsProps = useMemo(() => ({
+    cameraStarted,
+    isLoading,
+    errorMessage,
+    repGoal,
+    setRepGoal,
+    selectedExercise,
+    weight,
+    onWeightChange: handleWeightChange
+  }), [
+    cameraStarted,
+    isLoading,
+    errorMessage,
+    repGoal,
+    selectedExercise,
+    weight,
+    handleWeightChange
+  ]);
+
   return (
     <RepCounterProvider>
       <div className="minimal-tracker-root">
@@ -481,40 +577,8 @@ const MinimalTracker = () => {
           </ActionIcon>
         )}
 
-        {/* Controls overlay - only show after camera started */}
-        <TrackerControlsBar
-          cameraStarted={cameraStarted && !isLoading && !errorMessage}
-          stats={stats}
-          landmarksData={landmarksData}
-          smoothingEnabled={smoothingEnabled}
-          smoothingWindow={ANGLE_SMOOTHING_WINDOW}
-          exerciseOptions={exerciseOptions}
-          selectedExercise={selectedExercise}
-          onExerciseChange={handleExerciseChange}
-          isSessionActive={isSessionActive}
-          currentTimerValue={currentTimerValue}
-          onToggleSession={handleToggleSession}
-          workoutMode={workoutMode}
-          onWorkoutModeChange={handleWorkoutModeChange}
-          currentExercise={currentExercise}
-          upcomingExercise={timedSessionUpcomingExercise}  // Only used in timed mode
-          sessionPhase={sessionPhase}
-          // Timed session specific props
-          totalSets={workoutMode === 'session' ? timedSessionTotalSets : 
-                     workoutMode === 'ladder' ? ladderTotalSets : 0}
-          currentSetNumber={workoutMode === 'session' ? timedSessionCurrentSetNumber : 
-                            workoutMode === 'ladder' ? ladderCurrentSetNumber : 0}
-          onSessionSettingsChange={updateSessionSettings}
-          sessionSettings={sessionSettings}
-          // Ladder session specific props
-          currentReps={currentReps}
-          onCompleteSet={completeCurrentSet}
-          onLadderSettingsChange={updateLadderSettings}
-          ladderSettings={ladderSettings}
-          direction={direction}
-          selectedLadderExercise={selectedLadderExercise}
-          onLadderExerciseChange={handleLadderExerciseChange}
-        />
+        {/* Use memoized props */}
+        <TrackerControlsBar {...trackerControlsProps} />
 
         {/* Show loading spinner only after camera button is clicked and while loading */}
         {isLoading && cameraStarted && <LoadingDisplay />}
@@ -606,17 +670,7 @@ const MinimalTracker = () => {
             </div>
           )}
           
-          {/* Bottom-center controls container - Replaced by BottomControls component */}
-          <BottomControls 
-            cameraStarted={cameraStarted}
-            isLoading={isLoading}
-            errorMessage={errorMessage}
-            repGoal={repGoal}
-            setRepGoal={setRepGoal}
-            selectedExercise={selectedExercise}
-            weight={weight}
-            onWeightChange={handleWeightChange}
-          />
+          <BottomControls {...bottomControlsProps} />
         </div>
 
         {/* Settings Overlay Drawer */}
