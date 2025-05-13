@@ -1,5 +1,4 @@
 import React from 'react';
-import { Stack } from '@mantine/core';
 import LargeRepGoalDisplay from './LargeRepGoalDisplay';
 import { useRepCounter } from './RepCounterContext';
 
@@ -19,6 +18,17 @@ const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false, ladderReps 
   // Use ladder reps as the goal if provided, otherwise use repGoal
   const goalReps = ladderReps !== null ? ladderReps : repGoal;
   
+  // Common styles
+  const containerStyle = {
+    position: 'absolute',
+    bottom: 20, // Increased to be higher from bottom
+    width: 'auto',
+    height: 'auto', // Explicitly match display height
+    margin: 0,
+    padding: 0,
+    zIndex: 999, // Higher z-index to ensure visibility
+  };
+  
   if (isTwoSided) {
     // For two-sided exercises, position displays in bottom left and right corners
     return (
@@ -26,13 +36,8 @@ const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false, ladderReps 
         {/* Left side display - bottom left corner */}
         <div 
           style={{
-            position: 'absolute',
-            bottom: 20, // Higher position to avoid bottom controls
+            ...containerStyle,
             left: 20,
-            zIndex: 10,
-            pointerEvents: 'auto',
-            width: '300px', // Match the width of LargeRepGoalDisplay
-            display: 'block', // Block display
           }}
         >
           <LargeRepGoalDisplay 
@@ -45,13 +50,8 @@ const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false, ladderReps 
         {/* Right side display - bottom right corner */}
         <div 
           style={{
-            position: 'absolute',
-            bottom: 20, // Higher position to avoid bottom controls
+            ...containerStyle,
             right: 20,
-            zIndex: 10,
-            pointerEvents: 'auto',
-            width: '300px', // Match the width of LargeRepGoalDisplay
-            display: 'block', // Block display
           }}
         >
           <LargeRepGoalDisplay 
@@ -67,13 +67,8 @@ const RepGoalDisplayContainer = ({ repGoal = 10, isTwoSided = false, ladderReps 
     return (
       <div 
         style={{
-          position: 'absolute',
-          bottom: 20, // Higher position to avoid bottom controls
+          ...containerStyle,
           left: 20,
-          zIndex: 10,
-          pointerEvents: 'auto',
-          width: '300px', // Match the width of LargeRepGoalDisplay
-          display: 'block', // Block display
         }}
       >
         <LargeRepGoalDisplay 

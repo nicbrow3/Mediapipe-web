@@ -673,7 +673,7 @@ const MinimalTrackerContent = () => {
         <StartButton onClick={handleStartCamera} />
       )}
 
-      <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible' }}>
+      <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible', position: 'relative' }}>
         <VideoCanvas
           videoRef={videoRef}
           canvasRef={canvasRef}
@@ -682,6 +682,15 @@ const MinimalTrackerContent = () => {
           height={canvasDimensions.height}
           cameraStarted={cameraStarted}
         />
+        
+        {/* Rep Goal Display Container - Moved before overlay stacks and positioned directly in video container */}
+        {cameraStarted && !isLoading && !errorMessage && (
+          <RepGoalDisplayContainer 
+            repGoal={repGoal}
+            isTwoSided={getActiveExercise.isTwoSided}
+            ladderReps={workoutMode === 'ladder' && isLadderSessionActive ? currentReps : null}
+          />
+        )}
         
         {/* Overlay stacks for left and right-aligned UI */}
         <div className="minimal-tracker-overlay">
@@ -730,17 +739,6 @@ const MinimalTrackerContent = () => {
             />
           </div>
         </div>
-        
-        {/* Rep Goal Display Container */}
-        {cameraStarted && !isLoading && !errorMessage && (
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
-            <RepGoalDisplayContainer 
-              repGoal={repGoal}
-              isTwoSided={getActiveExercise.isTwoSided}
-              ladderReps={workoutMode === 'ladder' && isLadderSessionActive ? currentReps : null}
-            />
-          </div>
-        )}
         
         <BottomControls {...bottomControlsProps} />
       </div>

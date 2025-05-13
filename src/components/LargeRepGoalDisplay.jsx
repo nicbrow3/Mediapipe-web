@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, Box, RingProgress, Group, Paper } from '@mantine/core';
+import { Text, RingProgress, Paper, Group, Stack, Box } from '@mantine/core';
 
 /**
  * Large Rep Goal Display component
@@ -24,74 +24,74 @@ const LargeRepGoalDisplay = ({ currentReps = 0, goalReps = 10, side = null }) =>
     return '#4682B4'; // Steel blue
   };
 
+  // Use a highly controlled rendering with Mantine components
   return (
     <Paper
       p="md"
-      radius="lg"
-      sx={(theme) => ({
-        backgroundColor: 'rgba(38, 50, 56, 0.85)', // Dark semi-transparent background
+      radius="md"
+      bg="rgba(38, 50, 56, 0.64)"
+      sx={{
         backdropFilter: 'blur(8px)',
         boxShadow: '0 4px 30px rgba(0, 0, 0, 0.2)',
         border: '1px solid rgba(255, 255, 255, 0.1)',
         transition: 'all 0.3s ease',
-        width: '300px', // Wider fixed width
-        maxHeight: '150px', // Control height
-        display: 'block',
-        pointerEvents: 'auto', // Make sure controls within are clickable
-        '&:hover': {
-          backgroundColor: 'rgba(110, 37, 162, 0.9)',
-        },
-      })}
+        width: '100%',
+        // height: 'fit-content',
+        overflow: 'hidden'
+      }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      <Group spacing="xs">
+        {/* Side indicator (if present) */}
         {side && (
-          <Text
-            align="center"
-            fw={700}
-            fz="lg"
-            color="#FFF"
-            mb={5}
-            sx={{ textTransform: 'uppercase' }}
-          >
-            {side}
-          </Text>
-        )}
-        
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <RingProgress
-            size={100} // Slightly smaller for better layout
-            thickness={8}
-            roundCaps
-            sections={[{ value: progress, color: getColor() }]}
-            label={
-              <Text color="white" weight={700} align="center" size={24}>
-                {currentReps}
-              </Text>
-            }
-          />
-          
-          <Box sx={{ textAlign: 'center', width: '100px' }}>
-            <Text color="white" size="xs" weight={700}>
-              GOAL
-            </Text>
-            <Text color="white" weight={700} size={28}>
-              {goalReps}
-            </Text>
+          <Box w={24} ta="center">
+            <Text fz="lg" sx={{ lineHeight: 1.2, userSelect: 'none' }}>{side}</Text>
           </Box>
-        </div>
-        
-        {progress >= 100 && (
-          <Text
-            align="center"
-            color="#8AFF8A"
-            weight={700}
-            mt={5}
-            size="sm"
-          >
-            COMPLETE!
-          </Text>
         )}
-      </div>
+        
+        {/* Progress ring */}
+        <RingProgress
+          size={120}
+          thickness={10}
+          roundCaps
+          sections={[{ value: progress, color: getColor() }]}
+          // label={
+          //   <Text align="center" size={40} sx={{ lineHeight: 1.2, userSelect: 'none' }}>
+          //     {currentReps}
+          //   </Text>
+          // }
+          label={
+            <Text c="white" ta="center" size="xl">
+              {currentReps}
+            </Text>
+          }
+        />
+        
+        {/* Goal display */}
+        <Box w={80} h={120} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', border: '1px solid red' }}>
+          <Text c="white" size="lg" sx={{ lineHeight: 1.2, userSelect: 'none' }}>
+            GOAL
+          </Text>
+          <Text c="white" ta="center" size="xl">
+            {goalReps}
+          </Text>
+          {/* <Text color="white" size={40} sx={{ lineHeight: 1.2, userSelect: 'none' }}>
+            {goalReps}
+          </Text> */}
+          
+          {/* Show complete indicator if goal reached */}
+          {progress >= 100 && (
+            <Text
+              ta="center"
+              c="#8AFF8A"
+              weight={700}
+              size="xs"
+              sx={{ lineHeight: 1, marginTop: '2px', userSelect: 'none' }}
+            >
+              COMPLETE!
+            </Text>
+          )}
+        </Box>
+      </Group>
     </Paper>
   );
 };
