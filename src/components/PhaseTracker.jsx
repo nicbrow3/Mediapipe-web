@@ -34,29 +34,13 @@ const PhaseTracker = ({
     minimumVisibilityThreshold,
     requireSecondaryLandmarks
   } = settings;
-  
-  console.log(`[PhaseTracker (${side})] Initializing with settings:`, {
-    requireAllLandmarks,
-    minimumVisibilityThreshold,
-    requireSecondaryLandmarks,
-    useThreePhasesProp: useThreePhases, // Log the prop value for comparison
-    landmarkVisibilityProp: landmarkVisibility // Log the prop value
-  });
+
   
   // Get the updateRepCount function from context
   const { updateRepCount, updateTrackingState, isTrackingEnabled } = useRepCounter();
   
   // Update tracking state based on landmark visibility and app settings
   useEffect(() => {
-    console.log(`[PhaseTracker (${side})] Visibility useEffect. Settings from hook:`, {
-      requireAllLandmarks,
-      minimumVisibilityThreshold,
-      requireSecondaryLandmarks
-    });
-    console.log(`[PhaseTracker (${side})] Visibility useEffect. Props:`, {
-      landmarkVisibilityProp: landmarkVisibility // Prop
-    });
-
     // Pass to the global context (for backward compatibility)
     updateTrackingState(landmarkVisibility);
     
@@ -101,20 +85,6 @@ const PhaseTracker = ({
     
     // Store the failure reason
     failureReasonRef.current = failureReason;
-    
-    // Log detailed information about the visibility check
-    // console.log(`PhaseTracker (${side}) - Visibility check:`, {
-    //   requireAllLandmarks,
-    //   primaryVisibility: Number(primaryLandmarks.minVisibility),
-    //   threshold: Number(minimumVisibilityThreshold),
-    //   allVisible: primaryLandmarks.allVisible,
-    //   secondaryRequired: requireSecondaryLandmarks,
-    //   secondaryProvided: secondaryLandmarks !== undefined,
-    //   secondaryVisibility: secondaryLandmarks?.minVisibility,
-    //   secondaryAllVisible: secondaryLandmarks?.allVisible,
-    //   finalDecision: shouldTrackLocally,
-    //   failureReason
-    // });
     
     setIsLocalTrackingEnabled(shouldTrackLocally);
     
