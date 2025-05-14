@@ -64,9 +64,6 @@ const MinimalTrackerContent = () => {
   const [smoothingEnabled, setSmoothingEnabled] = useState(appSettings.isSmoothingEnabled);
   const [weight, setWeight] = useState(appSettings.selectedWeights !== null ? appSettings.selectedWeights : 0);
   const [repGoal, setRepGoal] = useState(10);
-  const [useThreePhases, setUseThreePhases] = useState(appSettings.useThreePhases);
-
-  // Workout Mode State
   const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual', 'session', or 'ladder'
 
   // Access the rep counter functionality
@@ -105,11 +102,25 @@ const MinimalTrackerContent = () => {
   }, [updateAppSettings]);
 
   const togglePhaseModeAndUpdateSettings = useCallback((checked) => {
-    setUseThreePhases(prev => {
-      const newValue = checked !== undefined ? checked : !prev;
-      updateAppSettings({ useThreePhases: newValue });
-      return newValue;
-    });
+    const newValue = checked !== undefined ? checked : !appSettings.useThreePhases;
+    updateAppSettings({ useThreePhases: newValue });
+  }, [updateAppSettings, appSettings.useThreePhases]);
+
+  const toggleLandmarkVisibilityAndUpdateSettings = useCallback((checked) => {
+    const newValue = checked !== undefined ? checked : !appSettings.requireAllLandmarks;
+    console.log('[MinimalTracker] toggleLandmarkVisibilityAndUpdateSettings - new value:', newValue);
+    updateAppSettings({ requireAllLandmarks: newValue });
+  }, [updateAppSettings, appSettings.requireAllLandmarks]);
+
+  const updateMinimumVisibilityAndSettings = useCallback((value) => {
+    const numericValue = Number(value);
+    console.log('[MinimalTracker] updateMinimumVisibilityAndSettings - new value:', numericValue);
+    updateAppSettings({ minimumVisibilityThreshold: numericValue });
+  }, [updateAppSettings]);
+
+  const toggleSecondaryLandmarksAndUpdateSettings = useCallback((checked) => {
+    console.log('[MinimalTracker] toggleSecondaryLandmarksAndUpdateSettings - new value:', checked);
+    updateAppSettings({ requireSecondaryLandmarks: checked });
   }, [updateAppSettings]);
 
   const handleWeightChange = useCallback((newWeight) => {
@@ -330,7 +341,7 @@ const MinimalTrackerContent = () => {
   // Main render loop
   const renderLoop = useCallback(async (now) => {
     if (!poseLandmarkerRef.current || !videoRef.current || !canvasRef.current) {
-      requestAnimationRef.current = requestAnimationFrame(renderLoop);
+      requestAnimationRef.current = requestAnimationFrame(renderLoop); // Re-enable continuation
       return;
     }
 
@@ -406,7 +417,7 @@ const MinimalTrackerContent = () => {
     }
 
     // Continue the render loop
-    requestAnimationRef.current = requestAnimationFrame(renderLoop);
+    requestAnimationRef.current = requestAnimationFrame(renderLoop); // Re-enable continuation
   }, [updateStats]);
 
   // Start camera and tracking
@@ -443,7 +454,7 @@ const MinimalTrackerContent = () => {
       setIsLoading(false);
       
       lastFrameTimeRef.current = performance.now();
-      requestAnimationRef.current = requestAnimationFrame(renderLoop);
+      requestAnimationRef.current = requestAnimationFrame(renderLoop); // Re-enable initial start
     } catch (error) {
       console.error('Error during setup:', error);
       setErrorMessage(`Setup error: ${error.message}`);
@@ -707,7 +718,8 @@ const MinimalTrackerContent = () => {
               displaySide="left"
               selectedExercise={getActiveExercise}
               trackedAngles={trackedAngles}
-              useThreePhases={useThreePhases}
+              useThreePhases={appSettings.useThreePhases}
+              landmarksData={landmarksData}
             />
             <LandmarkMetricsDisplay2
               displaySide="left"
@@ -729,7 +741,8 @@ const MinimalTrackerContent = () => {
               displaySide="right"
               selectedExercise={getActiveExercise}
               trackedAngles={trackedAngles}
-              useThreePhases={useThreePhases}
+              useThreePhases={appSettings.useThreePhases}
+              landmarksData={landmarksData}
             />
             <LandmarkMetricsDisplay2
               displaySide="right"
@@ -749,8 +762,14 @@ const MinimalTrackerContent = () => {
         onClose={() => setIsSettingsOpen(false)}
         smoothingEnabled={smoothingEnabled}
         onSmoothingChange={toggleSmoothingAndUpdateSettings}
-        useThreePhases={useThreePhases}
+        useThreePhases={appSettings.useThreePhases}
         onPhaseModeChange={togglePhaseModeAndUpdateSettings}
+        requireAllLandmarks={appSettings.requireAllLandmarks}
+        onLandmarkVsibilityModeChange={toggleLandmarkVisibilityAndUpdateSettings}
+        minimumVisibilityThreshold={appSettings.minimumVisibilityThreshold}
+        onMinimumVisibilityChange={updateMinimumVisibilityAndSettings}
+        requireSecondaryLandmarks={appSettings.requireSecondaryLandmarks}
+        onSecondaryLandmarksChange={toggleSecondaryLandmarksAndUpdateSettings}
       />
     </div>
   );

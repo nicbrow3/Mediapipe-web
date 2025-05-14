@@ -1,16 +1,16 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
 
 const APP_SETTINGS_KEY = 'mediapipeWebAppSettings';
 
-// Define your default settings here
-// You'll need to adjust these defaults to match your application's needs
+// Default settings
 const DEFAULT_SETTINGS = {
   selectedExerciseId: null,
   isSmoothingEnabled: false,
   selectedWeights: null, // Or a default weight object/value
-  useThreePhases: false, // Controls whether to use 3 or 4 phases
-  // Add other future settings keys here with default values
-  // e.g., theme: 'light',
+  useThreePhases: false, // Controls whether to use 3 or 4 phases for rep counting
+  requireAllLandmarks: false, // Now means "require primary landmarks"
+  minimumVisibilityThreshold: 25, // Renamed from minimumVisibilityAllLandmarks
+  requireSecondaryLandmarks: false,
 };
 
 export function loadAppSettings() {
@@ -19,9 +19,24 @@ export function loadAppSettings() {
     if (serializedSettings === null) {
       return DEFAULT_SETTINGS;
     }
+    
+    // Parse the stored settings
+    const storedSettings = JSON.parse(serializedSettings);
+    
+    // Handle migration from old setting name to new one
+    if (storedSettings.minimumVisibilityAllLandmarks !== undefined && storedSettings.minimumVisibilityThreshold === undefined) {
+      storedSettings.minimumVisibilityThreshold = storedSettings.minimumVisibilityAllLandmarks;
+      delete storedSettings.minimumVisibilityAllLandmarks;
+    }
+    
+    // Ensure numeric values are parsed as numbers
+    if (storedSettings.minimumVisibilityThreshold !== undefined) {
+      storedSettings.minimumVisibilityThreshold = Number(storedSettings.minimumVisibilityThreshold);
+    }
+    
     // Merge stored settings with defaults to ensure all keys are present
     // and new default settings are picked up if not in localStorage yet.
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(serializedSettings) };
+    return { ...DEFAULT_SETTINGS, ...storedSettings };
   } catch (error) {
     console.error("Error loading app settings from localStorage:", error);
     return DEFAULT_SETTINGS; // Fallback to defaults on error
@@ -37,22 +52,51 @@ export function saveAppSettings(settings) {
   }
 }
 
-// Custom Hook
-export function useAppSettings() {
+// Create a Context
+const AppSettingsContext = createContext();
+
+// Create a Provider Component
+export function AppSettingsProvider({ children }) {
   const [settings, setSettingsState] = useState(() => loadAppSettings());
 
   const updateSettings = useCallback((newValues) => {
     setSettingsState(prevSettings => {
-      // newValues can be an object with new settings to merge,
-      // or a function that takes previous settings and returns the new state
+      console.log('[useAppSettingsProvider] updateSettings received newValues:', newValues);
       const updatedSettings = typeof newValues === 'function'
         ? newValues(prevSettings)
         : { ...prevSettings, ...newValues };
       
+      console.log('[useAppSettingsProvider] Storing updatedSettings:', updatedSettings);
       saveAppSettings(updatedSettings);
       return updatedSettings;
     });
   }, []);
 
-  return [settings, updateSettings];
+  // Optional: Listen for storage changes from other tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === APP_SETTINGS_KEY && event.storageArea === localStorage) {
+        console.log('[useAppSettingsProvider] localStorage changed by another tab/window. Reloading settings.');
+        setSettingsState(loadAppSettings());
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  return (
+    <AppSettingsContext.Provider value={{ settings, updateSettings }}>
+      {children}
+    </AppSettingsContext.Provider>
+  );
+}
+
+// Custom Hook to consume the context
+export function useAppSettings() {
+  const context = useContext(AppSettingsContext);
+  if (!context) {
+    throw new Error('useAppSettings must be used within an AppSettingsProvider');
+  }
+  // Return in the same [value, updater] format for minimal changes in consuming components
+  return [context.settings, context.updateSettings];
 } 

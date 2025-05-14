@@ -1,23 +1,141 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './PhaseTracker.css';
 import { useRepCounter } from './RepCounterContext';
+import { useAppSettings } from '../hooks/useAppSettings';
 
-const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
+// Analyzing angle measurements through different movement phases
+// Using a phase sequence buffer to track movement patterns
+// Detects complete rep cycles (relaxed → peak contraction → relaxed)
+// Calls updateRepCount('left', newRepCount) or updateRepCount('right', newRepCount)
+//  to update the global rep count in the context
+
+const PhaseTracker = ({ 
+  angle, 
+  angleConfig, 
+  side, 
+  useThreePhases = false, 
+  landmarkVisibility = {
+    primaryLandmarks: { allVisible: true, minVisibility: 100 },
+    secondaryLandmarks: { allVisible: true, minVisibility: 100 }
+  }
+}) => {
   const [phase, setPhase] = useState(0);
   const [repCount, setRepCount] = useState(0);
   const phaseSequenceRef = useRef([]);
   const lastPhaseRef = useRef(null);
+  const [isLocalTrackingEnabled, setIsLocalTrackingEnabled] = useState(true);
+  
+  // Get app settings
+  const [settings] = useAppSettings();
+  
+  // Extract specific settings we care about to include in dependencies
+  const { 
+    requireAllLandmarks,
+    minimumVisibilityThreshold,
+    requireSecondaryLandmarks
+  } = settings;
+  
+  console.log(`[PhaseTracker (${side})] Initializing with settings:`, {
+    requireAllLandmarks,
+    minimumVisibilityThreshold,
+    requireSecondaryLandmarks,
+    useThreePhasesProp: useThreePhases, // Log the prop value for comparison
+    landmarkVisibilityProp: landmarkVisibility // Log the prop value
+  });
   
   // Get the updateRepCount function from context
-  const { updateRepCount } = useRepCounter();
+  const { updateRepCount, updateTrackingState, isTrackingEnabled } = useRepCounter();
+  
+  // Update tracking state based on landmark visibility and app settings
+  useEffect(() => {
+    console.log(`[PhaseTracker (${side})] Visibility useEffect. Settings from hook:`, {
+      requireAllLandmarks,
+      minimumVisibilityThreshold,
+      requireSecondaryLandmarks
+    });
+    console.log(`[PhaseTracker (${side})] Visibility useEffect. Props:`, {
+      landmarkVisibilityProp: landmarkVisibility // Prop
+    });
+
+    // Pass to the global context (for backward compatibility)
+    updateTrackingState(landmarkVisibility);
+    
+    // Local tracking check for this specific side, respecting app settings
+    const { primaryLandmarks, secondaryLandmarks = { allVisible: false, minVisibility: 0 } } = landmarkVisibility;
+    
+    // Default to tracking enabled unless settings require landmark visibility
+    let shouldTrackLocally = true;
+    let failureReason = null; // Track the reason for failure
+    
+    if (requireAllLandmarks) {
+      // Check primary landmarks against the configured threshold
+      // Convert values to numbers to ensure proper comparison
+      const primVisibility = Number(primaryLandmarks.minVisibility);
+      const threshold = Number(minimumVisibilityThreshold);
+      
+      // Primary landmarks check - this always happens if requireAllLandmarks is true
+      if (!primaryLandmarks.allVisible || primVisibility < threshold) {
+        shouldTrackLocally = false;
+        failureReason = 'primary';
+      }
+      
+      // Secondary landmarks check - only if both the checkbox is enabled AND we passed the primary check
+      if (requireSecondaryLandmarks && shouldTrackLocally) {
+        // Check if we have secondary landmarks to check
+        if (secondaryLandmarks) {
+          const secVisible = Boolean(secondaryLandmarks.allVisible);
+          const secVisibility = Number(secondaryLandmarks.minVisibility || 0);
+          
+          // Update tracking only if the secondary landmarks fail the check
+          if (!secVisible || secVisibility < threshold) {
+            shouldTrackLocally = false;
+            failureReason = 'secondary';
+          }
+        } else {
+          // No secondary landmarks data but required - default to not track
+          shouldTrackLocally = false;
+          failureReason = 'secondary_missing';
+        }
+      }
+    }
+    
+    // Store the failure reason
+    failureReasonRef.current = failureReason;
+    
+    // Log detailed information about the visibility check
+    // console.log(`PhaseTracker (${side}) - Visibility check:`, {
+    //   requireAllLandmarks,
+    //   primaryVisibility: Number(primaryLandmarks.minVisibility),
+    //   threshold: Number(minimumVisibilityThreshold),
+    //   allVisible: primaryLandmarks.allVisible,
+    //   secondaryRequired: requireSecondaryLandmarks,
+    //   secondaryProvided: secondaryLandmarks !== undefined,
+    //   secondaryVisibility: secondaryLandmarks?.minVisibility,
+    //   secondaryAllVisible: secondaryLandmarks?.allVisible,
+    //   finalDecision: shouldTrackLocally,
+    //   failureReason
+    // });
+    
+    setIsLocalTrackingEnabled(shouldTrackLocally);
+    
+  }, [
+    landmarkVisibility, 
+    updateTrackingState, 
+    requireAllLandmarks,
+    minimumVisibilityThreshold, 
+    requireSecondaryLandmarks
+  ]);
+  
+  // Add a ref to track the reason for tracking failure
+  const failureReasonRef = useRef(null);
   
   // Add debugging logs
   // console.log(`PhaseTracker (${side || 'unknown'}) - angle:`, angle);
   // console.log(`PhaseTracker (${side || 'unknown'}) - config:`, angleConfig);
   
   useEffect(() => {
-    if (angle === null || !angleConfig) {
-      // console.log(`PhaseTracker (${side || 'unknown'}) - skipping due to null angle or missing config`);
+    if (!isLocalTrackingEnabled || angle === null || !angleConfig) {
+      // Skip phase tracking if disabled or missing data
       return;
     }
     
@@ -123,12 +241,20 @@ const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
         }
       }
     }
-  }, [angle, angleConfig, phase, useThreePhases, repCount, side, updateRepCount]);
+  }, [angle, angleConfig, phase, useThreePhases, repCount, side, updateRepCount, isLocalTrackingEnabled]);
   
   // Visual representation of phases
   const getPhaseDisplay = () => {
     const numPhases = useThreePhases ? 3 : 4;
     const circles = [];
+    
+    // Determine if circles should be colored red due to low visibility
+    // Only apply the visibility warning visual if we actually require landmark visibility
+    const shouldWarn = requireAllLandmarks && !isLocalTrackingEnabled;
+    
+    const activeColor = shouldWarn ? '#ff5555' : '#45a29e'; // Red if visibility issue, teal otherwise
+    const inactiveColor = shouldWarn ? '#aa3333' : '#ccc'; // Dark red if visibility issue, gray otherwise
+    
     for (let i = 0; i < numPhases; i++) {
       circles.push(
         <div 
@@ -138,7 +264,7 @@ const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
             width: '10px',
             height: '10px',
             borderRadius: '50%',
-            backgroundColor: phase === i ? '#45a29e' : '#ccc',
+            backgroundColor: phase === i ? activeColor : inactiveColor,
             margin: '0 2px',
             display: 'inline-block'
           }}
@@ -146,6 +272,24 @@ const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
       );
     }
     return circles;
+  };
+  
+  // For debugging purposes, get actual visibility values
+  const getVisibilityLabel = () => {
+    if (requireAllLandmarks && !isLocalTrackingEnabled) {
+      const { primaryLandmarks, secondaryLandmarks = { allVisible: false, minVisibility: 0 } } = landmarkVisibility;
+      const threshold = Number(minimumVisibilityThreshold);
+      
+      // Check failure reason to give more specific information
+      if (failureReasonRef.current === 'secondary' || failureReasonRef.current === 'secondary_missing') {
+        // Secondary landmarks visibility is the reason
+        return `Low sec. vis: ${Math.round(secondaryLandmarks.minVisibility)}% < ${threshold}%`;
+      } else {
+        // Primary landmarks visibility is the reason
+        return `Low vis: ${Math.round(primaryLandmarks.minVisibility)}% < ${threshold}%`;
+      }
+    }
+    return null;
   };
   
   return (
@@ -162,6 +306,15 @@ const PhaseTracker = ({ angle, angleConfig, side, useThreePhases = false }) => {
       <div className="rep-count" style={{ fontSize: '14px' }}>
         Reps: {repCount}
       </div>
+      {requireAllLandmarks && !isLocalTrackingEnabled && (
+        <div style={{ 
+          fontSize: '10px', 
+          color: '#ff5555',
+          marginTop: '2px'
+        }}>
+          {getVisibilityLabel() || 'Low visibility'}
+        </div>
+      )}
     </div>
   );
 };

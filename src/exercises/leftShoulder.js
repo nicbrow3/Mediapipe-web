@@ -41,7 +41,7 @@ export const leftShoulder = {
                 // Let's assume we want to track shoulder abduction for the rep
                 id: 'leftShoulderAbductionRep',
                 side: 'left',
-                points: ['hip', 'shoulder', 'elbow'], // Angle of arm relative to body
+                points: ['wrist', 'shoulder', 'elbow'], // Angle of arm relative to body
                 minThreshold: 50,  // Arm slightly raised
                 maxThreshold: 90, // Arm parallel to ground (adjust as needed)
                 isRepCounter: true,

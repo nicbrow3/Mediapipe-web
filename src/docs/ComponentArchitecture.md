@@ -314,6 +314,27 @@ The useLadderSessionLogic hook manages the following ladder-specific state:
 - `currentSetNumber`: Current set being performed
 - `ladderSettings`: Configuration values for the ladder
 
+### Global Application Settings with `useAppSettings` and Context
+
+The `useAppSettings` hook is responsible for managing global application settings that persist across sessions, such as `isSmoothingEnabled`, `useThreePhases`, `requireAllLandmarks`, etc.
+
+**Previous Challenge:**
+Initially, `useAppSettings` utilized `useState` internally. This meant that each component invoking the hook received its own independent, local copy of the settings state. While settings were loaded from and saved to `localStorage`, changes made via `updateSettings` in one component were not immediately reflected in other components using the same hook. This could lead to inconsistencies, where some parts of the UI would only update after a page refresh.
+
+**Solution: React Context for Shared State:**
+To address this, `useAppSettings` has been refactored to leverage React Context.
+-   An `AppSettingsContext` is created.
+-   An `AppSettingsProvider` component now wraps the application (typically in `App.jsx`). This provider holds the actual settings state (`useState`) and the `updateSettings` function.
+-   The `useAppSettings` hook now uses `useContext(AppSettingsContext)` to access the shared `settings` object and `updateSettings` function from the provider.
+
+**Benefits of this Approach:**
+-   **Centralized State:** All components calling `useAppSettings` now access the *same instance* of the settings state.
+-   **Immediate Updates:** When `updateSettings` is called from any component, the state within `AppSettingsProvider` changes. This triggers a re-render of the provider, and consequently, all consuming components receive the new settings value and re-render if necessary.
+-   **Consistency:** This ensures that settings changes are applied globally and immediately, preventing desynchronization issues and the need for page refreshes to see updates. For example, toggling a setting in `SettingsOverlay.jsx` will now instantly affect behavior in `MinimalTracker.jsx`, `PhaseTracker.jsx`, and other components relying on these shared settings.
+-   **Simplified Logic:** Components no longer need to pass settings down through multiple layers of props if they can directly access them via the `useAppSettings` hook.
+
+This contextual approach for `useAppSettings` significantly improves the robustness and predictability of global settings management throughout the application.
+
 ## Helper Functions
 
 The architecture includes several reusable helper functions:
