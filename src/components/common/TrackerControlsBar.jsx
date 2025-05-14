@@ -3,7 +3,7 @@ import { Stack, SegmentedControl, Box } from '@mantine/core'; // Removed Group a
 import ExerciseSelector from '../ExerciseSelector'; // Assuming path
 import StatsDisplay from '../StatsDisplay';     // Assuming path
 import { globalStyles } from '../../styles/globalStyles';
-import SessionControls from './SessionControls'; // Import the new component
+import TimedSessionControls from './TimedSessionControls'; // Import the new component
 import LadderSessionControls from './LadderSessionControls'; // Import the ladder session component
 
 const TrackerControlsBar = ({
@@ -68,7 +68,7 @@ const TrackerControlsBar = ({
       );
     } else if (workoutMode === 'session') {
       return (
-        <SessionControls 
+        <TimedSessionControls 
           isSessionActive={isSessionActive}
           currentTimerValue={currentTimerValue}
           onToggleSession={onToggleSession}
@@ -144,7 +144,7 @@ const TrackerControlsBar = ({
   }), []);
 
   const segmentedControlStyle = useMemo(() => ({
-    maxWidth: '400px', 
+    maxWidth: '35%', 
     width: '100%'
   }), []);
 

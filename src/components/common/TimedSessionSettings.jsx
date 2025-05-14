@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Stack, Group, Text, NumberInput, Button } from '@mantine/core';
-import { globalStyles } from '../../styles/globalStyles';
+import { Stack, Group, Text, NumberInput, Button, Flex } from '@mantine/core';
 
 /**
  * SessionSettings Component
@@ -13,7 +12,7 @@ import { globalStyles } from '../../styles/globalStyles';
  * Settings are disabled during active sessions to prevent mid-session changes.
  * Changes are communicated to parent components via onSettingsChange callback.
  */
-const SessionSettings = ({
+const TimedSessionSettings = ({
   exerciseSetDuration = 30,
   restPeriodDuration = 15,
   totalSets = 10,
@@ -39,12 +38,15 @@ const SessionSettings = ({
   };
 
   return (
-    <Stack spacing="xs" p="md" style={{ maxWidth: '100%' }}>
-      <Text weight={500} size="sm">Session Configuration</Text>
+    <Stack gap="sm" p="md" style={{ maxWidth: '100%' }}>
+      {/* <Text weight={500} size="sm"> Configuration</Text> */}
       
-      <Group spacing="xs" grow style={{ alignItems: 'flex-start' }}>
+      <Flex
+      gap="md"
+      justify='center'
+      >
         <NumberInput
-          label="Exercise Time (sec)"
+          label="Exercise Time"
           value={sessionConfig.exerciseSetDuration}
           onChange={(value) => handleConfigChange('exerciseSetDuration', value)}
           min={5}
@@ -55,7 +57,7 @@ const SessionSettings = ({
         />
         
         <NumberInput
-          label="Rest Time (sec)"
+          label="Rest Time"
           value={sessionConfig.restPeriodDuration}
           onChange={(value) => handleConfigChange('restPeriodDuration', value)}
           min={5}
@@ -75,20 +77,9 @@ const SessionSettings = ({
           disabled={isSessionActive}
           style={{ flex: 1 }}
         />
-      </Group>
-      
-      {onStartSession && (
-        <Button 
-          onClick={() => onStartSession(sessionConfig)}
-          variant={globalStyles.buttonVariants.default}
-          color={isSessionActive ? 'red' : 'blue'}
-          fullWidth
-        >
-          {isSessionActive ? 'Stop Session' : 'Start Random Session'}
-        </Button>
-      )}
+      </Flex>
     </Stack>
   );
 };
 
-export default SessionSettings; 
+export default TimedSessionSettings; 

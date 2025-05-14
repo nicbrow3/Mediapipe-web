@@ -143,7 +143,7 @@ export const useLadderSessionLogic = (
         setSessionPhase('exercising');
         setCurrentTimerValue(0); // No timer for exercise phase
         setCurrentSetNumber(1); // Start with the first set
-        resetRepCounts(); // Reset rep counters when starting a new session
+        // Don't call resetRepCounts here - moved outside
       } else {
         setSessionPhase('idle');
         setCurrentTimerValue(0);
@@ -154,7 +154,13 @@ export const useLadderSessionLogic = (
       }
       return newIsActive;
     });
-  }, [selectRandomExercise, ladderSettings.startReps, selectedExercise, resetRepCounts]);
+    
+    // Call resetRepCounts in the next render cycle
+    if (!isSessionActive) {
+      // Only reset when activating the session
+      setTimeout(() => resetRepCounts(), 0);
+    }
+  }, [selectRandomExercise, ladderSettings.startReps, selectedExercise, resetRepCounts, isSessionActive]);
 
   // Function to move to next step in the ladder
   const moveToNextStep = useCallback(() => {
@@ -183,7 +189,9 @@ export const useLadderSessionLogic = (
     setSessionPhase('exercising');
     setCurrentTimerValue(0); // No timer for exercise phase
     setCurrentSetNumber(prev => prev + 1);
-    resetRepCounts(); // Reset rep counters when moving to next ladder level
+    
+    // Use setTimeout to avoid state updates during render
+    setTimeout(() => resetRepCounts(), 0);
   }, [isLadderComplete, calculateNextReps, ladderSettings, direction, resetRepCounts]);
 
   // Handler for completing a set of reps

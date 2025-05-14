@@ -55,7 +55,7 @@ const LadderSessionSettings = ({
 
   return (
     <Stack spacing="xs" p="md" style={{ maxWidth: '100%' }}>
-      <Text weight={500} size="sm">Ladder Configuration</Text>
+      {/* <Text weight={500} size="sm">Ladder Configuration</Text> */}
       
       <Group spacing="xs" grow style={{ alignItems: 'flex-start' }}>
         <NumberInput

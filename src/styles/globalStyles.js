@@ -93,17 +93,6 @@ export const getMantineThemeOverrides = (colorScheme) => ({
         radius: globalStyles.defaultBorderRadius,
         // size: 'md', // default size
       },
-      // variants: { // This is how you'd define variants in Mantine theme
-      //   primary: (theme) => ({
-      //     root: {
-      //       backgroundColor: globalStyles.colors.primary,
-      //       color: globalStyles.colors.lightText,
-      //       '&:hover': {
-      //         backgroundColor: theme.fn.darken(globalStyles.colors.primary, 0.1),
-      //       },
-      //     },
-      //   }),
-      // },
     },
     Card: {
       defaultProps: {
@@ -112,12 +101,6 @@ export const getMantineThemeOverrides = (colorScheme) => ({
         radius: globalStyles.defaultBorderRadius,
         // withBorder: true, // optional
       },
-      // styles: (theme) => ({ // Default styles for all cards
-      //   root: {
-      //     backgroundColor: globalStyles.cardStyles.background,
-      //     color: globalStyles.cardStyles.color,
-      //   }
-      // })
     },
     Loader: {
       defaultProps: {
@@ -128,7 +111,3 @@ export const getMantineThemeOverrides = (colorScheme) => ({
     // ... other component overrides
   },
 });
-
-// Note: For full Mantine theme integration, you'd pass `getMantineThemeOverrides`
-// to the `theme` prop of `MantineProvider` in App.jsx.
-// For now, we can import `globalStyles` directly into components. 

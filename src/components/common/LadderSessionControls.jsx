@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Text, Button, Group, Stack, Collapse, ActionIcon, Badge, Select } from '@mantine/core';
-import { globalStyles } from '../../styles/globalStyles';
+import { Text, Button, Group, Stack, Collapse, ActionIcon, Badge, Select, Paper } from '@mantine/core';
 import LadderSessionSettings from './LadderSessionSettings';
 import { CaretCircleDown, CaretCircleUp } from 'phosphor-react';
 
@@ -71,6 +70,7 @@ const LadderSessionControls = ({
   }, []);
 
   return (
+    <Paper style={{width: '100%'}}>
     <Stack spacing="xs" align="center" style={{ width: '100%' }}>
       <Group position="apart" style={{ width: '100%', alignItems: 'center' }}>
         <Text size="md" weight={500}>Ladder Session</Text>
@@ -84,17 +84,17 @@ const LadderSessionControls = ({
       </Group>
       
       <Collapse in={showSettings} style={{ width: '100%' }}>
-        <LadderSessionSettings 
-          ladderSettings={ladderSettings}
-          onSettingsChange={onSettingsChange}
-          isSessionActive={isSessionActive}
-        />
+          <LadderSessionSettings 
+            ladderSettings={ladderSettings}
+            onSettingsChange={onSettingsChange}
+            isSessionActive={isSessionActive}
+          />
       </Collapse>
       
       {/* Exercise Selector - only shown when session is not active */}
       {!isSessionActive && (
         <Select
-          label="Select Exercise for Ladder"
+        //   label="Select Exercise for Ladder"
           placeholder="Choose an exercise"
           data={formattedExerciseOptions}
           value={selectedExercise?.id || ''}
@@ -102,8 +102,7 @@ const LadderSessionControls = ({
           style={{ width: '100%', marginBottom: '10px' }}
         />
       )}
-      
-      <Group style={{ alignItems: 'center', gap: globalStyles.controlPaddings.sm }}>
+      <Group style={{ alignItems: 'center'}}>
         {isSessionActive && sessionPhase === 'resting' && (
           <Text size="lg" weight={500} style={{ minWidth: '70px', textAlign: 'center' }}>
             {formatTime(currentTimerValue)}
@@ -111,9 +110,8 @@ const LadderSessionControls = ({
         )}
         <Button 
           onClick={onToggleSession}
-          variant={globalStyles.buttonVariants.default}
-          color={isSessionActive ? 'red' : 'blue'}
-          disabled={!isSessionActive && !selectedExercise} // Disable start if no exercise selected
+          color={isSessionActive ? 'error' : 'primary'}
+          disabled={!isSessionActive && !selectedExercise}
         >
           {isSessionActive ? 'Stop Ladder' : 'Start Ladder'}
         </Button>
@@ -121,10 +119,8 @@ const LadderSessionControls = ({
         {isSessionActive && sessionPhase === 'exercising' && (
           <Button
             onClick={onCompleteSet}
-            variant={globalStyles.buttonVariants.outline}
-            color="green"
           >
-            Complete Set
+            Completed Set
           </Button>
         )}
       </Group>
@@ -169,6 +165,7 @@ const LadderSessionControls = ({
         </Stack>
       )}
     </Stack>
+    </Paper>
   );
 };
 

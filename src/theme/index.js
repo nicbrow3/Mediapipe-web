@@ -1,38 +1,31 @@
 import { createTheme } from '@mantine/core';
 
-// Original colors from globalStyles.js
-const originalColors = {
-  primary: '#45a29e', // Teal accent
-  primaryDark: '#3a8a85',
-  secondary: '#1c2833', // Dark background for some elements
-  secondaryHover: '#2c3e50', // Slightly lighter for hover on secondary
-  lightText: '#ffffff',
-  darkText: '#212529', // Mantine default dark text
-  error: '#ff5252', // Red for errors
-};
+
+export const LIGHT_TEXT_COLOR = '#ffffff';
+export const DARK_TEXT_COLOR = '#212529'; // Mantine default dark text
 
 // Create 10-shade palettes for primary and secondary colors
 const themeColors = {
-  brandPrimary: [
+  primary: [
     '#e0f2f1', // Lighter
     '#b2dfdb',
     '#80cbc4',
     '#66bab2',
     '#52b0a8',
-    originalColors.primary, // '#45a29e' - Main shade (index 5)
-    originalColors.primaryDark, // '#3a8a85' - Darker shade (index 6)
+    '#45a29e', // '#45a29e' - Main shade (index 5)
+    '#3a8a85', // '#3a8a85' - Darker shade (index 6)
     '#2f7a75',
     '#266b66',
     '#1e5a55'  // Darkest
   ],
-  brandSecondary: [
+  secondary: [
     '#d1d4d6', // Lighter
     '#a2a9ae',
     '#788086',
     '#5a636b',
     '#414a52',
-    originalColors.secondary, // '#1c2833' - Main shade (index 5)
-    originalColors.secondaryHover, // '#2c3e50' - Often used for hover (index 6)
+    '#1c2833', // '#1c2833' - Main shade (index 5)
+    '#2c3e50', // '#2c3e50' - Often used for hover (index 6)
     '#162028',
     '#10181e',
     '#0a0f13'  // Darkest
@@ -44,7 +37,7 @@ const themeColors = {
     '#ffb3b3',
     '#ff9999',
     '#ff8080',
-    originalColors.error, // '#ff5252' - Main shade (index 5)
+    '#ff5252', // '#ff5252' - Main shade (index 5)
     '#ff3939',
     '#ff2020',
     '#ff0707',
@@ -57,7 +50,6 @@ export const theme = createTheme({
   // colorScheme: 'dark', // This will be set in MantineProvider
 
   colors: themeColors,
-  primaryColor: 'brandPrimary',
 
   // Default radius from globalStyles.js
   defaultRadius: 'md', // globalStyles.defaultBorderRadius was 'md'
@@ -99,23 +91,33 @@ export const theme = createTheme({
         radius: 'md',
       },
       variants: {
-        primary: (theme) => ({
+        primary: (theme, props) => ({
           root: {
-            backgroundColor: theme.colors.brandPrimary[5],
-            color: originalColors.lightText, // Use original color directly
+            backgroundColor: theme.colors.primary[5],
+            color: DARK_TEXT_COLOR,
             border: 'none',
             '&:hover': {
-              backgroundColor: theme.colors.brandPrimary[6],
+              backgroundColor: theme.colors.primary[6],
             },
           },
         }),
-        secondary: (theme) => ({
+        secondary: (theme, props) => ({
           root: {
-            backgroundColor: theme.colors.brandSecondary[5],
-            color: originalColors.lightText, // Use original color directly
+            backgroundColor: theme.colors.secondary[5],
+            color: DARK_TEXT_COLOR,
             border: 'none',
             '&:hover': {
-              backgroundColor: theme.colors.brandSecondary[6],
+              backgroundColor: theme.colors.secondary[6],
+            },
+          },
+        }),
+        toggle: (theme, props) => ({
+          root: {
+            background: props.active ? theme.colors.primary[5] : theme.colors.secondary[5],
+            color: LIGHT_TEXT_COLOR,
+            border: 'none',
+            '&:hover': {
+              background: props.active ? theme.colors.primary[6] : theme.colors.secondary[6],
             },
           },
         }),
@@ -134,16 +136,15 @@ export const theme = createTheme({
         bg: 'rgba(38, 50, 56, 0.64)',
         backdropfilter: 'blur(5px)',
         boxshadow: '0 4px 30px rgba(0, 0, 0, 0.2)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
         transition: 'all 0.3s ease',
         width: '100%',
-        bg: 'rgba(38, 50, 56, 0.64)',
+        bg: 'rgba(38, 50, 56, 0.9)',
         
       },
       styles: (theme) => ({
         root: {
-          backgroundColor: theme.colors.brandSecondary[5],
-          color: originalColors.lightText,
+          backgroundColor: theme.colors.secondary[5],
+          color: LIGHT_TEXT_COLOR,
         },
       }),
     }

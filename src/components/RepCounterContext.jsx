@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 // Create context for rep count data
 const RepCounterContext = createContext({
@@ -16,17 +16,17 @@ export const RepCounterProvider = ({ children }) => {
   const [repCount, setRepCount] = useState({ left: 0, right: 0 });
 
   // Reset rep counts to zero
-  const resetRepCounts = () => {
+  const resetRepCounts = useCallback(() => {
     setRepCount({ left: 0, right: 0 });
-  };
+  }, []);
 
   // Update rep count for a specific side
-  const updateRepCount = (side, count) => {
+  const updateRepCount = useCallback((side, count) => {
     setRepCount(prev => ({
       ...prev,
       [side]: count,
     }));
-  };
+  }, []);
 
   return (
     <RepCounterContext.Provider value={{ 
