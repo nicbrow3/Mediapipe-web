@@ -13,6 +13,7 @@ const BottomControls = ({
   cameraStarted,  // To control visibility
   isLoading,
   errorMessage,
+  workoutMode, // Add workoutMode prop
 }) => {
   // Only show if camera has started, not loading, and no error
   if (!cameraStarted || isLoading || errorMessage) {
@@ -20,7 +21,6 @@ const BottomControls = ({
   }
 
   return (
-
     <Stack
       style={{
         position: 'fixed',
@@ -32,7 +32,9 @@ const BottomControls = ({
         zIndex: 400,
       }}
     >
-      <RepGoalIndicator repGoal={repGoal} setRepGoal={setRepGoal} />
+      {workoutMode !== 'ladder' && ( // Conditionally render RepGoalIndicator
+        <RepGoalIndicator repGoal={repGoal} setRepGoal={setRepGoal} />
+      )}
       {selectedExercise?.hasWeight && (
         <WeightIndicator weight={weight} setWeight={onWeightChange} />
       )}

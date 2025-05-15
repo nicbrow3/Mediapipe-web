@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Stack, Group, Text, NumberInput, Checkbox } from '@mantine/core';
-import { globalStyles } from '../../styles/globalStyles';
 
 /**
  * LadderSessionSettings Component
@@ -22,7 +21,7 @@ const LadderSessionSettings = ({
     endReps: 1,
     increment: 1,
     restTimePerRep: 3,
-    autoAdvance: false,
+    autoAdvance: true,
   },
   onSettingsChange,
   isSessionActive = false,

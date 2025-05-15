@@ -611,14 +611,16 @@ const MinimalTrackerContent = () => {
     setRepGoal,
     selectedExercise,
     weight,
-    onWeightChange: handleWeightChange
+    onWeightChange: handleWeightChange,
+    workoutMode,
   }), [
     cameraStarted,
     isLoading,
     errorMessage,
     repGoal,
     selectedExercise,
-    weight
+    weight,
+    workoutMode
   ]);
 
   return (

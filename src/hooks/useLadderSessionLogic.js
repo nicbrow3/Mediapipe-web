@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRepCounter } from '../components/RepCounterContext';
 
+const LADDER_SETTINGS_STORAGE_KEY = 'ladderSessionSettings';
+
 /**
  * useLadderSessionLogic Hook
  * 
@@ -13,28 +15,48 @@ import { useRepCounter } from '../components/RepCounterContext';
  * - Provides configuration options for ladder parameters
  * 
  * @param {Function} selectRandomExercise - Function to select a random exercise (fallback)
- * @param {Object} initialSettings - Initial ladder settings
+ * @param {Object} hookInitialSettings - Initial ladder settings passed to the hook (optional)
  * @returns {Object} Ladder session state and control functions
  */
 export const useLadderSessionLogic = (
   selectRandomExercise,
-  initialSettings = {
+  hookInitialSettings // Renamed to avoid conflict with internal defaultInitialSettings
+) => {
+  // Define default settings, including autoAdvance: true
+  const defaultInitialSettings = {
     startReps: 1,
     topReps: 10,
     endReps: 1,
     increment: 1,
-    restTimePerRep: 3, // seconds of rest per rep in current set
-    autoAdvance: false, // Whether to automatically advance when rep count is reached
-  }
-) => {
+    restTimePerRep: 3,
+    autoAdvance: true, // Default to true
+  };
+
+  // Function to load settings from localStorage or use defaults
+  const loadSettings = () => {
+    try {
+      const storedSettings = localStorage.getItem(LADDER_SETTINGS_STORAGE_KEY);
+      if (storedSettings) {
+        const parsedSettings = JSON.parse(storedSettings);
+        // Merge with defaults to ensure all keys are present if localStorage had partial/old data
+        return { ...defaultInitialSettings, ...parsedSettings };
+      }
+    } catch (error) {
+      console.error("Failed to load ladder settings from localStorage", error);
+    }
+    // If hookInitialSettings are provided, they take precedence over defaultInitialSettings
+    // Otherwise, just use defaultInitialSettings
+    return hookInitialSettings ? { ...defaultInitialSettings, ...hookInitialSettings } : defaultInitialSettings;
+  };
+
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [sessionPhase, setSessionPhase] = useState('idle'); // 'idle', 'exercising', 'resting'
   const [currentTimerValue, setCurrentTimerValue] = useState(0);
   const [currentExercise, setCurrentExercise] = useState(null);
   const [selectedExercise, setSelectedExercise] = useState(null); // Store the selected exercise
-  const [currentReps, setCurrentReps] = useState(initialSettings.startReps);
+  const [currentReps, setCurrentReps] = useState(loadSettings().startReps);
   const [direction, setDirection] = useState('up'); // 'up' or 'down'
-  const [ladderSettings, setLadderSettings] = useState(initialSettings);
+  const [ladderSettings, setLadderSettings] = useState(loadSettings);
   
   // Get rep count data from context
   const { repCount, resetRepCounts } = useRepCounter();
@@ -60,16 +82,31 @@ export const useLadderSessionLogic = (
     setTotalSets(calculateTotalSets());
   }, [ladderSettings, calculateTotalSets]);
 
+  // Effect to update currentReps if startReps changes in settings when session is not active
+  useEffect(() => {
+    if (!isSessionActive) {
+      setCurrentReps(ladderSettings.startReps);
+    }
+  }, [ladderSettings.startReps, isSessionActive]);
+
   /**
    * Updates ladder session configuration settings
    * Only allowed when session is not active
    */
   const updateLadderSettings = useCallback((newSettings) => {
     if (!isSessionActive) {
-      setLadderSettings(prev => ({
-        ...prev,
-        ...newSettings
-      }));
+      setLadderSettings(prevSettings => {
+        const updatedSettings = {
+          ...prevSettings,
+          ...newSettings
+        };
+        try {
+          localStorage.setItem(LADDER_SETTINGS_STORAGE_KEY, JSON.stringify(updatedSettings));
+        } catch (error) {
+          console.error("Failed to save ladder settings to localStorage", error);
+        }
+        return updatedSettings;
+      });
     }
   }, [isSessionActive]);
 
@@ -139,7 +176,8 @@ export const useLadderSessionLogic = (
         console.log('[useLadderSessionLogic] Starting ladder with exercise:', exercise?.name);
         setCurrentExercise(exercise);
         setDirection('up');
-        setCurrentReps(ladderSettings.startReps);
+        // Ensure currentReps is set to the startReps from potentially updated ladderSettings
+        setCurrentReps(ladderSettings.startReps); 
         setSessionPhase('exercising');
         setCurrentTimerValue(0); // No timer for exercise phase
         setCurrentSetNumber(1); // Start with the first set
@@ -149,6 +187,7 @@ export const useLadderSessionLogic = (
         setCurrentTimerValue(0);
         setCurrentExercise(null);
         setCurrentSetNumber(0);
+        // Reset currentReps to startReps from settings when session stops
         setCurrentReps(ladderSettings.startReps);
         setDirection('up');
       }
@@ -171,6 +210,7 @@ export const useLadderSessionLogic = (
       setSessionPhase('idle');
       setCurrentExercise(null);
       setCurrentSetNumber(0);
+      // Reset currentReps to startReps from settings after completion
       setCurrentReps(ladderSettings.startReps);
       setDirection('up');
       return;
@@ -266,6 +306,8 @@ export const useLadderSessionLogic = (
     if (isSessionActive && sessionPhase === 'resting' && currentTimerValue === 0) {
       moveToNextStep();
     }
+    // Ensure that if ladderSettings changes (e.g. startReps) while idle, currentReps is updated.
+    // This was handled by the specific useEffect for ladderSettings.startReps already.
   }, [isSessionActive, sessionPhase, currentTimerValue, moveToNextStep]);
 
   return {
