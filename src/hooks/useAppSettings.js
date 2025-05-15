@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
   minimumVisibilityThreshold: 25, // Renamed from minimumVisibilityAllLandmarks
   requireSecondaryLandmarks: false,
   cameraOpacity: 100, // Default to 100%
+  alwaysShowConnections: false, // Default to false (respect visibility threshold for connections)
 };
 
 export function loadAppSettings() {
@@ -39,6 +40,11 @@ export function loadAppSettings() {
     } else {
       // If cameraOpacity is not in stored settings, ensure it gets the default.
       // This case is handled by the spread operator below, but explicit for clarity.
+    }
+    if (storedSettings.alwaysShowConnections === undefined) {
+      // If alwaysShowConnections is not in stored settings, it will get the default from DEFAULT_SETTINGS
+      // when merged below. Explicitly handling it like this isn't strictly necessary due to the merge,
+      // but can be useful if specific migration or type conversion logic were needed for this new setting.
     }
     
     // Merge stored settings with defaults to ensure all keys are present

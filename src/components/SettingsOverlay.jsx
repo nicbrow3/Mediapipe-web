@@ -16,7 +16,9 @@ const SettingsOverlayInternal = ({
   requireSecondaryLandmarks = false,
   onSecondaryLandmarksChange = () => {},
   cameraOpacity = 100,
-  onCameraOpacityChange = () => {}
+  onCameraOpacityChange = () => {},
+  alwaysShowConnections = false,
+  onToggleAlwaysShowConnections = () => {}
 // routed to the minimalTracker component
 // used in useAppSettings.js
 
@@ -106,6 +108,16 @@ const SettingsOverlayInternal = ({
               max={100}
               step={5}
               styles={{ root: { maxWidth: '300px' } }}
+            />
+          </Box>
+
+          <Box>
+            <Switch
+              checked={alwaysShowConnections}
+              onChange={(event) => onToggleAlwaysShowConnections(event.currentTarget.checked)}
+              label="Always Show Landmark Connections"
+              description="If enabled, all connections draw regardless of landmark visibility. If disabled, connections only draw if landmarks meet the visibility threshold."
+              size="md"
             />
           </Box>
 

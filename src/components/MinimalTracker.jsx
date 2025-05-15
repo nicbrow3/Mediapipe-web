@@ -117,6 +117,10 @@ const MinimalTrackerContent = () => {
     updateAppSettings({ cameraOpacity: numericValue });
   }, [updateAppSettings]);
 
+  const handleToggleAlwaysShowConnections = useCallback((checked) => {
+    updateAppSettings({ alwaysShowConnections: checked });
+  }, [updateAppSettings]);
+
   const handleWeightChange = useCallback((newWeight) => {
     setWeight(newWeight);
     updateAppSettings({ selectedWeights: newWeight });
@@ -688,6 +692,8 @@ const MinimalTrackerContent = () => {
           height={canvasDimensions.height}
           cameraStarted={cameraStarted}
           feedOpacity={appSettings.cameraOpacity / 100}
+          minVisibilityForConnection={appSettings.minimumVisibilityThreshold / 100}
+          overrideConnectionVisibility={appSettings.alwaysShowConnections}
         />
         
         {/* Rep Goal Display Container - Moved before overlay stacks and positioned directly in video container */}
@@ -768,6 +774,8 @@ const MinimalTrackerContent = () => {
         onSecondaryLandmarksChange={toggleSecondaryLandmarksAndUpdateSettings}
         cameraOpacity={appSettings.cameraOpacity}
         onCameraOpacityChange={handleCameraOpacityChange}
+        alwaysShowConnections={appSettings.alwaysShowConnections}
+        onToggleAlwaysShowConnections={handleToggleAlwaysShowConnections}
       />
     </div>
   );

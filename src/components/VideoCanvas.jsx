@@ -11,9 +11,11 @@ const VideoCanvas = ({
   height,
   cameraStarted,
   feedOpacity = 1,
+  minVisibilityForConnection = 0.0, // Default to 0.0 (draw all connections if not specified)
+  overrideConnectionVisibility = false, // Add new prop with default
 }) => {
   // Draw landmarks on canvas
-  const drawLandmarks = (ctx, landmarks, width, height) => {
+  const drawLandmarks = (ctx, landmarks, width, height, minVisibility, overrideVisibility) => {
     if (!landmarks) return;
 
     // Set styles for landmarks
@@ -47,15 +49,32 @@ const VideoCanvas = ({
     ];
     
     ctx.beginPath();
-    for (const [i, j] of connections) {
-      if (landmarks[i] && landmarks[j]) {
-        const x1 = landmarks[i].x * width;
-        const y1 = landmarks[i].y * height;
-        const x2 = landmarks[j].x * width;
-        const y2 = landmarks[j].y * height;
-        
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
+    for (const [idx1, idx2] of connections) {
+      const landmark1 = landmarks[idx1];
+      const landmark2 = landmarks[idx2];
+
+      if (landmark1 && landmark2) {
+        let shouldDrawConnection = false;
+        if (overrideVisibility) {
+          shouldDrawConnection = true; // Always draw if override is true
+        } else {
+          // Check visibility if available, otherwise assume visible (1.0)
+          const L1Visibility = landmark1.visibility !== undefined ? landmark1.visibility : 1.0;
+          const L2Visibility = landmark2.visibility !== undefined ? landmark2.visibility : 1.0;
+          if (L1Visibility >= minVisibility && L2Visibility >= minVisibility) {
+            shouldDrawConnection = true;
+          }
+        }
+
+        if (shouldDrawConnection) {
+          const x1 = landmark1.x * width;
+          const y1 = landmark1.y * height;
+          const x2 = landmark2.x * width;
+          const y2 = landmark2.y * height;
+          
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+        }
       }
     }
     ctx.stroke();
@@ -88,13 +107,13 @@ const VideoCanvas = ({
         // Draw the landmarks (they will also be mirrored due to the transform)
         // Only draw landmarks if there are any to draw
         if (landmarks && landmarks.length > 0) {
-            drawLandmarks(ctx, landmarks, width, height);
+            drawLandmarks(ctx, landmarks, width, height, minVisibilityForConnection, overrideConnectionVisibility);
         }
 
         ctx.restore();
       }
     }
-  }, [landmarks, width, height, videoRef, canvasRef, cameraStarted, feedOpacity]);
+  }, [landmarks, width, height, videoRef, canvasRef, cameraStarted, feedOpacity, minVisibilityForConnection, overrideConnectionVisibility]);
 
   return (
     <div className="video-canvas-wrapper">
