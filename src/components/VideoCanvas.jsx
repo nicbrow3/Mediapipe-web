@@ -9,7 +9,8 @@ const VideoCanvas = ({
   landmarks, 
   width, 
   height,
-  cameraStarted
+  cameraStarted,
+  feedOpacity = 1,
 }) => {
   // Draw landmarks on canvas
   const drawLandmarks = (ctx, landmarks, width, height) => {
@@ -62,7 +63,8 @@ const VideoCanvas = ({
 
   // Update canvas when landmarks change
   useEffect(() => {
-    if (canvasRef.current && landmarks) {
+    // Ensure canvasRef is current and width/height are positive before drawing
+    if (canvasRef.current && width > 0 && height > 0) {
       const ctx = canvasRef.current.getContext('2d');
       
       // Clear the canvas
@@ -71,18 +73,28 @@ const VideoCanvas = ({
       // Apply mirroring and draw video frame
       if (videoRef.current && videoRef.current.readyState >= HTMLMediaElement.HAVE_METADATA) {
         ctx.save();
-        ctx.scale(-1, 1);
+        ctx.scale(-1, 1); // Mirror horizontally
         ctx.translate(-width, 0);
 
+        // Apply opacity for the video frame
+        const originalAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = feedOpacity;
+        
         ctx.drawImage(videoRef.current, 0, 0, width, height);
         
+        // Restore original alpha before drawing landmarks
+        ctx.globalAlpha = originalAlpha;
+        
         // Draw the landmarks (they will also be mirrored due to the transform)
-        drawLandmarks(ctx, landmarks, width, height);
+        // Only draw landmarks if there are any to draw
+        if (landmarks && landmarks.length > 0) {
+            drawLandmarks(ctx, landmarks, width, height);
+        }
 
         ctx.restore();
       }
     }
-  }, [landmarks, width, height, videoRef, canvasRef, cameraStarted]);
+  }, [landmarks, width, height, videoRef, canvasRef, cameraStarted, feedOpacity]);
 
   return (
     <div className="video-canvas-wrapper">

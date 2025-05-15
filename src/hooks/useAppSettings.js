@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = {
   requireAllLandmarks: false, // Now means "require primary landmarks"
   minimumVisibilityThreshold: 25, // Renamed from minimumVisibilityAllLandmarks
   requireSecondaryLandmarks: false,
+  cameraOpacity: 100, // Default to 100%
 };
 
 export function loadAppSettings() {
@@ -32,6 +33,12 @@ export function loadAppSettings() {
     // Ensure numeric values are parsed as numbers
     if (storedSettings.minimumVisibilityThreshold !== undefined) {
       storedSettings.minimumVisibilityThreshold = Number(storedSettings.minimumVisibilityThreshold);
+    }
+    if (storedSettings.cameraOpacity !== undefined) {
+      storedSettings.cameraOpacity = Number(storedSettings.cameraOpacity);
+    } else {
+      // If cameraOpacity is not in stored settings, ensure it gets the default.
+      // This case is handled by the spread operator below, but explicit for clarity.
     }
     
     // Merge stored settings with defaults to ensure all keys are present

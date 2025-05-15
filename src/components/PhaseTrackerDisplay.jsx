@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import PhaseTracker from './PhaseTracker';
-import { LANDMARK_MAP } from '../logic/landmarkUtils';
+import { LANDMARK_MAP } from '../logic/landmarkUtils.js';
 import { useAppSettings } from '../hooks/useAppSettings';
 
 // This function is now a fallback only if the exercise doesn't define its own landmarks

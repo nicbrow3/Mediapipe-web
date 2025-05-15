@@ -61,7 +61,6 @@ const MinimalTrackerContent = () => {
   const [rawAngles, setRawAngles] = useState({});
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
   const [landmarksData, setLandmarksData] = useState(null);
-  const [smoothingEnabled, setSmoothingEnabled] = useState(appSettings.isSmoothingEnabled);
   const [weight, setWeight] = useState(appSettings.selectedWeights !== null ? appSettings.selectedWeights : 0);
   const [repGoal, setRepGoal] = useState(10);
   const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual', 'session', or 'ladder'
@@ -81,24 +80,14 @@ const MinimalTrackerContent = () => {
     selectedExerciseRef.current = selectedExercise;
   }, [selectedExercise]);
 
-  // Ref for always-current smoothingEnabled state
-  const smoothingEnabledRef = useRef(smoothingEnabled);
-  useEffect(() => {
-    smoothingEnabledRef.current = smoothingEnabled;
-  }, [smoothingEnabled]);
-
   // Constants for performance metrics
   const MAX_SAMPLES = 300; // samples for fps and inference time
   const ANGLE_SMOOTHING_WINDOW = 25; // Number of frames to use for angle smoothing (approx. 0.5s at 30fps)
 
   // Functions for settings updates
   const toggleSmoothingAndUpdateSettings = useCallback(() => {
-    setSmoothingEnabled(prev => {
-      const newValue = !prev;
-      updateAppSettings({ isSmoothingEnabled: newValue });
-      angleHistoryRef.current = {}; // Clear angle history when toggling
-      return newValue;
-    });
+    updateAppSettings(prev => ({ isSmoothingEnabled: !prev.isSmoothingEnabled }));
+    angleHistoryRef.current = {}; // Clear angle history when toggling
   }, [updateAppSettings]);
 
   const togglePhaseModeAndUpdateSettings = useCallback((checked) => {
@@ -121,6 +110,11 @@ const MinimalTrackerContent = () => {
   const toggleSecondaryLandmarksAndUpdateSettings = useCallback((checked) => {
     console.log('[MinimalTracker] toggleSecondaryLandmarksAndUpdateSettings - new value:', checked);
     updateAppSettings({ requireSecondaryLandmarks: checked });
+  }, [updateAppSettings]);
+
+  const handleCameraOpacityChange = useCallback((value) => {
+    const numericValue = Number(value);
+    updateAppSettings({ cameraOpacity: numericValue });
   }, [updateAppSettings]);
 
   const handleWeightChange = useCallback((newWeight) => {
@@ -394,7 +388,7 @@ const MinimalTrackerContent = () => {
           newRawAngles[id] = rawAngle !== null ? Math.round(rawAngle) : null;
 
           // Apply smoothing if enabled, otherwise use raw angle
-          if (smoothingEnabledRef.current && rawAngle !== null) {
+          if (appSettings.isSmoothingEnabled && rawAngle !== null) {
             newAngles[id] = smoothAngle(id, rawAngle);
           } else {
             newAngles[id] = rawAngle !== null ? Math.round(rawAngle) : null;
@@ -511,7 +505,7 @@ const MinimalTrackerContent = () => {
 
   // Restore original smoothAngle function for now, as the test is in renderLoop
   const smoothAngle = (angleId, rawAngleValue) => {
-    if (!smoothingEnabledRef.current || rawAngleValue === null) {
+    if (!appSettings.isSmoothingEnabled || rawAngleValue === null) {
       return rawAngleValue; 
     }
     // Original smoothing logic:
@@ -544,7 +538,7 @@ const MinimalTrackerContent = () => {
     cameraStarted: cameraStarted && !isLoading && !errorMessage,
     stats,
     landmarksData,
-    smoothingEnabled,
+    smoothingEnabled: appSettings.isSmoothingEnabled,
     smoothingWindow: ANGLE_SMOOTHING_WINDOW,
     exerciseOptions,
     selectedExercise,
@@ -576,7 +570,6 @@ const MinimalTrackerContent = () => {
     errorMessage,
     stats,
     landmarksData,
-    smoothingEnabled,
     selectedExercise,
     handleExerciseChange,
     isSessionActive,
@@ -694,6 +687,7 @@ const MinimalTrackerContent = () => {
           width={canvasDimensions.width}
           height={canvasDimensions.height}
           cameraStarted={cameraStarted}
+          feedOpacity={appSettings.cameraOpacity / 100}
         />
         
         {/* Rep Goal Display Container - Moved before overlay stacks and positioned directly in video container */}
@@ -714,7 +708,7 @@ const MinimalTrackerContent = () => {
               selectedExercise={getActiveExercise}
               trackedAngles={trackedAngles}
               rawAngles={rawAngles}
-              smoothingEnabled={smoothingEnabled}
+              smoothingEnabled={appSettings.isSmoothingEnabled}
             />
             <PhaseTrackerDisplay
               displaySide="left"
@@ -737,7 +731,7 @@ const MinimalTrackerContent = () => {
               selectedExercise={getActiveExercise}
               trackedAngles={trackedAngles}
               rawAngles={rawAngles}
-              smoothingEnabled={smoothingEnabled}
+              smoothingEnabled={appSettings.isSmoothingEnabled}
             />
             <PhaseTrackerDisplay
               displaySide="right"
@@ -762,7 +756,7 @@ const MinimalTrackerContent = () => {
       <SettingsOverlay 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)}
-        smoothingEnabled={smoothingEnabled}
+        smoothingEnabled={appSettings.isSmoothingEnabled}
         onSmoothingChange={toggleSmoothingAndUpdateSettings}
         useThreePhases={appSettings.useThreePhases}
         onPhaseModeChange={togglePhaseModeAndUpdateSettings}
@@ -772,6 +766,8 @@ const MinimalTrackerContent = () => {
         onMinimumVisibilityChange={updateMinimumVisibilityAndSettings}
         requireSecondaryLandmarks={appSettings.requireSecondaryLandmarks}
         onSecondaryLandmarksChange={toggleSecondaryLandmarksAndUpdateSettings}
+        cameraOpacity={appSettings.cameraOpacity}
+        onCameraOpacityChange={handleCameraOpacityChange}
       />
     </div>
   );

@@ -14,7 +14,9 @@ const SettingsOverlayInternal = ({
   minimumVisibilityThreshold = 25,
   onMinimumVisibilityChange = () => {},
   requireSecondaryLandmarks = false,
-  onSecondaryLandmarksChange = () => {}
+  onSecondaryLandmarksChange = () => {},
+  cameraOpacity = 100,
+  onCameraOpacityChange = () => {}
 // routed to the minimalTracker component
 // used in useAppSettings.js
 
@@ -93,6 +95,20 @@ const SettingsOverlayInternal = ({
               </>
             )}
           </Box>
+
+          <Box>
+            <NumberInput
+              label="Camera Feed Opacity (%)"
+              description="Adjust the transparency of the live camera feed."
+              value={cameraOpacity}
+              onChange={(value) => onCameraOpacityChange(Number(value))}
+              min={0}
+              max={100}
+              step={5}
+              styles={{ root: { maxWidth: '300px' } }}
+            />
+          </Box>
+
         </Stack>
       </Box>
     </Modal>
