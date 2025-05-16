@@ -302,7 +302,6 @@ const MinimalTrackerContent = () => {
     errorMessage,
     stats,
     landmarksData,
-    // appSettings.isSmoothingEnabled, // Removed as it's handled by the hook
     exerciseOptions,
     selectedExercise,
     handleExerciseChange,

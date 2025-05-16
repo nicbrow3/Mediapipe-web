@@ -27,7 +27,7 @@ export const useLadderSessionLogic = (
     startReps: 1,
     topReps: 10,
     endReps: 1,
-    increment: 1,
+    incrementReps: 1,
     restTimePerRep: 3,
     autoAdvance: true, // Default to true
   };
@@ -63,13 +63,13 @@ export const useLadderSessionLogic = (
 
   // Calculate where we are in the ladder sequence (for progress display)
   const calculateTotalSets = useCallback(() => {
-    const { startReps, topReps, endReps, increment } = ladderSettings;
+    const { startReps, topReps, endReps, incrementReps } = ladderSettings;
     
     // Calculate steps going up
-    const stepsUp = Math.ceil((topReps - startReps) / increment) + 1; // +1 to include the top
+    const stepsUp = Math.ceil((topReps - startReps) / incrementReps) + 1; // +1 to include the top
     
     // Calculate steps going down
-    const stepsDown = Math.ceil((topReps - endReps) / increment);
+    const stepsDown = Math.ceil((topReps - endReps) / incrementReps);
     
     return stepsUp + stepsDown;
   }, [ladderSettings]);
@@ -124,10 +124,10 @@ export const useLadderSessionLogic = (
    * Calculate the next rep count in the ladder sequence
    */
   const calculateNextReps = useCallback(() => {
-    const { startReps, topReps, endReps, increment } = ladderSettings;
+    const { startReps, topReps, endReps, incrementReps } = ladderSettings;
     
     if (direction === 'up') {
-      const nextReps = currentReps + increment;
+      const nextReps = currentReps + incrementReps;
       
       // If we've reached or exceeded the top, start going down
       if (nextReps >= topReps) {
@@ -138,7 +138,7 @@ export const useLadderSessionLogic = (
       
       return nextReps;
     } else { // direction === 'down'
-      const nextReps = currentReps - increment;
+      const nextReps = currentReps - incrementReps;
       
       // If we've reached or gone below the end, we're done
       if (nextReps <= endReps) {

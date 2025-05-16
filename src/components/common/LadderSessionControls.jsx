@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Text, Button, Group, Stack, Collapse, ActionIcon, Badge, Select, Paper } from '@mantine/core';
+import { Text, Button, Group, Stack, Collapse, ActionIcon, Badge, Select, Paper, Box, Transition } from '@mantine/core';
 import LadderSessionSettings from './LadderSessionSettings';
-import { CaretCircleDown, CaretCircleUp } from 'phosphor-react';
+import { CaretCircleDown, CaretCircleUp, ListBullets } from 'phosphor-react';
+import LadderSetList from './LadderSetList';
 
 /**
  * Helper function to format time from seconds to MM:SS display format
@@ -40,6 +41,7 @@ const LadderSessionControls = ({
   onExerciseChange, // Callback to change selected exercise
 }) => {
   const [showSettings, setShowSettings] = useState(false);
+  const [showSetList, setShowSetList] = useState(false);
   
   // Check if we're at the peak (top reps)
   const isAtPeak = currentReps === ladderSettings.topReps;
@@ -69,103 +71,157 @@ const LadderSessionControls = ({
     setShowSettings(prev => !prev);
   }, []);
 
+  // Memoize the toggle set list handler
+  const handleToggleSetList = useCallback(() => {
+    setShowSetList(prev => !prev);
+  }, []);
+
   return (
-    <Paper style={{width: '100%'}}>
-    <Stack spacing="xs" align="center" style={{ width: '100%' }}>
-      <Group position="apart" style={{ width: '100%', alignItems: 'center' }}>
-        <Text size="md" weight={500}>Ladder Session</Text>
-        <ActionIcon 
-          onClick={handleToggleSettings}
-          variant="subtle"
-          disabled={isSessionActive}
-        >
-          {showSettings ? <CaretCircleUp size={18} /> : <CaretCircleDown size={18} />}
-        </ActionIcon>
-      </Group>
-      
-      <Collapse in={showSettings} style={{ width: '100%' }}>
-          <LadderSessionSettings 
-            ladderSettings={ladderSettings}
-            onSettingsChange={onSettingsChange}
-            isSessionActive={isSessionActive}
-          />
-      </Collapse>
-      
-      {/* Exercise Selector - only shown when session is not active */}
-      {!isSessionActive && (
-        <Select
-        //   label="Select Exercise for Ladder"
-          placeholder="Choose an exercise"
-          data={formattedExerciseOptions}
-          value={selectedExercise?.id || ''}
-          onChange={handleExerciseChange}
-          style={{ width: '100%', marginBottom: '10px' }}
-        />
-      )}
-      <Group style={{ alignItems: 'center'}}>
-        {isSessionActive && sessionPhase === 'resting' && (
-          <Text size="lg" weight={500} style={{ minWidth: '70px', textAlign: 'center' }}>
-            {formatTime(currentTimerValue)}
-          </Text>
-        )}
-        <Button 
-          onClick={onToggleSession}
-          color={isSessionActive ? 'error' : 'primary'}
-          disabled={!isSessionActive && !selectedExercise}
-        >
-          {isSessionActive ? 'Stop Ladder' : 'Start Ladder'}
-        </Button>
-        
-        {isSessionActive && sessionPhase === 'exercising' && (
-          <Button
-            onClick={onCompleteSet}
-          >
-            Completed Set
-          </Button>
-        )}
-      </Group>
-      
-      {isSessionActive && (
-        <Stack spacing="xs" align="center">
-          <Text size="sm" weight={500}>
-            Exercise: {currentExercise?.name || 'None'}
-          </Text>
-          
-          <Group spacing={8}>
-            <Badge size="lg" color={sessionPhase === 'exercising' ? 'green' : 'gray'}>
-              {currentReps} reps
-            </Badge>
-            
-            {isAtPeak ? (
-              <Badge size="sm" color="orange" variant="filled">
-                PEAK
-              </Badge>
-            ) : (
-              <Badge size="sm" color="blue">
-                {direction === 'up' ? 'Going up ↑' : 'Going down ↓'}
-              </Badge>
-            )}
+    <Group
+    wrap='nowrap'
+    align="flex-start"
+    style={{width: '100%', maxHeight: '450px'}}
+    >
+      <Paper 
+        p="md" 
+        shadow="xs" 
+        // withBorder 
+        style={{
+          flexGrow: 0,
+          width: '380px',
+          minWidth: '380px',
+          display: 'flex', 
+          flexDirection: 'column'
+        }}
+      >
+        <Stack spacing="xs" align="stretch" style={{ width: '100%' }}>
+          <Group position="apart" style={{ width: '100%', alignItems: 'center' }}>
+            <Text size="md" weight={500}>Ladder Session</Text>
+            <Group spacing="xs">
+              <ActionIcon 
+                onClick={handleToggleSetList}
+                variant={showSetList ? "filled" : "light"}
+                color={showSetList ? "blue" : "gray"}
+                title={showSetList ? "Hide Set List" : "Show Set List"}
+              >
+                <ListBullets size={18} />
+              </ActionIcon>
+              <ActionIcon 
+                onClick={handleToggleSettings}
+                variant={showSettings ? "filled" : "light"}
+                color={showSettings ? "blue" : "gray"}
+                title={showSettings ? "Hide Settings" : "Show Settings"}
+              >
+                {showSettings ? <CaretCircleUp size={18} /> : <CaretCircleDown size={18} />}
+              </ActionIcon>
+            </Group>
           </Group>
           
-          <Text size="sm" color="dimmed">
-            Set {currentSetNumber} of {totalSets}
-          </Text>
+          <Collapse in={showSettings} style={{ width: '100%' }}>
+            <LadderSessionSettings 
+              ladderSettings={ladderSettings}
+              onSettingsChange={onSettingsChange}
+              isSessionActive={isSessionActive}
+            />
+          </Collapse>
           
-          {sessionPhase === 'exercising' && (
-            <Text size="sm" color={isAtPeak ? 'orange' : 'green'}>
-              {isAtPeak ? 'PEAK SET!' : 'Do'} {currentReps} reps, then click "Complete Set"
-            </Text>
+          <Select
+            placeholder="Choose an exercise"
+            data={formattedExerciseOptions}
+            value={selectedExercise?.id || ''}
+            onChange={handleExerciseChange}
+            style={{ width: '100%', marginBottom: '10px' }}
+            disabled={isSessionActive}
+          />
+
+          <Group
+            position="center"
+            style={{ alignItems: 'center', minHeight: '36px', width: '100%' }}
+          >
+            {isSessionActive && sessionPhase === 'resting' && (
+              <Text size="xl" weight={700} color="blue" style={{ textAlign: 'center' }}>
+                {formatTime(currentTimerValue)}
+              </Text>
+            )}
+          </Group>
+
+          <Button
+            fullWidth
+            variant= "filled"
+            onClick={onToggleSession}
+            color={isSessionActive ? 'red' : 'blue'}
+            disabled={!isSessionActive && !selectedExercise}
+          >
+            {isSessionActive ? 'Stop Ladder' : 'Start Ladder'}
+          </Button>
+          
+          {isSessionActive && sessionPhase === 'exercising' && (
+            <Button
+              fullWidth
+              onClick={onCompleteSet}
+              variant="outline"
+            >
+              Complete Set ({currentReps} reps)
+            </Button>
           )}
-          
-          {sessionPhase === 'resting' && (
-            <Text size="sm" color="blue">
-              Resting: {formatTime(currentTimerValue)}
-            </Text>
+        
+          {isSessionActive && (
+            <Stack spacing="xs" align="center" mt="sm">
+              
+              <Group position="center" spacing={8}>
+                <Badge variant="filled" size="lg" color={sessionPhase === 'exercising' ? 'green' : 'gray'}>
+                  {currentReps} reps
+                </Badge>
+                
+                {isAtPeak ? (
+                  <Badge variant="filled" size="lg" color="orange">
+                    PEAK
+                  </Badge>
+                ) : (
+                  <Badge size="lg" color="blue">
+                    {direction === 'up' ? 'Going up ↑' : 'Going down ↓'}
+                  </Badge>
+                )}
+              </Group>
+              
+              <Text size="sm" color="dimmed">
+                Set {currentSetNumber} of {totalSets}
+              </Text>
+              
+              {sessionPhase === 'exercising' && (
+                <Text size="sm" color={isAtPeak ? 'orange' : 'green'}>
+                  {isAtPeak ? 'PEAK SET!' : 'Do'} {currentReps} reps, then click "Complete Set"
+                </Text>
+              )}
+              
+              {sessionPhase === 'resting' && (
+                <Text size="sm" color="blue">
+                  Resting: {formatTime(currentTimerValue)}
+                </Text>
+              )}
+            </Stack>
           )}
         </Stack>
-      )}
-    </Stack>
-    </Paper>
+      </Paper>
+
+      <Transition mounted={showSetList} transition="slide-right" duration={200} timingFunction="ease">
+        {(styles) => (
+          showSetList && ladderSettings ? (
+            <Box 
+              style={{
+                ...styles, 
+                marginLeft: '16px',
+                flexGrow: 1,
+                height: '100%',
+                minHeight: 0
+              }}
+            >
+              <LadderSetList ladderSettings={ladderSettings} />
+            </Box>
+          ) : null
+        )}
+      </Transition>
+    </Group>
   );
 };
 

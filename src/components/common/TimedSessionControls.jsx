@@ -53,11 +53,14 @@ const TimedSessionControls = ({
       spacing="xs"
       style={{ width: '100%' }}
       >
-        <Group position="apart" style={{ width: '100%', justify: 'center' }}>
+        <Group // Header of the timed session
+          position="apart"
+          style={{ width: '100%', justify: 'center' }}
+          >
           <Text size="md" weight={500}>Timed Session</Text>
           <ActionIcon 
             onClick={() => setShowSettings(!showSettings)} 
-            variant="subtle"
+            variant="light"
             disabled={isSessionActive}
           >
             {showSettings ? <CaretCircleUp size={18} /> : <CaretCircleDown size={18} />}

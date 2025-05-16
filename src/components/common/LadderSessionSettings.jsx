@@ -19,7 +19,7 @@ const LadderSessionSettings = ({
     startReps: 1,
     topReps: 10,
     endReps: 1,
-    increment: 1,
+    incrementReps: 1,
     restTimePerRep: 3,
     autoAdvance: true,
   },
@@ -34,21 +34,77 @@ const LadderSessionSettings = ({
   }, [ladderSettings]);
 
   const handleSettingChange = (key, value) => {
-    // Handle special validation cases
-    if (key === 'topReps' && value <= localSettings.startReps) {
-      // Top reps must be greater than start reps
-      return;
+    const numValue = Number(value);
+
+    // Initial prospective settings from current state
+    let prospectiveSettings = { ...localSettings };
+
+    // Apply the incoming change and auto-adjustments
+    if (key === 'incrementReps') {
+        if (isNaN(numValue) || numValue <= 0) { 
+            // console.warn('Invalid increment value'); 
+            return; 
+        }
+        prospectiveSettings.incrementReps = numValue;
+        const newIncrement = numValue;
+
+        // Adjust topReps to be the closest multiple of the new increment
+        let adjustedTopReps = Math.max(
+            newIncrement, // Ensures topReps is at least the increment value itself
+            Math.round(localSettings.topReps / newIncrement) * newIncrement
+        );
+
+        // Clamp adjustedTopReps: must be >= (startReps + newIncrement) and <= system max (50)
+        const minTopRepsBasedOnStart = localSettings.startReps + newIncrement;
+        adjustedTopReps = Math.max(minTopRepsBasedOnStart, adjustedTopReps);
+        adjustedTopReps = Math.min(50, adjustedTopReps); // System max for topReps
+        prospectiveSettings.topReps = adjustedTopReps;
+
+    } else if (['startReps', 'topReps', 'endReps'].includes(key)) {
+        if (isNaN(numValue) || numValue <= 0) { 
+            // console.warn(`Invalid value for ${key}`);
+             return; 
+        }
+        prospectiveSettings[key] = numValue;
+    } else if (key === 'restTimePerRep') {
+        if (isNaN(numValue) || numValue < 0) { // Allow 0 for rest time
+            // console.warn('Invalid rest time'); 
+            return; 
+        }
+        prospectiveSettings[key] = numValue;
+    } else { // For boolean toggles like autoAdvance
+        prospectiveSettings[key] = value;
     }
-    
-    // Apply changes
-    const updatedSettings = {
-      ...localSettings,
-      [key]: value,
-    };
-    
-    setLocalSettings(updatedSettings);
+
+    // --- Validation based on the fully formed prospectiveSettings ---
+    // Base validation from NumberInput min/max should handle most direct input errors.
+    // These are relational validations.
+
+    if (prospectiveSettings.startReps > prospectiveSettings.topReps) {
+        // console.warn("Validation Fail: Start Reps cannot be greater than Top Reps");
+        return;
+    }
+    if (prospectiveSettings.endReps > prospectiveSettings.topReps) {
+        // console.warn("Validation Fail: End Reps cannot be greater than Top Reps");
+        return;
+    }
+
+    // Validation for reachability if incrementReps > 1
+    if (prospectiveSettings.incrementReps > 1) {
+      if ((prospectiveSettings.topReps - prospectiveSettings.startReps) % prospectiveSettings.incrementReps !== 0) {
+        // console.warn('Top reps not reachable from start reps with current increment.');
+        return; // Prevent change
+      }
+      if ((prospectiveSettings.topReps - prospectiveSettings.endReps) % prospectiveSettings.incrementReps !== 0) {
+        // console.warn('End reps not reachable from top reps with current increment.');
+        return; // Prevent change
+      }
+    }
+
+    // If all validations pass, apply the changes
+    setLocalSettings(prospectiveSettings);
     if (onSettingsChange) {
-      onSettingsChange(updatedSettings);
+      onSettingsChange(prospectiveSettings);
     }
   };
 
@@ -63,7 +119,7 @@ const LadderSessionSettings = ({
           onChange={(value) => handleSettingChange('startReps', value)}
           min={1}
           max={10}
-          step={1}
+          step={localSettings.incrementReps > 1 ? localSettings.incrementReps : 1}
           disabled={isSessionActive}
           style={{ flex: 1 }}
         />
@@ -72,9 +128,9 @@ const LadderSessionSettings = ({
           label="Top Reps"
           value={localSettings.topReps}
           onChange={(value) => handleSettingChange('topReps', value)}
-          min={localSettings.startReps + 1}
+          min={localSettings.startReps + (localSettings.incrementReps > 0 ? localSettings.incrementReps : 1)}
           max={50}
-          step={1}
+          step={localSettings.incrementReps > 1 ? localSettings.incrementReps : 1}
           disabled={isSessionActive}
           style={{ flex: 1 }}
         />
@@ -86,16 +142,16 @@ const LadderSessionSettings = ({
           value={localSettings.endReps}
           onChange={(value) => handleSettingChange('endReps', value)}
           min={1}
-          max={10}
-          step={1}
+          max={localSettings.topReps}
+          step={localSettings.incrementReps > 1 ? localSettings.incrementReps : 1}
           disabled={isSessionActive}
           style={{ flex: 1 }}
         />
         
         <NumberInput
           label="Increment"
-          value={localSettings.increment}
-          onChange={(value) => handleSettingChange('increment', value)}
+          value={localSettings.incrementReps}
+          onChange={(value) => handleSettingChange('incrementReps', value)}
           min={1}
           max={5}
           step={1}

@@ -61,6 +61,8 @@ export const squats = {
 
     // --- Optional Metadata ---
     instructions: "Lower your body as if sitting back into a chair, keeping your chest up and knees behind your toes.",
-    tips: ["Imagine sitting into a chair behind you.", "Feet a little wider than hips, toes slightly out.", "Chest up, back straight.", "Control the up and the down of the movement."],
+    tips: ["Imagine sitting into a chair behind you.", "Feet a little wider than hips, toes slightly out.",
+        "Chest up, back straight.", "Control the up and the down of the movement.",
+        "Keep your heels on the ground"],
     muscleGroups: ["Quadriceps", "Hamstrings", "Glutes"]
 };

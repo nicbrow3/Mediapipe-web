@@ -62,7 +62,7 @@ export const dumbellRows = {
                 side: 'left',
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
                 minThreshold: 90,
-                maxThreshold: 160,
+                maxThreshold: 150,
                 isRepCounter: true,
                 relaxedIsHigh: true
              },
@@ -71,7 +71,7 @@ export const dumbellRows = {
                 side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'], // Generic points
                 minThreshold: 90,
-                maxThreshold: 160,
+                maxThreshold: 150,
                 isRepCounter: true,
                 relaxedIsHigh: true
              }

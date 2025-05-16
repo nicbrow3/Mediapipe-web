@@ -58,7 +58,7 @@ export const dumbbellRenegadeRows = {
                 id: 'leftElbowRowAngle',
                 side: 'left',
                 points: ['shoulder', 'elbow', 'wrist'],
-                minThreshold: 30, // Minimum angle for a valid rep
+                minThreshold: 90, // Minimum angle for a valid rep
                 maxThreshold: 150, // Maximum angle for a valid rep
                 isRepCounter: true,
                 relaxedIsHigh: false // Lower angle indicates a rep
@@ -67,7 +67,7 @@ export const dumbbellRenegadeRows = {
                 id: 'rightElbowRowAngle',
                 side: 'right',
                 points: ['shoulder', 'elbow', 'wrist'],
-                minThreshold: 30, // Minimum angle for a valid rep
+                minThreshold: 90, // Minimum angle for a valid rep
                 maxThreshold: 150, // Maximum angle for a valid rep
                 isRepCounter: true,
                 relaxedIsHigh: false // Lower angle indicates a rep
