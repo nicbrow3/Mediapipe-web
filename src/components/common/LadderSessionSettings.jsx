@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Stack, Group, Text, NumberInput, Checkbox } from '@mantine/core';
+import { Stack, Group, Text, Checkbox } from '@mantine/core';
+import CustomNumberInput from './CustomNumberInput';
 
 /**
  * LadderSessionSettings Component
@@ -42,33 +43,69 @@ const LadderSessionSettings = ({
     // Apply the incoming change and auto-adjustments
     if (key === 'incrementReps') {
         if (isNaN(numValue) || numValue <= 0) { 
-            // console.warn('Invalid increment value'); 
             return; 
         }
-        prospectiveSettings.incrementReps = numValue;
         const newIncrement = numValue;
+        prospectiveSettings.incrementReps = newIncrement;
 
-        // Adjust topReps to be the closest multiple of the new increment
-        let adjustedTopReps = Math.max(
-            newIncrement, // Ensures topReps is at least the increment value itself
-            Math.round(localSettings.topReps / newIncrement) * newIncrement
-        );
+        let currentStartReps = localSettings.startReps;
+        let currentTopReps = localSettings.topReps;
+        let currentEndReps = localSettings.endReps;
 
-        // Clamp adjustedTopReps: must be >= (startReps + newIncrement) and <= system max (50)
-        const minTopRepsBasedOnStart = localSettings.startReps + newIncrement;
-        adjustedTopReps = Math.max(minTopRepsBasedOnStart, adjustedTopReps);
-        adjustedTopReps = Math.min(50, adjustedTopReps); // System max for topReps
+        // Adjust Start Reps
+        const min_S_prop = newIncrement > 1 ? newIncrement : 1;
+        let k_S = Math.max(0, Math.round((currentStartReps - min_S_prop) / newIncrement));
+        let adjustedStartReps = min_S_prop + k_S * newIncrement;
+        adjustedStartReps = Math.min(adjustedStartReps, 10); // Max for startReps
+        adjustedStartReps = Math.max(adjustedStartReps, min_S_prop); // Ensure startReps' own min
+        prospectiveSettings.startReps = adjustedStartReps;
+
+        // Adjust Top Reps
+        const min_T_prop_effective = prospectiveSettings.startReps + (newIncrement > 0 ? newIncrement : 1);
+        let k_T = Math.max(0, Math.round((currentTopReps - min_T_prop_effective) / newIncrement));
+        let adjustedTopReps = min_T_prop_effective + k_T * newIncrement;
+        adjustedTopReps = Math.min(adjustedTopReps, 50); // Max for topReps
+        adjustedTopReps = Math.max(adjustedTopReps, min_T_prop_effective);
+        
+        if (adjustedTopReps < min_T_prop_effective && newIncrement > 0) {
+             adjustedTopReps = prospectiveSettings.startReps;
+        }
         prospectiveSettings.topReps = adjustedTopReps;
+        
+        if (prospectiveSettings.startReps + newIncrement > prospectiveSettings.topReps && newIncrement > 0) {
+            let targetMaxStart = prospectiveSettings.topReps - newIncrement;
+            k_S = Math.max(0, Math.floor((targetMaxStart - min_S_prop) / newIncrement)); 
+            adjustedStartReps = min_S_prop + k_S * newIncrement;
+            adjustedStartReps = Math.min(adjustedStartReps, 10); 
+            adjustedStartReps = Math.max(adjustedStartReps, min_S_prop); 
+            prospectiveSettings.startReps = adjustedStartReps;
+        }
+
+        // Adjust End Reps
+        const min_E_prop = newIncrement > 1 ? newIncrement : 1;
+        let k_E = Math.max(0, Math.round((currentEndReps - min_E_prop) / newIncrement));
+        let adjustedEndReps = min_E_prop + k_E * newIncrement;
+        adjustedEndReps = Math.min(adjustedEndReps, prospectiveSettings.topReps); 
+        adjustedEndReps = Math.max(adjustedEndReps, min_E_prop);
+        prospectiveSettings.endReps = adjustedEndReps;
 
     } else if (['startReps', 'topReps', 'endReps'].includes(key)) {
         if (isNaN(numValue) || numValue <= 0) { 
-            // console.warn(`Invalid value for ${key}`);
              return; 
+        }
+
+        const currentIncrement = prospectiveSettings.incrementReps;
+        if ((key === 'startReps' || key === 'endReps') && currentIncrement > 1) {
+            if (numValue % currentIncrement !== 0) {
+                return;
+            }
+            if (numValue < currentIncrement) {
+                return;
+            }
         }
         prospectiveSettings[key] = numValue;
     } else if (key === 'restTimePerRep') {
         if (isNaN(numValue) || numValue < 0) { // Allow 0 for rest time
-            // console.warn('Invalid rest time'); 
             return; 
         }
         prospectiveSettings[key] = numValue;
@@ -81,22 +118,18 @@ const LadderSessionSettings = ({
     // These are relational validations.
 
     if (prospectiveSettings.startReps > prospectiveSettings.topReps) {
-        // console.warn("Validation Fail: Start Reps cannot be greater than Top Reps");
         return;
     }
     if (prospectiveSettings.endReps > prospectiveSettings.topReps) {
-        // console.warn("Validation Fail: End Reps cannot be greater than Top Reps");
         return;
     }
 
     // Validation for reachability if incrementReps > 1
     if (prospectiveSettings.incrementReps > 1) {
       if ((prospectiveSettings.topReps - prospectiveSettings.startReps) % prospectiveSettings.incrementReps !== 0) {
-        // console.warn('Top reps not reachable from start reps with current increment.');
         return; // Prevent change
       }
       if ((prospectiveSettings.topReps - prospectiveSettings.endReps) % prospectiveSettings.incrementReps !== 0) {
-        // console.warn('End reps not reachable from top reps with current increment.');
         return; // Prevent change
       }
     }
@@ -113,18 +146,18 @@ const LadderSessionSettings = ({
       {/* <Text weight={500} size="sm">Ladder Configuration</Text> */}
       
       <Group spacing="xs" grow style={{ alignItems: 'flex-start' }}>
-        <NumberInput
+        <CustomNumberInput
           label="Start Reps"
           value={localSettings.startReps}
           onChange={(value) => handleSettingChange('startReps', value)}
-          min={1}
+          min={localSettings.incrementReps > 1 ? localSettings.incrementReps : 1}
           max={10}
           step={localSettings.incrementReps > 1 ? localSettings.incrementReps : 1}
           disabled={isSessionActive}
           style={{ flex: 1 }}
         />
         
-        <NumberInput
+        <CustomNumberInput
           label="Top Reps"
           value={localSettings.topReps}
           onChange={(value) => handleSettingChange('topReps', value)}
@@ -137,18 +170,18 @@ const LadderSessionSettings = ({
       </Group>
       
       <Group spacing="xs" grow style={{ alignItems: 'flex-start' }}>
-        <NumberInput
+        <CustomNumberInput
           label="End Reps"
           value={localSettings.endReps}
           onChange={(value) => handleSettingChange('endReps', value)}
-          min={1}
+          min={localSettings.incrementReps > 1 ? localSettings.incrementReps : 1}
           max={localSettings.topReps}
           step={localSettings.incrementReps > 1 ? localSettings.incrementReps : 1}
           disabled={isSessionActive}
           style={{ flex: 1 }}
         />
         
-        <NumberInput
+        <CustomNumberInput
           label="Increment"
           value={localSettings.incrementReps}
           onChange={(value) => handleSettingChange('incrementReps', value)}
@@ -160,7 +193,7 @@ const LadderSessionSettings = ({
         />
       </Group>
       
-      <NumberInput
+      <CustomNumberInput
         label="Rest Time per Rep (seconds)"
         description="Rest time will be this value multiplied by current reps"
         value={localSettings.restTimePerRep}

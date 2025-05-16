@@ -14,6 +14,7 @@ const RepCounterContext = createContext({
   updateRepCount: () => {},
   isTrackingEnabled: true,
   updateTrackingState: () => {},
+  resetToken: 0,
 });
 
 /**
@@ -24,10 +25,12 @@ export const RepCounterProvider = ({ children }) => {
   const [repCount, setRepCount] = useState({ left: 0, right: 0 });
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(true);
   const [settings] = useAppSettings();
+  const [resetToken, setResetToken] = useState(0);
 
   // Reset rep counts to zero
   const resetRepCounts = useCallback(() => {
     setRepCount({ left: 0, right: 0 });
+    setResetToken(prevToken => prevToken + 1);
   }, []);
 
   // Update rep count for a specific side
@@ -56,6 +59,7 @@ export const RepCounterProvider = ({ children }) => {
       updateRepCount,
       isTrackingEnabled: true, // Each side now individually determines if tracking is enabled
       updateTrackingState,
+      resetToken,
     }}>
       {children}
     </RepCounterContext.Provider>

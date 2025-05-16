@@ -418,6 +418,7 @@ const MinimalTrackerContent = () => {
               trackedAngles={trackedAngles} // From hook
               useThreePhases={appSettings.useThreePhases}
               landmarksData={landmarksData} // From hook
+              workoutMode={workoutMode}
             />
             <LandmarkMetricsDisplay2
               displaySide="left"
@@ -440,6 +441,7 @@ const MinimalTrackerContent = () => {
               trackedAngles={trackedAngles} // From hook
               useThreePhases={appSettings.useThreePhases}
               landmarksData={landmarksData} // From hook
+              workoutMode={workoutMode}
             />
             <LandmarkMetricsDisplay2
               displaySide="right"

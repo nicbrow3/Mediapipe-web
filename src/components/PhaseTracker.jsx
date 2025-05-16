@@ -17,7 +17,8 @@ const PhaseTracker = ({
   landmarkVisibility = {
     primaryLandmarks: { allVisible: true, minVisibility: 100 },
     secondaryLandmarks: { allVisible: true, minVisibility: 100 }
-  }
+  },
+  workoutMode
 }) => {
   const [phase, setPhase] = useState(0);
   const [repCount, setRepCount] = useState(0);
@@ -37,7 +38,18 @@ const PhaseTracker = ({
 
   
   // Get the updateRepCount function from context
-  const { updateRepCount, updateTrackingState, isTrackingEnabled } = useRepCounter();
+  const { updateRepCount, updateTrackingState, isTrackingEnabled, resetToken } = useRepCounter();
+  
+  // Effect to reset local rep count and phase sequence when resetToken changes
+  useEffect(() => {
+    // Check if it's not the initial token value (assuming initial is 0)
+    // The first increment will make resetToken = 1, so this will trigger.
+    // No need for resetToken > 0 if initial is 0 and it always increments.
+    setRepCount(0);
+    phaseSequenceRef.current = [];
+    lastPhaseRef.current = null;
+    setPhase(0); // Reset current displayed phase circle as well
+  }, [resetToken]);
   
   // Update tracking state based on landmark visibility and app settings
   useEffect(() => {
@@ -273,9 +285,11 @@ const PhaseTracker = ({
       }}>
         {getPhaseDisplay()}
       </div>
-      <div className="rep-count" style={{ fontSize: '14px' }}>
-        Reps: {repCount}
-      </div>
+      {workoutMode === 'manual' && (
+        <div className="rep-count" style={{ fontSize: '14px' }}>
+          Reps: {repCount}
+        </div>
+      )}
       {requireAllLandmarks && !isLocalTrackingEnabled && (
         <div style={{ 
           fontSize: '10px', 

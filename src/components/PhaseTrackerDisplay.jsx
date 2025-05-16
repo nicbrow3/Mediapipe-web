@@ -22,7 +22,7 @@ const getDefaultSecondaryLandmarks = (side) => {
   return baseLandmarks;
 };
 
-const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, useThreePhases, landmarksData }) => {
+const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, useThreePhases, landmarksData, workoutMode }) => {
   const [settings] = useAppSettings();
   // console.log(`[PhaseTrackerDisplay (${displaySide})] Function body. Settings from hook:`, JSON.parse(JSON.stringify(settings))); // Deep copy for reliable logging
   
@@ -160,6 +160,7 @@ const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, use
         side={displayLabel}
         useThreePhases={settings.useThreePhases}
         landmarkVisibility={landmarkVisibilityData}
+        workoutMode={workoutMode}
       />
     </div>
   );

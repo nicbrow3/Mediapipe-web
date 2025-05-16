@@ -1,51 +1,38 @@
+// src/components/common/TimedSessionControls.jsx
 import React, { useState } from 'react';
-import { Paper, Text, Button, Group, Stack, Collapse, ActionIcon, Center } from '@mantine/core';
+import { Paper, Button, Group, Stack, Collapse, ActionIcon, Text } from '@mantine/core'; // Added Text back for fallback
 import TimedSessionSettings from './TimedSessionSettings';
+import CircularProgressTimer from './CircularProgressTimer'; // Import the component
 import { CaretCircleDown, CaretCircleUp } from 'phosphor-react';
 
-/**
- * Helper function to format time from seconds to MM:SS display format
- */
-const formatTime = (totalSeconds) => {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
+// formatTime can be kept if needed elsewhere, or CircularProgressTimer can handle its own label formatting
+// const formatTime = (totalSeconds) => { ... };
 
-/**
- * SessionControls Component
- * 
- * Manages the interface for timed workout sessions:
- * 1. Displays a collapsible settings panel for configuring session parameters
- * 2. Shows a timer countdown during active sessions
- * 3. Displays current/upcoming exercise information
- * 4. Shows set progress (current set / total sets)
- * 5. Provides start/stop button for session control
- * 
- * This component bridges the UI controls with the session logic functionality.
- */
 const TimedSessionControls = ({
   isSessionActive,
   currentTimerValue,
-  onToggleSession, // Handler for the start/stop button
+  onToggleSession,
   currentExercise,
   upcomingExercise,
   sessionPhase,
-  exerciseSetDuration = 30,
-  restPeriodDuration = 15,
+  exerciseSetDuration = 30, // Default from props
+  restPeriodDuration = 15,  // Default from props
   totalSets = 10,
   onSettingsChange,
   currentSetNumber = 0,
 }) => {
   const [showSettings, setShowSettings] = useState(false);
-  
-  // Handler for session start that includes settings
-  const handleStartSession = (sessionConfig) => {
-    if (onSettingsChange) {
-      onSettingsChange(sessionConfig);
-    }
-    onToggleSession();
-  };
+
+  // Determine the total duration for the current phase
+  // This is crucial for the CircularProgressTimer's totalTime prop
+  const currentPhaseTotalTime = sessionPhase === 'exercising' 
+    ? exerciseSetDuration 
+    : sessionPhase === 'resting' 
+    ? restPeriodDuration 
+    : 0; // Fallback, though should ideally not be 0 if active
+
+  // For debugging
+  console.log(`[TimedSessionControls] Phase: ${sessionPhase}, currentTimerValue: ${currentTimerValue}, currentPhaseTotalTime: ${currentPhaseTotalTime}, exerciseSetDuration: ${exerciseSetDuration}, restPeriodDuration: ${restPeriodDuration}`);
 
   return (
     <Paper style={{width: '100%'}}>
@@ -53,14 +40,11 @@ const TimedSessionControls = ({
       spacing="xs"
       style={{ width: '100%' }}
       >
-        <Group // Header of the timed session
-          position="apart"
-          style={{ width: '100%', justify: 'center' }}
-          >
+        <Group position="apart" style={{ width: '100%', justifyContent: 'center' }}> {/* Changed justify to 'center' */}
           <Text size="md" weight={500}>Timed Session</Text>
           <ActionIcon 
             onClick={() => setShowSettings(!showSettings)} 
-            variant="light"
+            variant="subtle"
             disabled={isSessionActive}
           >
             {showSettings ? <CaretCircleUp size={18} /> : <CaretCircleDown size={18} />}
@@ -77,28 +61,29 @@ const TimedSessionControls = ({
           />
         </Collapse>
         
-        <Stack
-        >
-          {isSessionActive && (
-            <Text
-            size="h1"
-            ta='center'
-            >
-              {formatTime(currentTimerValue)}
-            </Text>
-          )}
+        <Stack align="center"> {/* Center the timer and button */}
+          {isSessionActive && sessionPhase !== 'idle' ? (
+            <CircularProgressTimer
+              currentTime={currentTimerValue}
+              totalTime={currentPhaseTotalTime} // Pass the calculated total time
+              thickness={25} // Example thickness
+            />
+          ) : isSessionActive && sessionPhase === 'idle' ? (
+            // Should ideally not happen if session is active but phase is idle
+            <Text size="xl" ta="center">Preparing...</Text>
+          ) : null}
           <Button
-          fullWidth
+            fullWidth
             onClick={onToggleSession}
             variant= "filled"
-            color={isSessionActive ? 'red' : 'blue'} // Example: Red for stop, Blue for start
+            color={isSessionActive ? 'red' : 'blue'}
+            style={{marginTop: isSessionActive && sessionPhase !== 'idle' ? '10px' : '0'}} // Add some margin if timer is shown
           >
             {isSessionActive ? 'Stop Session' : 'Start Session'}
           </Button>
         </Stack>
         
-        
-        {isSessionActive && (// Text when the session is active
+        {isSessionActive && (
           <Stack
           spacing="xs"
           align="center"
@@ -121,4 +106,4 @@ const TimedSessionControls = ({
   );
 };
 
-export default TimedSessionControls; 
+export default TimedSessionControls;

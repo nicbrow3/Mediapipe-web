@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { Text, Button, Group, Stack, Collapse, ActionIcon, Badge, Select, Paper, Box, Transition } from '@mantine/core';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Text, Button, Group, Stack, Collapse, ActionIcon, Badge, Select, Paper, Box, Transition, Affix } from '@mantine/core';
 import LadderSessionSettings from './LadderSessionSettings';
 import { CaretCircleDown, CaretCircleUp, ListBullets } from 'phosphor-react';
 import LadderSetList from './LadderSetList';
+import CircularProgressTimer from './CircularProgressTimer';
 
 /**
  * Helper function to format time from seconds to MM:SS display format
@@ -42,7 +43,10 @@ const LadderSessionControls = ({
 }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showSetList, setShowSetList] = useState(false);
-  
+
+  // Store the total duration of the current rest period when it starts
+  const [currentRestTotalTime, setCurrentRestTotalTime] = useState(0);
+
   // Check if we're at the peak (top reps)
   const isAtPeak = currentReps === ladderSettings.topReps;
   
@@ -70,6 +74,19 @@ const LadderSessionControls = ({
   const handleToggleSettings = useCallback(() => {
     setShowSettings(prev => !prev);
   }, []);
+
+  useEffect(() => {
+    if (sessionPhase === 'resting') {
+        // When the rest phase begins, currentTimerValue is set to the full rest duration
+        // by useLadderSessionLogic. We capture this initial value.
+        // currentReps and ladderSettings.restTimePerRep are stable when this effect runs for a phase change.
+        const initialRestDuration = currentReps * ladderSettings.restTimePerRep;
+        setCurrentRestTotalTime(initialRestDuration);
+    } else {
+        // Reset when not in resting phase, or set to a value that indicates no timer
+        setCurrentRestTotalTime(0); 
+    }
+  }, [sessionPhase, currentReps, ladderSettings.restTimePerRep]); // Dependencies ensure this updates correctly
 
   // Memoize the toggle set list handler
   const handleToggleSetList = useCallback(() => {
@@ -138,11 +155,7 @@ const LadderSessionControls = ({
             position="center"
             style={{ alignItems: 'center', minHeight: '36px', width: '100%' }}
           >
-            {isSessionActive && sessionPhase === 'resting' && (
-              <Text size="xl" weight={700} color="blue" style={{ textAlign: 'center' }}>
-                {formatTime(currentTimerValue)}
-              </Text>
-            )}
+            {/* Timer display is now handled by Affix below during resting phase */}
           </Group>
 
           <Button
@@ -169,8 +182,8 @@ const LadderSessionControls = ({
             <Stack spacing="xs" align="center" mt="sm">
               
               <Group position="center" spacing={8}>
-                <Badge variant="filled" size="lg" color={sessionPhase === 'exercising' ? 'green' : 'gray'}>
-                  {currentReps} reps
+                <Badge variant="filled" size="lg" color={sessionPhase === 'exercising' ? 'green' : 'gray'}> 
+                  {currentReps} reps 
                 </Badge>
                 
                 {isAtPeak ? (
@@ -184,19 +197,14 @@ const LadderSessionControls = ({
                 )}
               </Group>
               
-              <Text size="sm" color="dimmed">
+              <Text size="sm" c="dimmed">
                 Set {currentSetNumber} of {totalSets}
               </Text>
               
-              {sessionPhase === 'exercising' && (
-                <Text size="sm" color={isAtPeak ? 'orange' : 'green'}>
-                  {isAtPeak ? 'PEAK SET!' : 'Do'} {currentReps} reps, then click "Complete Set"
-                </Text>
-              )}
-              
+              {/* Text indicator for rest time, can be kept or removed based on preference */}
               {sessionPhase === 'resting' && (
                 <Text size="sm" color="blue">
-                  Resting: {formatTime(currentTimerValue)}
+                  Resting: {formatTime(currentTimerValue)} 
                 </Text>
               )}
             </Stack>
@@ -204,7 +212,7 @@ const LadderSessionControls = ({
         </Stack>
       </Paper>
 
-      <Transition mounted={showSetList} transition="slide-right" duration={200} timingFunction="ease">
+      <Transition mounted={showSetList} transition={"slide-right"} duration={200} timingFunction="ease">
         {(styles) => (
           showSetList && ladderSettings ? (
             <Box 
@@ -221,6 +229,19 @@ const LadderSessionControls = ({
           ) : null
         )}
       </Transition>
+
+      {isSessionActive && sessionPhase === 'resting' && currentRestTotalTime > 0 && (
+        <Affix position={{
+          bottom: 120,
+          left: 'calc(50% - 200px)' }}> 
+          <CircularProgressTimer 
+            currentTime={currentTimerValue} 
+            totalTime={currentRestTotalTime} // Use the captured total rest time
+            size={120} 
+            thickness={10}
+          />
+        </Affix>
+      )}
     </Group>
   );
 };
