@@ -1,15 +1,13 @@
 import React from 'react';
 
-const StatsDisplay = ({ stats, cameraStarted, landmarksData, smoothingEnabled, smoothingWindow }) => {
+const StatsDisplay = ({ stats, cameraStarted, smoothingEnabled, smoothingWindow }) => {
   if (!cameraStarted) {
     return null;
   }
   
-  // Count landmarks if available
-  const landmarksCount = landmarksData ? landmarksData.length : 0;
-  
   return (
-    <div style={{
+    <div 
+    style={{
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
       color: 'white',
       padding: '10px 20px',
@@ -20,7 +18,7 @@ const StatsDisplay = ({ stats, cameraStarted, landmarksData, smoothingEnabled, s
     }}>
       FPS: {stats.fps} | Inference Time: {stats.inferenceTime}ms
       {smoothingEnabled && (
-        <span> | Smoothing: <span style={{color: '#45a29e'}}>{smoothingWindow} frames</span></span>
+        <span> | Smoothing</span>
       )}
     </div>
   );

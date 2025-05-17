@@ -1,7 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-// import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision'; // Moved to usePoseTracker
 import './MinimalTracker.css'; // Use new layout styles
-// import { calculateAngle, LANDMARK_MAP } from '../logic/landmarkUtils'; // Moved to usePoseTracker
 import * as exercises from '../exercises';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useSessionLogic } from '../hooks/useSessionLogic'; // Timed session hook
@@ -70,18 +68,18 @@ const MinimalTrackerContent = () => {
     stats,
     startTracking,
     canvasDimensions,
-    angleHistoryRef // Passed from hook
+    angleHistoryRef, // Passed from hook
+    ANGLE_SMOOTHING_WINDOW, // Passed from hook
   } = usePoseTracker(selectedExerciseRef, appSettings);
-
-
-  // Constants (ANGLE_SMOOTHING_WINDOW is now in the hook)
-  // const ANGLE_SMOOTHING_WINDOW = 25; // Moved
 
   // Functions for settings updates
   const toggleSmoothingAndUpdateSettings = useCallback(() => {
-    updateAppSettings(prev => ({ isSmoothingEnabled: !prev.isSmoothingEnabled }));
-    if (angleHistoryRef && angleHistoryRef.current) { // Clear angle history in the hook
-        angleHistoryRef.current = {};
+    updateAppSettings(prev => ({
+      ...prev,
+      isSmoothingEnabled: !prev.isSmoothingEnabled
+    }));
+    if (angleHistoryRef && angleHistoryRef.current) {
+      angleHistoryRef.current = {};
     }
   }, [updateAppSettings, angleHistoryRef]);
 
@@ -114,6 +112,14 @@ const MinimalTrackerContent = () => {
 
   const handleToggleAlwaysShowConnections = useCallback((checked) => {
     updateAppSettings({ alwaysShowConnections: checked });
+  }, [updateAppSettings]);
+
+  const handleToggleHighlightExerciseConnections = useCallback((checked) => {
+    updateAppSettings({ highlightExerciseConnections: checked });
+  }, [updateAppSettings]);
+
+  const handleConnectionHighlightColorChange = useCallback((color) => {
+    updateAppSettings({ connectionHighlightColor: color });
   }, [updateAppSettings]);
 
   const handleWeightChange = useCallback((newWeight) => {
@@ -270,17 +276,17 @@ const MinimalTrackerContent = () => {
     cameraStarted: cameraStarted && !isLoading && !errorMessage,
     stats,
     landmarksData,
-    // smoothingEnabled: appSettings.isSmoothingEnabled, // This is now internal to the hook or passed via appSettings
-    // smoothingWindow: ANGLE_SMOOTHING_WINDOW, // This is now internal to the hook
+    smoothingEnabled: appSettings.isSmoothingEnabled,
+    smoothingWindow: ANGLE_SMOOTHING_WINDOW,
     exerciseOptions,
-    selectedExercise, // This should be the state variable for the dropdown
+    selectedExercise,
     onExerciseChange: handleExerciseChange,
     isSessionActive,
     currentTimerValue,
     onToggleSession: handleToggleSession,
     workoutMode,
     onWorkoutModeChange: handleWorkoutModeChange,
-    currentExercise: currentExerciseForDisplay, // Use the renamed variable
+    currentExercise: currentExerciseForDisplay,
     upcomingExercise: timedSessionUpcomingExercise,
     sessionPhase,
     totalSets: workoutMode === 'session' ? timedSessionTotalSets : 
@@ -289,13 +295,13 @@ const MinimalTrackerContent = () => {
                       workoutMode === 'ladder' ? ladderCurrentSetNumber : 0,
     onSessionSettingsChange: updateSessionSettings,
     sessionSettings,
-    currentReps, // For ladder
-    onCompleteSet: completeCurrentSet, // For ladder
-    onLadderSettingsChange: updateLadderSettings, // For ladder
-    ladderSettings, // For ladder
-    direction, // For ladder
-    selectedLadderExercise, // For ladder
-    onLadderExerciseChange: handleLadderExerciseChange, // For ladder
+    currentReps,
+    onCompleteSet: completeCurrentSet,
+    onLadderSettingsChange: updateLadderSettings,
+    ladderSettings,
+    direction,
+    selectedLadderExercise,
+    onLadderExerciseChange: handleLadderExerciseChange,
   }), [
     cameraStarted,
     isLoading,
@@ -363,7 +369,37 @@ const MinimalTrackerContent = () => {
         </ActionIcon>
       )}
 
-      <TrackerControlsBar {...trackerControlsProps} />
+      <TrackerControlsBar
+        stats={stats}
+        landmarksData={landmarksData}
+        cameraStarted={cameraStarted}
+        smoothingEnabled={appSettings.isSmoothingEnabled}
+        smoothingWindow={ANGLE_SMOOTHING_WINDOW}
+        exerciseOptions={exerciseOptions}
+        selectedExercise={selectedExercise}
+        onExerciseChange={handleExerciseChange}
+        isSessionActive={isSessionActive}
+        currentTimerValue={currentTimerValue}
+        onToggleSession={handleToggleSession}
+        workoutMode={workoutMode}
+        onWorkoutModeChange={handleWorkoutModeChange}
+        currentExercise={currentExerciseForDisplay}
+        upcomingExercise={timedSessionUpcomingExercise}
+        sessionPhase={sessionPhase}
+        totalSets={workoutMode === 'session' ? timedSessionTotalSets : 
+                   workoutMode === 'ladder' ? ladderTotalSets : 0}
+        currentSetNumber={workoutMode === 'session' ? timedSessionCurrentSetNumber : 
+                        workoutMode === 'ladder' ? ladderCurrentSetNumber : 0}
+        onSessionSettingsChange={updateSessionSettings}
+        sessionSettings={sessionSettings}
+        currentReps={currentReps}
+        onCompleteSet={completeCurrentSet}
+        onLadderSettingsChange={updateLadderSettings}
+        ladderSettings={ladderSettings}
+        direction={direction}
+        selectedLadderExercise={selectedLadderExercise}
+        onLadderExerciseChange={handleLadderExerciseChange}
+      />
 
       {isLoading && cameraStarted && <LoadingDisplay />}
       
@@ -393,6 +429,9 @@ const MinimalTrackerContent = () => {
           feedOpacity={appSettings.cameraOpacity / 100}
           minVisibilityForConnection={appSettings.minimumVisibilityThreshold / 100}
           overrideConnectionVisibility={appSettings.alwaysShowConnections}
+          highlightExerciseConnections={appSettings.highlightExerciseConnections}
+          connectionHighlightColor={appSettings.connectionHighlightColor}
+          selectedExercise={getActiveExercise}
         />
         
         {cameraStarted && !isLoading && !errorMessage && (
@@ -472,6 +511,10 @@ const MinimalTrackerContent = () => {
         onCameraOpacityChange={handleCameraOpacityChange}
         alwaysShowConnections={appSettings.alwaysShowConnections}
         onToggleAlwaysShowConnections={handleToggleAlwaysShowConnections}
+        highlightExerciseConnections={appSettings.highlightExerciseConnections}
+        onToggleHighlightExerciseConnections={handleToggleHighlightExerciseConnections}
+        connectionHighlightColor={appSettings.connectionHighlightColor}
+        onConnectionHighlightColorChange={handleConnectionHighlightColorChange}
       />
     </div>
   );

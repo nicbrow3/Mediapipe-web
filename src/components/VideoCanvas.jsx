@@ -2,6 +2,7 @@
 // This component is used to draw the landmarks on the canvas
 // It is used in the MinimalTracker component
 import React, { useEffect } from 'react';
+import { LANDMARK_MAP, POSE_CONNECTIONS } from '../logic/landmarkUtils';
 
 const VideoCanvas = ({ 
   videoRef, 
@@ -13,7 +14,107 @@ const VideoCanvas = ({
   feedOpacity = 1,
   minVisibilityForConnection = 0.0, // Default to 0.0 (draw all connections if not specified)
   overrideConnectionVisibility = false, // Add new prop with default
+  highlightExerciseConnections = false,
+  connectionHighlightColor = "#00FF00",
+  selectedExercise = null,
 }) => {
+  // Helper function to get landmark indices for the current exercise
+  const getExerciseConnections = (exercise) => {
+    if (!exercise || !exercise.logicConfig || !exercise.logicConfig.anglesToTrack) return [];
+    
+    // We'll store connections important for rep calculations
+    const importantConnections = [];
+    
+    // Focus on angles that are used for rep counting (isRepCounter = true)
+    const repCountAngles = exercise.logicConfig.anglesToTrack.filter(
+      angle => angle.isRepCounter === true
+    );
+    
+    // For each rep counting angle, get the connections between its points
+    repCountAngles.forEach(angleConfig => {
+      if (angleConfig.points && angleConfig.points.length >= 3) {
+        // Map generic points to actual landmark names based on side
+        const side = angleConfig.side || 'left';
+        
+        // Map the points to actual landmark names
+        const mappedPoints = angleConfig.points.map(point => {
+          if (point === 'shoulder') return `${side}_shoulder`;
+          if (point === 'elbow') return `${side}_elbow`;
+          if (point === 'wrist') return `${side}_wrist`;
+          if (point === 'hip') return `${side}_hip`;
+          if (point === 'knee') return `${side}_knee`;
+          if (point === 'ankle') return `${side}_ankle`;
+          return point; // Return as is if no mapping
+        });
+        
+        // Convert to indices
+        const pointIndices = mappedPoints
+          .map(name => LANDMARK_MAP[name])
+          .filter(idx => idx !== undefined);
+        
+        // For an angle defined by points A-B-C (where B is the vertex)
+        // We want to highlight connections A-B and B-C
+        if (pointIndices.length >= 3) {
+          // We need to find if A-B and B-C are valid connections in POSE_CONNECTIONS
+          
+          // For each potential connection in our angle points
+          for (let i = 0; i < pointIndices.length - 1; i++) {
+            const idxA = pointIndices[i];
+            const idxB = pointIndices[i + 1];
+            
+            // Check if this connection or its reverse exists in POSE_CONNECTIONS
+            const connectionExists = POSE_CONNECTIONS.some(([idx1, idx2]) => 
+              (idx1 === idxA && idx2 === idxB) || (idx1 === idxB && idx2 === idxA)
+            );
+            
+            if (connectionExists) {
+              // Add the connection if it exists
+              importantConnections.push([idxA, idxB]);
+            } else {
+              // If direct connection doesn't exist, try to find intermediate connections
+              // For example, if shoulder-wrist doesn't exist directly, we might need shoulder-elbow and elbow-wrist
+              
+              // Try to find the intermediate landmarks
+              const allLandmarks = Object.values(LANDMARK_MAP);
+              
+              for (const intermediateIdx of allLandmarks) {
+                // Check if there's a path from A to intermediate and intermediate to B
+                const connectionA = POSE_CONNECTIONS.some(([idx1, idx2]) => 
+                  (idx1 === idxA && idx2 === intermediateIdx) || (idx1 === intermediateIdx && idx2 === idxA)
+                );
+                
+                const connectionB = POSE_CONNECTIONS.some(([idx1, idx2]) => 
+                  (idx1 === idxB && idx2 === intermediateIdx) || (idx1 === intermediateIdx && idx2 === idxB)
+                );
+                
+                if (connectionA && connectionB) {
+                  // Add both connections
+                  importantConnections.push([idxA, intermediateIdx]);
+                  importantConnections.push([intermediateIdx, idxB]);
+                  break; // Found a valid path
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Convert to unique connection strings to remove duplicates
+    const uniqueConnections = new Set();
+    importantConnections.forEach(([idx1, idx2]) => {
+      // Sort indices to ensure consistent representation
+      const sortedIndices = [idx1, idx2].sort((a, b) => a - b);
+      uniqueConnections.add(`${sortedIndices[0]},${sortedIndices[1]}`);
+    });
+    
+    // Convert back to pairs of indices
+    return Array.from(uniqueConnections).map(conn => {
+      const [idx1, idx2] = conn.split(',').map(Number);
+      return [idx1, idx2];
+    });
+  };
+
   // Draw landmarks on canvas
   const drawLandmarks = (ctx, landmarks, width, height, minVisibility, overrideVisibility) => {
     if (!landmarks) return;
@@ -35,21 +136,30 @@ const VideoCanvas = ({
       ctx.fill();
     }
     
-    // Draw connections between landmarks (simplified)
-    // POSE_CONNECTIONS would normally come from MediaPipe, but we'll use a simplified subset
-    const connections = [
-      // Torso
-      [11, 12], [12, 24], [24, 23], [23, 11],
-      // Arms
-      [11, 13], [13, 15], [12, 14], [14, 16],
-      // Legs
-      [23, 25], [25, 27], [24, 26], [26, 28],
-      // Head
-      [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8]
-    ];
+    // Get exercise-specific connections if highlighting is enabled
+    const exerciseConnections = highlightExerciseConnections && selectedExercise ? 
+      getExerciseConnections(selectedExercise) : [];
     
+    // Create a Set of exercise connection pairs for faster lookup
+    const exerciseConnectionsSet = new Set();
+    exerciseConnections.forEach(([idx1, idx2]) => {
+      exerciseConnectionsSet.add(`${idx1},${idx2}`);
+      exerciseConnectionsSet.add(`${idx2},${idx1}`); // Add both directions for easier lookup
+    });
+    
+    // Draw connections between landmarks
+    // Use POSE_CONNECTIONS from landmarkUtils instead of hard-coding
+    const connections = POSE_CONNECTIONS;
+    
+    // First, draw regular connections
     ctx.beginPath();
+    ctx.strokeStyle = 'white';
     for (const [idx1, idx2] of connections) {
+      // Skip this connection if it's an exercise connection (we'll draw those separately)
+      if (highlightExerciseConnections && exerciseConnectionsSet.has(`${idx1},${idx2}`)) {
+        continue;
+      }
+
       const landmark1 = landmarks[idx1];
       const landmark2 = landmarks[idx2];
 
@@ -78,6 +188,43 @@ const VideoCanvas = ({
       }
     }
     ctx.stroke();
+    
+    // Then, draw exercise-specific connections with the highlight color
+    if (highlightExerciseConnections && exerciseConnections.length > 0) {
+      ctx.beginPath();
+      ctx.strokeStyle = connectionHighlightColor;
+      ctx.lineWidth = 3; // Make exercise connections slightly thicker
+      
+      for (const [idx1, idx2] of exerciseConnections) {
+        const landmark1 = landmarks[idx1];
+        const landmark2 = landmarks[idx2];
+
+        if (landmark1 && landmark2) {
+          let shouldDrawConnection = false;
+          if (overrideVisibility) {
+            shouldDrawConnection = true; // Always draw if override is true
+          } else {
+            // Check visibility if available, otherwise assume visible (1.0)
+            const L1Visibility = landmark1.visibility !== undefined ? landmark1.visibility : 1.0;
+            const L2Visibility = landmark2.visibility !== undefined ? landmark2.visibility : 1.0;
+            if (L1Visibility >= minVisibility && L2Visibility >= minVisibility) {
+              shouldDrawConnection = true;
+            }
+          }
+
+          if (shouldDrawConnection) {
+            const x1 = landmark1.x * width;
+            const y1 = landmark1.y * height;
+            const x2 = landmark2.x * width;
+            const y2 = landmark2.y * height;
+            
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+          }
+        }
+      }
+      ctx.stroke();
+    }
   };
 
   // Update canvas when landmarks change
@@ -113,7 +260,20 @@ const VideoCanvas = ({
         ctx.restore();
       }
     }
-  }, [landmarks, width, height, videoRef, canvasRef, cameraStarted, feedOpacity, minVisibilityForConnection, overrideConnectionVisibility]);
+  }, [
+    landmarks, 
+    width, 
+    height, 
+    videoRef, 
+    canvasRef, 
+    cameraStarted, 
+    feedOpacity, 
+    minVisibilityForConnection, 
+    overrideConnectionVisibility,
+    highlightExerciseConnections,
+    connectionHighlightColor,
+    selectedExercise
+  ]);
 
   return (
     <div className="video-canvas-wrapper">

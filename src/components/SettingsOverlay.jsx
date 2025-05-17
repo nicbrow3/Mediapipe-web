@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, Box, Title, Divider, Switch, Stack, NumberInput } from '@mantine/core';
+import React, { useState } from 'react';
+import { Modal, Box, Title, Divider, Switch, Stack, NumberInput, ColorPicker, Text, Group, ActionIcon, Popover } from '@mantine/core';
 
 const SettingsOverlayInternal = ({ 
   isOpen, 
@@ -18,16 +18,14 @@ const SettingsOverlayInternal = ({
   cameraOpacity = 100,
   onCameraOpacityChange = () => {},
   alwaysShowConnections = false,
-  onToggleAlwaysShowConnections = () => {}
-// routed to the minimalTracker component
-// used in useAppSettings.js
-
-
+  onToggleAlwaysShowConnections = () => {},
+  highlightExerciseConnections = false,
+  onToggleHighlightExerciseConnections = () => {},
+  connectionHighlightColor = "#00FF00",
+  onConnectionHighlightColorChange = () => {}
 }) => {
-  // console.log('SettingsOverlay rendering with threshold:', minimumVisibilityThreshold);
-  // Commented out the log as per user's observation that it should only log when settings change,
-  // and with React.memo it should render less often. 
-  // If needed for debugging, it can be re-enabled.
+  // State to control the color picker popover
+  const [colorPickerOpened, setColorPickerOpened] = useState(false);
 
   return (
     <Modal
@@ -111,6 +109,9 @@ const SettingsOverlayInternal = ({
             />
           </Box>
 
+          <Title order={4} mt="md">Visuals</Title>
+          <Divider my="xs" />
+
           <Box>
             <Switch
               checked={alwaysShowConnections}
@@ -119,6 +120,57 @@ const SettingsOverlayInternal = ({
               description="If enabled, all connections draw regardless of landmark visibility. If disabled, connections only draw if landmarks meet the visibility threshold."
               size="md"
             />
+          </Box>
+
+          <Box>
+            <Group align="center" justify="space-between" wrap="nowrap">
+              <div style={{ flex: 1 }}>
+                <Switch
+                  checked={highlightExerciseConnections}
+                  onChange={(event) => onToggleHighlightExerciseConnections(event.currentTarget.checked)}
+                  label="Highlight Exercise Connections"
+                  description="Highlight the landmark connections used for the current exercise"
+                  size="md"
+                />
+              </div>
+              
+              {highlightExerciseConnections && (
+                <Popover 
+                  opened={colorPickerOpened} 
+                  onClose={() => setColorPickerOpened(false)}
+                  position="right"
+                  withArrow
+                  shadow="md"
+                >
+                  <Popover.Target>
+                    <ActionIcon 
+                      variant="outline" 
+                      style={{ 
+                        backgroundColor: connectionHighlightColor,
+                        borderColor: '#666',
+                        width: '30px',
+                        height: '30px'
+                      }}
+                      onClick={() => setColorPickerOpened((prev) => !prev)}
+                    />
+                  </Popover.Target>
+                  
+                  <Popover.Dropdown>
+                    <Text size="sm" fw={500} mb="xs">Connection Highlight Color</Text>
+                    <ColorPicker
+                      value={connectionHighlightColor}
+                      onChange={(color) => {
+                        onConnectionHighlightColorChange(color);
+                        // Optional: close the popover after selecting a color
+                        // setColorPickerOpened(false);
+                      }}
+                      format="hex"
+                      swatches={['#467dcf', '#d14d4d', '#d1d152', '#bf49bf', '#5ec465']}
+                    />
+                  </Popover.Dropdown>
+                </Popover>
+              )}
+            </Group>
           </Box>
 
         </Stack>

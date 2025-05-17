@@ -13,6 +13,8 @@ const DEFAULT_SETTINGS = {
   requireSecondaryLandmarks: false,
   cameraOpacity: 100, // Default to 100%
   alwaysShowConnections: false, // Default to false (respect visibility threshold for connections)
+  highlightExerciseConnections: false, // Default to false (don't highlight exercise connections)
+  connectionHighlightColor: "#00FF00", // Default green color for highlighted connections
 };
 
 export function loadAppSettings() {
