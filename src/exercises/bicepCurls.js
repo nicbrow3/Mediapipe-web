@@ -16,14 +16,14 @@ export const bicepCurls = {
     /**
      * If true, ALL pose landmarks must have visibility >= threshold to exit paused state.
      * If false, only required/primary/secondary landmarks are checked.
-     */
-    requireAllLandmarksVisible: false,
-
-    // --- Landmark Requirements ---
-    landmarks: {
-        left: {
-            primary: ['left_shoulder', 'left_elbow', 'left_wrist'],
-            secondary: ['left_hip']
+    */
+   requireAllLandmarksVisible: false,
+   
+   // --- Landmark Requirements ---
+   landmarks: {
+       left: {
+           primary: ['left_shoulder', 'left_elbow', 'left_wrist'],
+           secondary: ['left_hip']
         },
         right: {
             primary: ['right_shoulder', 'right_elbow', 'right_wrist'],
@@ -31,6 +31,9 @@ export const bicepCurls = {
         }
     },
 
+    // --- Stationary Landmarks ---
+    stationaryLandmarks: ['left_hip', 'right_hip'],
+    
     // --- Starting Position Requirements ---
     startPosition: {
         description: "Stand tall, arms fully extended downwards by your sides.",

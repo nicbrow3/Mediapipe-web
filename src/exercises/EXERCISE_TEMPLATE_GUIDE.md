@@ -24,6 +24,9 @@ export const exerciseName = {
         }
     },
 
+        // --- Stationary Landmarks ---
+    stationaryLandmarks: [],
+
     // --- Starting Position Requirements ---
     startPosition: {
         description: '',

@@ -22,7 +22,16 @@ const SettingsOverlayInternal = ({
   highlightExerciseConnections = false,
   onToggleHighlightExerciseConnections = () => {},
   connectionHighlightColor = "#00FF00",
-  onConnectionHighlightColorChange = () => {}
+  onConnectionHighlightColorChange = () => {},
+  // Stationary tracking settings
+  enableStationaryTracking = false,
+  onEnableStationaryTrackingChange = () => {},
+  stationaryDeviationThreshold = 0.05,
+  onStationaryDeviationThresholdChange = () => {},
+  stationaryAveragingWindowMs = 1000,
+  onStationaryAveragingWindowMsChange = () => {},
+  stationaryHoldDurationMs = 1000,
+  onStationaryHoldDurationMsChange = () => {}
 }) => {
   // State to control the color picker popover
   const [colorPickerOpened, setColorPickerOpened] = useState(false);
@@ -172,6 +181,61 @@ const SettingsOverlayInternal = ({
               )}
             </Group>
           </Box>
+
+          <Title order={4} mt="lg">Stationary Landmark Tracking</Title>
+          <Divider my="xs" />
+
+          <Box>
+            <Switch
+              checked={enableStationaryTracking}
+              onChange={(event) => onEnableStationaryTrackingChange(event.currentTarget.checked)}
+              label="Enable Stationary Landmark Tracking"
+              description="Track if certain landmarks remain stationary to determine 'exercising' state."
+              size="md"
+            />
+          </Box>
+
+          {enableStationaryTracking && (
+            <>
+              <Box mt="sm" ml="md">
+                <NumberInput
+                  label="Stationary Deviation Threshold"
+                  description="Maximum allowed deviation (normalized screen distance, e.g., 0.05 = 5% of canvas width) for stationary landmarks."
+                  value={stationaryDeviationThreshold}
+                  onChange={(value) => onStationaryDeviationThresholdChange(Number(value))}
+                  min={0.01}
+                  max={0.5}
+                  step={0.01}
+                  precision={2}
+                  styles={{ root: { maxWidth: '300px' } }}
+                />
+              </Box>
+              <Box mt="sm" ml="md">
+                <NumberInput
+                  label="Stationary Averaging Window (ms)"
+                  description="Time window in milliseconds for averaging landmark positions."
+                  value={stationaryAveragingWindowMs}
+                  onChange={(value) => onStationaryAveragingWindowMsChange(Number(value))}
+                  min={100}
+                  max={5000}
+                  step={100}
+                  styles={{ root: { maxWidth: '300px' } }}
+                />
+              </Box>
+              <Box mt="sm" ml="md">
+                <NumberInput
+                  label="Stationary Hold Duration (ms)"
+                  description="Time in milliseconds landmarks must remain stable before entering 'exercising' state."
+                  value={stationaryHoldDurationMs}
+                  onChange={(value) => onStationaryHoldDurationMsChange(Number(value))}
+                  min={100}
+                  max={5000}
+                  step={100}
+                  styles={{ root: { maxWidth: '300px' } }}
+                />
+              </Box>
+            </>
+          )}
 
         </Stack>
       </Box>

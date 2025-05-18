@@ -18,7 +18,8 @@ const PhaseTracker = ({
     primaryLandmarks: { allVisible: true, minVisibility: 100 },
     secondaryLandmarks: { allVisible: true, minVisibility: 100 }
   },
-  workoutMode
+  workoutMode,
+  isRepCountingAllowed = true // Default to true if not provided, for backward compatibility
 }) => {
   const [phase, setPhase] = useState(0);
   const [repCount, setRepCount] = useState(0);
@@ -116,8 +117,8 @@ const PhaseTracker = ({
   // console.log(`PhaseTracker (${side || 'unknown'}) - config:`, angleConfig);
   
   useEffect(() => {
-    if (!isLocalTrackingEnabled || angle === null || !angleConfig) {
-      // Skip phase tracking if disabled or missing data
+    if (!isLocalTrackingEnabled || !isRepCountingAllowed || angle === null || !angleConfig) {
+      // Skip phase tracking if disabled by local visibility, stationary checks, or missing data
       return;
     }
     
@@ -223,7 +224,7 @@ const PhaseTracker = ({
         }
       }
     }
-  }, [angle, angleConfig, phase, useThreePhases, repCount, side, updateRepCount, isLocalTrackingEnabled]);
+  }, [angle, angleConfig, phase, useThreePhases, repCount, side, updateRepCount, isLocalTrackingEnabled, isRepCountingAllowed]);
   
   // Visual representation of phases
   const getPhaseDisplay = () => {

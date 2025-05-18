@@ -5,6 +5,7 @@ import StatsDisplay from '../StatsDisplay';     // Assuming path
 import { globalStyles } from '../../styles/globalStyles';
 import TimedSessionControls from './TimedSessionControls'; // Import the new component
 import LadderSessionControls from './LadderSessionControls'; // Import the ladder session component
+import StabilityStatusDisplay from './StabilityStatusDisplay'; // Import the new stability display
 
 const TrackerControlsBar = ({
   // Props from MinimalTracker that StatsDisplay needs
@@ -42,6 +43,9 @@ const TrackerControlsBar = ({
   // New props for ladder exercise selection
   selectedLadderExercise,
   onLadderExerciseChange,
+  // New props for stability display
+  enableStationaryTracking,
+  stabilityState,
 }) => {
   if (!cameraStarted) {
     return null; // Don't render if camera hasn't started
@@ -166,6 +170,12 @@ const TrackerControlsBar = ({
         landmarksData={landmarksData} 
         smoothingEnabled={smoothingEnabled}
         smoothingWindow={smoothingWindow}
+      />
+
+      {/* Stability Status Display */}
+      <StabilityStatusDisplay 
+        enableStationaryTracking={enableStationaryTracking} 
+        stabilityState={stabilityState} 
       />
       
       {/* Workout Mode Toggle */}

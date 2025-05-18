@@ -17,6 +17,12 @@ const VideoCanvas = ({
   highlightExerciseConnections = false,
   connectionHighlightColor = "#00FF00",
   selectedExercise = null,
+  // Stationary tracking visualization props
+  enableStationaryTracking = false,
+  stationaryDeviationThreshold = 0.05,
+  stabilityState = 'idle',
+  averageStationaryLandmarks = {},
+  stationaryLandmarksConfiguration = []
 }) => {
   // Helper function to get landmark indices for the current exercise
   const getExerciseConnections = (exercise) => {
@@ -225,6 +231,53 @@ const VideoCanvas = ({
       }
       ctx.stroke();
     }
+
+    // Draw stationary landmark stability circles
+    if (enableStationaryTracking && stationaryLandmarksConfiguration && stationaryLandmarksConfiguration.length > 0) {
+      stationaryLandmarksConfiguration.forEach(landmarkName => {
+        if (averageStationaryLandmarks && averageStationaryLandmarks[landmarkName]) {
+          const avgPos = averageStationaryLandmarks[landmarkName];
+          const centerX = avgPos.x * width;
+          const centerY = avgPos.y * height;
+          // Use canvasWidth for radius calculation, assuming width is representative or adjust as needed
+          const radius = stationaryDeviationThreshold * width; 
+
+          let circleColor = 'grey'; // Default color
+          switch (stabilityState) {
+            case 'stable':
+              circleColor = 'rgba(0, 255, 0, 0.5)'; // Green for stable
+              break;
+            case 'stabilizing':
+              circleColor = 'rgba(255, 255, 0, 0.5)'; // Yellow for stabilizing
+              break;
+            case 'unstable':
+              circleColor = 'rgba(255, 0, 0, 0.5)'; // Red for unstable
+              break;
+            case 'idle': // Or specific 'disabled' state if you prefer
+            default:
+              circleColor = 'rgba(128, 128, 128, 0.3)'; // Grey for idle or other states
+              break;
+          }
+
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+          ctx.fillStyle = circleColor;
+          ctx.fill();
+
+          // Optionally, draw the actual landmark point for stationary landmarks more prominently
+          const landmarkIndex = LANDMARK_MAP[landmarkName];
+          if (landmarkIndex !== undefined && landmarks[landmarkIndex]) {
+            const actualLandmark = landmarks[landmarkIndex];
+            const actualX = actualLandmark.x * width;
+            const actualY = actualLandmark.y * height;
+            ctx.beginPath();
+            ctx.arc(actualX, actualY, 6, 0, 2 * Math.PI); // Larger circle for actual stationary landmark
+            ctx.fillStyle = 'cyan'; // Different color to distinguish
+            ctx.fill();
+          }
+        }
+      });
+    }
   };
 
   // Update canvas when landmarks change
@@ -272,7 +325,12 @@ const VideoCanvas = ({
     overrideConnectionVisibility,
     highlightExerciseConnections,
     connectionHighlightColor,
-    selectedExercise
+    selectedExercise,
+    enableStationaryTracking,
+    stationaryDeviationThreshold,
+    stabilityState,
+    averageStationaryLandmarks,
+    stationaryLandmarksConfiguration
   ]);
 
   return (

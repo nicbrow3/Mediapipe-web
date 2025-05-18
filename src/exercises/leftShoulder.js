@@ -18,6 +18,9 @@ export const leftShoulder = {
         secondary: ['right_shoulder']
     },
 
+    // --- Stationary Landmarks ---
+    stationaryLandmarks: ['nose'],
+
     // --- Starting Position Requirements ---
     startPosition: {
         description: "Stand tall, arms fully extended downwards by your sides.",

@@ -15,6 +15,10 @@ const DEFAULT_SETTINGS = {
   alwaysShowConnections: false, // Default to false (respect visibility threshold for connections)
   highlightExerciseConnections: false, // Default to false (don't highlight exercise connections)
   connectionHighlightColor: "#00FF00", // Default green color for highlighted connections
+  enableStationaryTracking: false,
+  stationaryDeviationThreshold: 0.05,
+  stationaryAveragingWindowMs: 1000,
+  stationaryHoldDurationMs: 1000,
 };
 
 export function loadAppSettings() {
@@ -47,6 +51,17 @@ export function loadAppSettings() {
       // If alwaysShowConnections is not in stored settings, it will get the default from DEFAULT_SETTINGS
       // when merged below. Explicitly handling it like this isn't strictly necessary due to the merge,
       // but can be useful if specific migration or type conversion logic were needed for this new setting.
+    }
+
+    // Ensure new numeric stationary tracking settings are parsed as numbers
+    if (storedSettings.stationaryDeviationThreshold !== undefined) {
+      storedSettings.stationaryDeviationThreshold = Number(storedSettings.stationaryDeviationThreshold);
+    }
+    if (storedSettings.stationaryAveragingWindowMs !== undefined) {
+      storedSettings.stationaryAveragingWindowMs = Number(storedSettings.stationaryAveragingWindowMs);
+    }
+    if (storedSettings.stationaryHoldDurationMs !== undefined) {
+      storedSettings.stationaryHoldDurationMs = Number(storedSettings.stationaryHoldDurationMs);
     }
     
     // Merge stored settings with defaults to ensure all keys are present

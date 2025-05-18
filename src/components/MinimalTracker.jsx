@@ -70,7 +70,16 @@ const MinimalTrackerContent = () => {
     canvasDimensions,
     angleHistoryRef, // Passed from hook
     ANGLE_SMOOTHING_WINDOW, // Passed from hook
+    // Stationary tracking values from usePoseTracker
+    stabilityState, 
+    averageStationaryLandmarks,
   } = usePoseTracker(selectedExerciseRef, appSettings);
+
+  // Determine if rep counting should be active based on stationary tracking state
+  const isRepCountingAllowed = useMemo(() => 
+    appSettings.enableStationaryTracking ? stabilityState === 'stable' : true,
+    [appSettings.enableStationaryTracking, stabilityState]
+  );
 
   // Functions for settings updates
   const toggleSmoothingAndUpdateSettings = useCallback(() => {
@@ -120,6 +129,23 @@ const MinimalTrackerContent = () => {
 
   const handleConnectionHighlightColorChange = useCallback((color) => {
     updateAppSettings({ connectionHighlightColor: color });
+  }, [updateAppSettings]);
+
+  // Stationary tracking settings handlers
+  const handleEnableStationaryTrackingChange = useCallback((checked) => {
+    updateAppSettings({ enableStationaryTracking: checked });
+  }, [updateAppSettings]);
+
+  const handleStationaryDeviationThresholdChange = useCallback((value) => {
+    updateAppSettings({ stationaryDeviationThreshold: Number(value) });
+  }, [updateAppSettings]);
+
+  const handleStationaryAveragingWindowMsChange = useCallback((value) => {
+    updateAppSettings({ stationaryAveragingWindowMs: Number(value) });
+  }, [updateAppSettings]);
+
+  const handleStationaryHoldDurationMsChange = useCallback((value) => {
+    updateAppSettings({ stationaryHoldDurationMs: Number(value) });
   }, [updateAppSettings]);
 
   const handleWeightChange = useCallback((newWeight) => {
@@ -302,6 +328,8 @@ const MinimalTrackerContent = () => {
     direction,
     selectedLadderExercise,
     onLadderExerciseChange: handleLadderExerciseChange,
+    enableStationaryTracking: appSettings.enableStationaryTracking,
+    stabilityState: stabilityState,
   }), [
     cameraStarted,
     isLoading,
@@ -332,6 +360,8 @@ const MinimalTrackerContent = () => {
     direction,
     selectedLadderExercise,
     handleLadderExerciseChange,
+    appSettings.enableStationaryTracking,
+    stabilityState,
   ]);
   
   const bottomControlsProps = useMemo(() => ({
@@ -399,6 +429,8 @@ const MinimalTrackerContent = () => {
         direction={direction}
         selectedLadderExercise={selectedLadderExercise}
         onLadderExerciseChange={handleLadderExerciseChange}
+        enableStationaryTracking={appSettings.enableStationaryTracking}
+        stabilityState={stabilityState}
       />
 
       {isLoading && cameraStarted && <LoadingDisplay />}
@@ -432,6 +464,12 @@ const MinimalTrackerContent = () => {
           highlightExerciseConnections={appSettings.highlightExerciseConnections}
           connectionHighlightColor={appSettings.connectionHighlightColor}
           selectedExercise={getActiveExercise}
+          // Stationary landmark visualization props
+          enableStationaryTracking={appSettings.enableStationaryTracking}
+          stationaryDeviationThreshold={appSettings.stationaryDeviationThreshold}
+          stabilityState={stabilityState}
+          averageStationaryLandmarks={averageStationaryLandmarks}
+          stationaryLandmarksConfiguration={getActiveExercise?.stationaryLandmarks}
         />
         
         {cameraStarted && !isLoading && !errorMessage && (
@@ -455,9 +493,9 @@ const MinimalTrackerContent = () => {
               displaySide="left"
               selectedExercise={getActiveExercise} // Use getActiveExercise
               trackedAngles={trackedAngles} // From hook
-              useThreePhases={appSettings.useThreePhases}
               landmarksData={landmarksData} // From hook
               workoutMode={workoutMode}
+              isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
             />
             <LandmarkMetricsDisplay2
               displaySide="left"
@@ -478,9 +516,9 @@ const MinimalTrackerContent = () => {
               displaySide="right"
               selectedExercise={getActiveExercise} // Use getActiveExercise
               trackedAngles={trackedAngles} // From hook
-              useThreePhases={appSettings.useThreePhases}
               landmarksData={landmarksData} // From hook
               workoutMode={workoutMode}
+              isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
             />
             <LandmarkMetricsDisplay2
               displaySide="right"
@@ -515,6 +553,15 @@ const MinimalTrackerContent = () => {
         onToggleHighlightExerciseConnections={handleToggleHighlightExerciseConnections}
         connectionHighlightColor={appSettings.connectionHighlightColor}
         onConnectionHighlightColorChange={handleConnectionHighlightColorChange}
+        
+        enableStationaryTracking={appSettings.enableStationaryTracking}
+        onEnableStationaryTrackingChange={handleEnableStationaryTrackingChange}
+        stationaryDeviationThreshold={appSettings.stationaryDeviationThreshold}
+        onStationaryDeviationThresholdChange={handleStationaryDeviationThresholdChange}
+        stationaryAveragingWindowMs={appSettings.stationaryAveragingWindowMs}
+        onStationaryAveragingWindowMsChange={handleStationaryAveragingWindowMsChange}
+        stationaryHoldDurationMs={appSettings.stationaryHoldDurationMs}
+        onStationaryHoldDurationMsChange={handleStationaryHoldDurationMsChange}
       />
     </div>
   );

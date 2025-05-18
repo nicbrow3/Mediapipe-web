@@ -20,6 +20,10 @@ export const usePoseTracker = (selectedExerciseRef, appSettings) => {
   const inferenceTimesRef = useRef([]);
   const fpsTimesRef = useRef([]);
   const angleHistoryRef = useRef({});
+  // Stationary tracking refs
+  const landmarkHistoryRef = useRef({});
+  const averagePositionsRef = useRef({});
+  const stableStartTimeRef = useRef(null);
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +37,8 @@ export const usePoseTracker = (selectedExerciseRef, appSettings) => {
   const [rawAngles, setRawAngles] = useState({});
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
   const [landmarksData, setLandmarksData] = useState(null);
+  // Stationary tracking state
+  const [stabilityState, setStabilityState] = useState('idle'); // 'idle', 'stabilizing', 'stable', 'unstable'
 
   // Initialize MediaPipe
   const initializePoseLandmarker = async () => {
@@ -130,6 +136,91 @@ export const usePoseTracker = (selectedExerciseRef, appSettings) => {
     }
 
     const exercise = selectedExerciseRef.current;
+
+    // Stationary Landmark Tracking Logic
+    if (appSettings.enableStationaryTracking && exercise && exercise.stationaryLandmarks && exercise.stationaryLandmarks.length > 0 && results.landmarks && results.landmarks.length > 0) {
+      const currentLandmarks = results.landmarks[0];
+      let allLandmarksCurrentlyStable = true;
+      const newAveragePositions = { ...averagePositionsRef.current };
+
+      for (const landmarkName of exercise.stationaryLandmarks) {
+        const landmarkIndex = LANDMARK_MAP[landmarkName];
+        if (landmarkIndex === undefined || !currentLandmarks[landmarkIndex]) {
+          allLandmarksCurrentlyStable = false; // Landmark not visible or not in map
+          if (newAveragePositions[landmarkName]) delete newAveragePositions[landmarkName]; // Clear average if landmark lost
+          if (landmarkHistoryRef.current[landmarkName]) landmarkHistoryRef.current[landmarkName] = []; // Clear history
+          continue;
+        }
+
+        const currentPos = { x: currentLandmarks[landmarkIndex].x, y: currentLandmarks[landmarkIndex].y, timestamp: now };
+
+        // Add to history
+        if (!landmarkHistoryRef.current[landmarkName]) {
+          landmarkHistoryRef.current[landmarkName] = [];
+        }
+        landmarkHistoryRef.current[landmarkName].push(currentPos);
+
+        // Prune history
+        landmarkHistoryRef.current[landmarkName] = landmarkHistoryRef.current[landmarkName].filter(
+          entry => now - entry.timestamp <= appSettings.stationaryAveragingWindowMs
+        );
+        const history = landmarkHistoryRef.current[landmarkName];
+        
+        if (history.length === 0) {
+            allLandmarksCurrentlyStable = false; // Not enough data to determine stability
+            if (newAveragePositions[landmarkName]) delete newAveragePositions[landmarkName];
+            continue;
+        }
+
+        // Calculate average position
+        const sumPos = history.reduce((acc, entry) => ({ x: acc.x + entry.x, y: acc.y + entry.y }), { x: 0, y: 0 });
+        const avgPos = { x: sumPos.x / history.length, y: sumPos.y / history.length };
+        newAveragePositions[landmarkName] = avgPos;
+
+        // Calculate deviation (Euclidean distance)
+        // Note: landmarks are normalized (0-1). Threshold is also normalized.
+        const deviation = Math.sqrt(Math.pow(currentPos.x - avgPos.x, 2) + Math.pow(currentPos.y - avgPos.y, 2));
+
+        if (deviation > appSettings.stationaryDeviationThreshold) {
+          allLandmarksCurrentlyStable = false;
+        }
+      }
+      averagePositionsRef.current = newAveragePositions;
+
+
+      // Update stabilityState
+      setStabilityState(currentStabilityState => {
+        if (allLandmarksCurrentlyStable) {
+          if (currentStabilityState === 'unstable' || currentStabilityState === 'idle') {
+            stableStartTimeRef.current = now;
+            return 'stabilizing';
+          }
+          if (currentStabilityState === 'stabilizing') {
+            if (stableStartTimeRef.current && (now - stableStartTimeRef.current) >= appSettings.stationaryHoldDurationMs) {
+              return 'stable';
+            }
+            return 'stabilizing'; // Remain stabilizing
+          }
+          return 'stable'; // Already stable, remain stable
+        } else {
+          stableStartTimeRef.current = null;
+          return 'unstable';
+        }
+      });
+
+    } else if (!appSettings.enableStationaryTracking) {
+      setStabilityState('stable'); // Or 'disabled', as per instruction. 'stable' implies no restrictions.
+      stableStartTimeRef.current = null;
+      averagePositionsRef.current = {};
+      landmarkHistoryRef.current = {};
+    } else { // Tracking enabled, but no stationary landmarks for current exercise or no landmarks detected
+      setStabilityState('idle'); // Or 'stable' if no specific stationary landmarks means it's always "stable" by default
+      stableStartTimeRef.current = null;
+      averagePositionsRef.current = {};
+      // landmarkHistoryRef.current = {}; // Keep history if landmarks might reappear for this exercise
+    }
+
+
     if (results.landmarks && results.landmarks.length > 0 && exercise && exercise.logicConfig?.type === 'angle' && Array.isArray(exercise.logicConfig.anglesToTrack)) {
       const landmarks = results.landmarks[0];
       const newAngles = {};
@@ -247,6 +338,9 @@ export const usePoseTracker = (selectedExerciseRef, appSettings) => {
     stats,
     startTracking,
     canvasDimensions,
-    angleHistoryRef // Exposing for debugging or if needed by consuming component to clear
+    angleHistoryRef, // Exposing for debugging or if needed by consuming component to clear
+    // Stationary tracking returns
+    stabilityState,
+    averageStationaryLandmarks: averagePositionsRef.current,
   };
 }; 
