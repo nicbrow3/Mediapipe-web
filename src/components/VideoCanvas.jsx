@@ -242,30 +242,45 @@ const VideoCanvas = ({
           // Use canvasWidth for radius calculation, assuming width is representative or adjust as needed
           const radius = stationaryDeviationThreshold * width; 
 
+          // Check landmark visibility before drawing
+          const landmarkIndex = LANDMARK_MAP[landmarkName];
+          if (landmarkIndex === undefined || !landmarks[landmarkIndex]) {
+            return; // Skip if landmark not found
+          }
+          
+          const landmark = landmarks[landmarkIndex];
+          const visibility = landmark.visibility !== undefined ? landmark.visibility : 0;
+          
+          // Only draw if visibility is higher than minimum threshold (converted from percent to 0-1 scale)
+          if (visibility < minVisibilityForConnection) {
+            return; // Skip drawing if visibility is too low
+          }
+
           let circleColor = 'grey'; // Default color
           switch (stabilityState) {
             case 'stable':
-              circleColor = 'rgba(0, 255, 0, 0.5)'; // Green for stable
+              circleColor = 'rgba(0, 255, 0, 0.8)'; // Green for stable
               break;
             case 'stabilizing':
-              circleColor = 'rgba(255, 255, 0, 0.5)'; // Yellow for stabilizing
+              circleColor = 'rgba(255, 255, 0, 0.8)'; // Yellow for stabilizing
               break;
             case 'unstable':
-              circleColor = 'rgba(255, 0, 0, 0.5)'; // Red for unstable
+              circleColor = 'rgba(255, 0, 0, 0.8)'; // Red for unstable
               break;
             case 'idle': // Or specific 'disabled' state if you prefer
             default:
-              circleColor = 'rgba(128, 128, 128, 0.3)'; // Grey for idle or other states
+              circleColor = 'rgba(128, 128, 128, 0.5)'; // Grey for idle or other states
               break;
           }
 
+          // Draw as outline instead of filled circle
           ctx.beginPath();
           ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-          ctx.fillStyle = circleColor;
-          ctx.fill();
+          ctx.strokeStyle = circleColor;
+          ctx.lineWidth = 2;
+          ctx.stroke();
 
           // Optionally, draw the actual landmark point for stationary landmarks more prominently
-          const landmarkIndex = LANDMARK_MAP[landmarkName];
           if (landmarkIndex !== undefined && landmarks[landmarkIndex]) {
             const actualLandmark = landmarks[landmarkIndex];
             const actualX = actualLandmark.x * width;

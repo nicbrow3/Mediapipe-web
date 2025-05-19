@@ -18,6 +18,9 @@ export const pushUpTest = {
         secondary: ['right_shoulder']
     },
 
+    // --- Stationary Landmarks ---
+    stationaryLandmarks: ['left_ankle', 'left_wrist'],
+
     // --- Starting Position Requirements ---
     startPosition: {
         description: "Stand tall, arms fully extended downwards by your sides.",

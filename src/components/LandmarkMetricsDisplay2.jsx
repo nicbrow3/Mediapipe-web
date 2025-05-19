@@ -1,50 +1,47 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { LANDMARK_MAP } from '../logic/landmarkUtils';
+import { Paper } from '@mantine/core';
 
 const LandmarkMetricsDisplay2 = (props) => {
-  // Accept props directly without destructuring at the top level
-  // Perform null checks
-  if (!props.selectedExercise || 
-      !props.selectedExercise.logicConfig || 
-      props.selectedExercise.logicConfig.type !== 'angle' || 
-      !Array.isArray(props.selectedExercise.logicConfig.anglesToTrack) ||
-      !props.landmarksData) {
-    return null;
-  }
-
-  const { selectedExercise, displaySide } = props;
+  // Use state to track the most recent valid landmarks - Keep these at the top
+  const [lastValidSelectedExercise, setLastValidSelectedExercise] = useState(null);
+  const [lastValidLandmarksData, setLastValidLandmarksData] = useState(null);
   
-  // For single-sided exercises, only show landmarks on the left side
-  if (!selectedExercise.isTwoSided && displaySide === 'right') {
-    return null;
-  }
-
-  // Get angles to track
-  const anglesToTrack = props.selectedExercise.logicConfig.anglesToTrack;
+  // Update last valid selected exercise when available - Keep these hooks at the top
+  useEffect(() => {
+    if (props.selectedExercise && 
+        props.selectedExercise.logicConfig && 
+        props.selectedExercise.logicConfig.type === 'angle' && 
+        Array.isArray(props.selectedExercise.logicConfig.anglesToTrack)) {
+      setLastValidSelectedExercise(props.selectedExercise);
+    }
+  }, [props.selectedExercise]);
   
-  // Filter angles based on display side
-  const filteredAnglesToTrack = anglesToTrack.filter(angleConfig => {
-    const angleId = angleConfig.id.toLowerCase();
-    const isLeftAngle = angleId.includes('left');
-    const isRightAngle = angleId.includes('right');
-    
-    if (props.displaySide === 'left') {
-      return isLeftAngle;
+  // Update last valid landmarks data when available - Keep these hooks at the top
+  useEffect(() => {
+    if (props.landmarksData) {
+      setLastValidLandmarksData(props.landmarksData);
     }
-    if (props.displaySide === 'right') {
-      return isRightAngle || (!isLeftAngle && !isRightAngle);
-    }
-    return true; // Fallback
-  });
+  }, [props.landmarksData]);
 
-  // Memoize the derivation of primary and secondary landmark names
+  // Determine which data to use - current or last valid
+  const selectedExercise = props.selectedExercise || lastValidSelectedExercise;
+  const landmarksData = props.landmarksData || lastValidLandmarksData;
+  const { displaySide } = props;
+
+  // Memoize the derivation of primary and secondary landmark names - Keep this hook called unconditionally
   const { primaryLandmarkNames, secondaryLandmarkNames } = useMemo(() => {
     const prim = [];
     const sec = [];
     const sideForFiltering = displaySide === 'left' ? 'left' : 'right';
 
-    if (selectedExercise.landmarks) {
-        // Simplified existing logic for brevity - ensure this logic correctly extracts names
+    // Only proceed with landmark name derivation if we have a valid exercise config
+    // This logic is inside the useMemo, so the hook is always called, but the expensive computation is conditional
+    if (selectedExercise && 
+        selectedExercise.logicConfig?.type === 'angle' && 
+        Array.isArray(selectedExercise.logicConfig.anglesToTrack) &&
+        selectedExercise.landmarks) {
+
         if (selectedExercise.isTwoSided && selectedExercise.landmarks[sideForFiltering]) {
             const sideLmarks = selectedExercise.landmarks[sideForFiltering];
             if (sideLmarks.primary) prim.push(...sideLmarks.primary);
@@ -73,8 +70,8 @@ const LandmarkMetricsDisplay2 = (props) => {
         }
     }
 
-    // Add landmarks from tracked angles
-    if (selectedExercise.logicConfig && selectedExercise.logicConfig.anglesToTrack) {
+    // Add landmarks from tracked angles (only if valid exercise config exists)
+    if (selectedExercise && selectedExercise.logicConfig && selectedExercise.logicConfig.anglesToTrack) {
         const angles = selectedExercise.logicConfig.anglesToTrack;
         const filteredAngles = angles.filter(angleConfig => {
             const angleId = angleConfig.id.toLowerCase();
@@ -95,23 +92,26 @@ const LandmarkMetricsDisplay2 = (props) => {
             }
         }
     }
-    return { primaryLandmarkNames: [...new Set(prim)], secondaryLandmarkNames: [...new Set(sec)] };
-  }, [selectedExercise, displaySide]);
 
-  // Memoize the final list of landmark details (name + visibility)
+    return { primaryLandmarkNames: [...new Set(prim)], secondaryLandmarkNames: [...new Set(sec)] };
+  }, [selectedExercise, displaySide]); // Dependencies for the memoization
+
+  // Memoize the final list of landmark details (name + visibility) - Keep this hook called unconditionally
   const { primaryLandmarks, secondaryLandmarks } = useMemo(() => {
     const primDetails = [];
     const secDetails = [];
     const processedNames = new Set();
     const getVisibility = (lm) => (lm && typeof lm.visibility === 'number' ? lm.visibility : 0);
 
-    if (props.landmarksData) {
+    // Only proceed with landmark details if landmarksData is available
+    // This logic is inside the useMemo, so the hook is always called, but the expensive computation is conditional
+    if (landmarksData) {
         primaryLandmarkNames.forEach(pointName => {
             if (processedNames.has(pointName)) return;
             processedNames.add(pointName);
             const index = LANDMARK_MAP[pointName];
-            if (index !== undefined && props.landmarksData[index]) {
-                const landmark = props.landmarksData[index];
+            if (index !== undefined && landmarksData[index]) {
+                const landmark = landmarksData[index];
                 const visibility = getVisibility(landmark);
                 primDetails.push({ name: pointName, visibility, visibilityPercent: (visibility * 100).toFixed(0) + "%" });
             }
@@ -120,15 +120,15 @@ const LandmarkMetricsDisplay2 = (props) => {
             if (processedNames.has(pointName)) return;
             processedNames.add(pointName);
             const index = LANDMARK_MAP[pointName];
-            if (index !== undefined && props.landmarksData[index]) {
-                const landmark = props.landmarksData[index];
+            if (index !== undefined && landmarksData[index]) {
+                const landmark = landmarksData[index];
                 const visibility = getVisibility(landmark);
                 secDetails.push({ name: pointName, visibility, visibilityPercent: (visibility * 100).toFixed(0) + "%" });
             }
         });
     }
     return { primaryLandmarks: primDetails, secondaryLandmarks: secDetails };
-  }, [props.landmarksData, primaryLandmarkNames, secondaryLandmarkNames]);
+  }, [landmarksData, primaryLandmarkNames, secondaryLandmarkNames]); // Dependencies for the memoization
 
   // Helper to get color based on visibility
   const getVisibilityColor = (visibility) => {
@@ -138,36 +138,77 @@ const LandmarkMetricsDisplay2 = (props) => {
     return '#55ff55'; // Green for good visibility
   };
 
+  // Determine if we have enough data AND it's the correct side for a single-sided exercise
+  const shouldRenderLandmarkLists = selectedExercise && 
+                                  selectedExercise.logicConfig?.type === 'angle' && 
+                                  Array.isArray(selectedExercise.logicConfig.anglesToTrack) &&
+                                  landmarksData &&
+                                  (selectedExercise.isTwoSided || displaySide === 'left' || 
+                                   (displaySide === 'right' && selectedExercise.connections?.right?.length > 0));
+
   return (
-    <div style={{ padding: '10px', backgroundColor: 'rgba(40, 40, 40, 0.7)' }}>
-      <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>Landmark Visibility</div>
-      
-      {primaryLandmarks.length > 0 && (
-        <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Primary Landmarks:</div>
-          <ul style={{ fontSize: '12px', margin: 0, paddingLeft: '20px' }}>
-            {primaryLandmarks.map((detail, index) => (
-              <li key={`primary-${index}`} style={{ color: getVisibilityColor(detail.visibility) }}>
-                {detail.name}: {detail.visibilityPercent}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      
-      {secondaryLandmarks.length > 0 && (
-        <div>
-          <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Secondary Landmarks:</div>
-          <ul style={{ fontSize: '12px', margin: 0, paddingLeft: '20px' }}>
-            {secondaryLandmarks.map((detail, index) => (
-              <li key={`secondary-${index}`} style={{ color: getVisibilityColor(detail.visibility) }}>
-                {detail.name}: {detail.visibilityPercent}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+    <Paper>
+      <div style={{
+        padding: '10px',
+        // backgroundColor: 'rgba(40, 40, 40, 0.7)'
+        }}>
+        <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>Landmark Visibility</div>
+        
+        {shouldRenderLandmarkLists ? (
+          // Render landmark lists only if we meet the criteria
+          <>
+            {primaryLandmarks.length > 0 && (
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Primary Landmarks:</div>
+                <ul style={{ fontSize: '12px', margin: 0, paddingLeft: '20px' }}>
+                  {primaryLandmarks.map((detail, index) => (
+                    <li key={`primary-${index}`} style={{ color: getVisibilityColor(detail.visibility) }}>
+                      {detail.name}: {detail.visibilityPercent}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {secondaryLandmarks.length > 0 && (
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Secondary Landmarks:</div>
+                <ul style={{ fontSize: '12px', margin: 0, paddingLeft: '20px' }}>
+                  {secondaryLandmarks.map((detail, index) => (
+                    <li key={`secondary-${index}`} style={{ color: getVisibilityColor(detail.visibility) }}>
+                      {detail.name}: {detail.visibilityPercent}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {primaryLandmarks.length === 0 && secondaryLandmarks.length === 0 && (
+              <div style={{ 
+                fontSize: '12px', 
+                color: 'rgba(255, 255, 255, 0.5)', 
+                textAlign: 'center', 
+                padding: '10px 0' 
+              }}>
+                No visible landmarks detected for this side/exercise
+              </div>
+            )}
+          </>
+        ) : (
+          // Render placeholder if not enough data or incorrect side for a single-sided exercise
+          <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', textAlign: 'center', padding: '20px 0' }}>
+            {!selectedExercise || selectedExercise.logicConfig?.type !== 'angle' || !Array.isArray(selectedExercise.logicConfig.anglesToTrack)
+              ? 'Waiting for exercise configuration...'
+              : !landmarksData
+                ? 'Waiting for landmark data...'
+                : (!selectedExercise.isTwoSided && displaySide === 'right')
+                  ? 'No right side landmarks for this exercise'
+                  : 'Loading...' // Default placeholder if none of the specific conditions match
+            }
+          </div>
+        )}
+      </div>
+    </Paper>
   );
 };
 

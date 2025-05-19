@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import AngleIndicator from './AngleIndicator';
 import './AngleDisplay.css';
+import { Paper } from '@mantine/core';
 
-const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEnabled, displaySide }) => {
+const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEnabled, displaySide, cameraStarted, hasLandmarksData }) => {
   // console.log(`[AngleDisplay] Side: ${displaySide} - Received selectedExercise:`, JSON.parse(JSON.stringify(selectedExercise))); // Deep log
   if (selectedExercise && selectedExercise.logicConfig && selectedExercise.logicConfig.anglesToTrack && selectedExercise.logicConfig.anglesToTrack.length > 0) {
     // console.log(`[AngleDisplay] Side: ${displaySide} - DIRECT CHECK minThreshold from prop:`, selectedExercise.logicConfig.anglesToTrack[0].minThreshold, "for angle ID:", selectedExercise.logicConfig.anglesToTrack[0].id);
@@ -13,69 +14,102 @@ const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEna
     return null;
   }
 
-  const angleConfigs = selectedExercise.logicConfig.anglesToTrack;
+  // Check if we have valid exercise data for this side
+  const hasValidExerciseConfigForSide = selectedExercise && 
+                                        selectedExercise.logicConfig?.type === 'angle' && 
+                                        Array.isArray(selectedExercise.logicConfig.anglesToTrack) &&
+                                        selectedExercise.logicConfig.anglesToTrack.some(angleConfig => {
+                                          const angleId = angleConfig.id.toLowerCase();
+                                          const isLeftAngle = angleId.includes('left');
+                                          const isRightAngle = angleId.includes('right');
+                                          return displaySide === 'left' ? isLeftAngle : isRightAngle || (!isLeftAngle && !isRightAngle);
+                                        });
   
-  // Filter angles based on displaySide
-  const filteredAngleConfigs = angleConfigs.filter(angleConfig => {
-    const angleId = angleConfig.id.toLowerCase();
-    const isLeftAngle = angleId.includes('left');
-    const isRightAngle = angleId.includes('right');
-
+  // Find the angle config relevant to this side
+  const angleConfigToShow = useMemo(() => {
+    if (!selectedExercise || 
+        !selectedExercise.logicConfig || 
+        selectedExercise.logicConfig.type !== 'angle' || 
+        !Array.isArray(selectedExercise.logicConfig.anglesToTrack) ||
+        selectedExercise.logicConfig.anglesToTrack.length === 0) {
+      return null;
+    }
+    const { anglesToTrack } = selectedExercise.logicConfig;
     if (displaySide === 'left') {
-      return isLeftAngle;
+      return anglesToTrack.find(a => a.id.toLowerCase().includes('left'));
+    } else if (displaySide === 'right') {
+      let config = anglesToTrack.find(a => a.id.toLowerCase().includes('right'));
+      if (!config) {
+        config = anglesToTrack.find(a => !a.id.toLowerCase().includes('left'));
+      }
+      return config;
     }
-    // For the right side, show right-sided angles and non-specific angles (those not explicitly 'left')
-    if (displaySide === 'right') {
-      return isRightAngle || !isLeftAngle;
-    }
-    return true; // Should not happen if displaySide is always 'left' or 'right'
-  });
-
-  // Only show angle displays for valid tracked angles from the filtered list
-  const validAngles = filteredAngleConfigs.filter(angleConfig => trackedAngles[angleConfig.id] != null);
-  
-  if (validAngles.length === 0) {
     return null;
-  }
+  }, [selectedExercise, displaySide]);
 
+  const angle = angleConfigToShow && trackedAngles ? trackedAngles[angleConfigToShow.id] : null;
+  const raw = angleConfigToShow && rawAngles ? rawAngles[angleConfigToShow.id] : null;
+
+  // Determine indicator color based on side
+  const indicatorColor = displaySide === 'left' ? '#45a29e' : '#e84545';
+
+  // Decide which value to show: smoothed (angle) or raw, only if angle is valid
+  const displayValue = angle != null ? (smoothingEnabled ? angle : raw) : null;
+
+  // Always render the container for consistent layout
   return (
-    <div className="angle-display">
-      {validAngles.map(angleConfig => {
-        // console.log(`[AngleDisplay] Side: ${displaySide} - Processing angleConfig for Indicator:`, JSON.parse(JSON.stringify(angleConfig)));
+    <Paper>
 
-        const angle = trackedAngles[angleConfig.id];
-        const raw = rawAngles?.[angleConfig.id];
-        
-        // Determine indicator color based on side
-        const indicatorColor = displaySide === 'left' ? '#45a29e' : '#e84545';
-        
-        // Decide which value to show: smoothed (angle) or raw
-        const displayValue = smoothingEnabled ? angle : raw;
-        
-        return (
-          <div key={angleConfig.id} className="angle-display-item">
-            {/* Add the angle indicator component */}
+      <div className="angle-display">
+        {hasValidExerciseConfigForSide ? (
+          // Render the AngleIndicator (half-circle background) and conditional content
+          <div className="angle-display-item">
             <AngleIndicator 
-              angle={displayValue} 
+              angle={displayValue} // Pass the potentially null displayValue
               maxAngle={180} 
-              size={80}
+              size={140}
               minSize={80}
               color={indicatorColor}
               backgroundColor={`${indicatorColor}33`} // Add transparency to the background
-              angleConfig={angleConfig} // Pass the full angleConfig
-            />
+              angleConfig={angleConfigToShow} // Pass the angleConfig
+              showIndicatorLine={displayValue != null} // Conditionally show the line
+              />
             
-            {/* Show only the relevant angle value */}
-            <div>
-              <span style={{color: 'white'}}>
-                {angleConfig.name || angleConfig.id}:
-              </span>
-              <span style={{color: indicatorColor}}> {displayValue}°</span>
-            </div>
+            {/* Show the angle value only if it's valid */}
+            {displayValue != null && angleConfigToShow && (
+              <div>
+                <span style={{color: 'white'}}>
+                  {angleConfigToShow.name || angleConfigToShow.id}:
+                </span>
+                <span style={{color: indicatorColor}}> {displayValue}°</span>
+              </div>
+            )}
+            {/* Add a placeholder if angle value is null but config is valid */}
+            {displayValue == null && angleConfigToShow && ( // Use angleConfigToShow to ensure config is valid
+              <div style={{
+                opacity: 0.5,
+                color: 'white',
+                fontSize: '14px',
+                textAlign: 'center',
+                marginTop: '5px'
+              }}>
+                Waiting for angle data...
+              </div>
+            )}
           </div>
-        );
-      })}
-    </div>
+        ) : (
+          // Render placeholder if no valid exercise config for this side
+          <div className="angle-display-placeholder" style={{ 
+            opacity: 0.3, 
+            padding: '10px', 
+            textAlign: 'center',
+            fontSize: '14px'
+          }}>
+            No angle configuration for {displaySide.toLowerCase()} side
+          </div>
+        )}
+      </div>
+    </Paper>
   );
 };
 

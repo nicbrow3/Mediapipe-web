@@ -4,13 +4,14 @@ import './AngleIndicator.css';
 const AngleIndicator = ({ 
   angle, 
   maxAngle = 180, 
-  size = 80, 
+  size = 120, 
   color = '#45a29e', 
   backgroundColor = 'rgba(69, 162, 158, 0.3)',
   angleConfig = null, // Add angleConfig parameter
-  minSize = 2000 // New prop for minimum size
+  minSize = 80, // Corrected default minSize
+  showIndicatorLine = true // New prop to control indicator line visibility
 }) => {
-  // Default to 0 if angle is null or undefined
+  // Default to 0 if angle is null or undefined for calculations (though line won't show if showIndicatorLine is false)
   const safeAngle = angle !== null && angle !== undefined ? angle : 0;
   
   // For display purposes, we want 0° at the left, 90° at the top, 180° at the right (top half)
@@ -18,11 +19,9 @@ const AngleIndicator = ({
   const displayAngle = Math.min(Math.max(safeAngle, 0), maxAngle);
   
   // Calculate the coordinates for the indicator line
-  // 0 degrees (fully extended arm) should point down, 180 degrees should point up
-  const radians = Math.PI * (1 - (displayAngle / 180));
-  // Use the larger of size or minSize
   const effectiveSize = Math.max(size, minSize);
   const lineLength = effectiveSize / 2 - 2; // Slightly shorter than radius
+  const radians = Math.PI * (1 - (displayAngle / 180));
   const endX = effectiveSize / 2 + lineLength * Math.cos(radians);
   const endY = effectiveSize / 2 - lineLength * Math.sin(radians); // Subtract to flip Y axis for SVG
   
@@ -48,7 +47,7 @@ const AngleIndicator = ({
         <circle cx={effectiveSize/2} cy={effectiveSize/2} r={3} fill={color} />
         
         {/* Threshold markers if available */}
-        {minRadians !== null && (
+        {minRadians !== null && angleConfig.showThresholds !== false && (
           <g className="threshold-marker min">
             {/* Min threshold marker */}
             {(() => {
@@ -73,7 +72,7 @@ const AngleIndicator = ({
           </g>
         )}
         
-        {maxRadians !== null && (
+        {maxRadians !== null && angleConfig.showThresholds !== false && (
           <g className="threshold-marker max">
             {/* Max threshold marker */}
             {(() => {
@@ -98,15 +97,17 @@ const AngleIndicator = ({
           </g>
         )}
         
-        {/* Indicator line */}
-        <line 
-          x1={effectiveSize/2} 
-          y1={effectiveSize/2} 
-          x2={endX} 
-          y2={endY} 
-          stroke={color} 
-          strokeWidth={2} 
-        />
+        {/* Indicator line - Conditionally render based on showIndicatorLine */}
+        {showIndicatorLine && (
+          <line 
+            x1={effectiveSize/2} 
+            y1={effectiveSize/2} 
+            x2={endX} 
+            y2={endY} 
+            stroke={color} 
+            strokeWidth={2} 
+          />
+        )}
         
         {/* Angle text - moved to AngleDisplay.jsx */}
       </svg>

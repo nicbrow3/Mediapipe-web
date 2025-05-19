@@ -20,10 +20,202 @@ import { RepCounterProvider, useRepCounter } from './RepCounterContext';
 import RepGoalDisplayContainer from './RepGoalDisplayContainer';
 import { usePoseTracker } from '../hooks/usePoseTracker'; // Import the new hook
 
+// Create a memoized selector for Z-depth data to avoid calculations when not visible
+const useZDepthData = (landmarksData, showZDepthDisplay) => {
+  return useMemo(() => {
+    // Skip all calculations if the display is not visible or no landmarks data
+    if (!showZDepthDisplay || !landmarksData) {
+      return null;
+    }
+    
+    // Get landmarks - shoulders (11,12) and hips (23,24)
+    const leftShoulderZ = landmarksData[11]?.z ?? null;
+    const rightShoulderZ = landmarksData[12]?.z ?? null;
+    const leftHipZ = landmarksData[23]?.z ?? null;
+    const rightHipZ = landmarksData[24]?.z ?? null;
+    
+    // Calculate relative depth (positive means left is in front)
+    const shoulderDifference = (leftShoulderZ !== null && rightShoulderZ !== null) 
+      ? leftShoulderZ - rightShoulderZ 
+      : null;
+      
+    const hipDifference = (leftHipZ !== null && rightHipZ !== null) 
+      ? leftHipZ - rightHipZ 
+      : null;
+      
+    // Calculate torso rotation (difference between shoulder and hip alignment)
+    const torsoRotation = (shoulderDifference !== null && hipDifference !== null)
+      ? shoulderDifference - hipDifference
+      : null;
+    
+    return {
+      leftShoulderZ,
+      rightShoulderZ,
+      leftHipZ,
+      rightHipZ,
+      shoulderDifference,
+      hipDifference,
+      torsoRotation
+    };
+  }, [landmarksData, showZDepthDisplay]);
+};
+
+// Define a new component to display the Z coordinate
+const ZDepthDisplay = ({ zDepthData, onClose }) => {
+  // Get formatted values with correct precision - reduced to 2 decimal places
+  const formatValue = (value) => value !== null ? value.toFixed(2) : 'N/A';
+  
+  // Determine color based on value (green for positive, red for negative)
+  const getColor = (value) => value > 0 ? '#90ee90' : value < 0 ? '#ffcccb' : 'white';
+  
+  // Direction indicators
+  const getDirectionArrow = (value) => {
+    if (value === null) return '';
+    if (Math.abs(value) < 0.005) return '•'; // Neutral dot
+    if (value > 0) return '▲'; // Up arrow for positive
+    return '▼'; // Down arrow for negative
+  };
+  
+  if (!zDepthData) return null;
+  
+  return (
+    <div className="z-depth-display" style={{
+      position: 'absolute',
+      top: '100px',
+      right: '20px',
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      color: 'white',
+      padding: '15px',
+      borderRadius: '8px',
+      fontSize: '18px',
+      fontWeight: 'bold',
+      zIndex: 1000,
+      boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+      minWidth: '280px'
+    }}>
+      <div style={{ 
+        marginBottom: '8px', 
+        fontSize: '22px', 
+        borderBottom: '1px solid #555', 
+        paddingBottom: '5px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <span>Depth Analysis (Z)</span>
+        <button 
+          onClick={onClose} 
+          style={{ 
+            background: 'none', 
+            border: 'none', 
+            color: '#aaa', 
+            fontSize: '20px',
+            cursor: 'pointer',
+            padding: '0 0 0 10px'
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ marginBottom: '5px', color: '#aaa' }}>Shoulders:</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+          <span>Left:</span>
+          <span>{formatValue(zDepthData.leftShoulderZ)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+          <span>Right:</span>
+          <span>{formatValue(zDepthData.rightShoulderZ)}</span>
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          color: getColor(zDepthData.shoulderDifference),
+          borderTop: '1px dotted #555',
+          paddingTop: '3px',
+          marginTop: '3px'
+        }}>
+          <span>Difference:</span>
+          <span>{getDirectionArrow(zDepthData.shoulderDifference)} {formatValue(zDepthData.shoulderDifference)}</span>
+        </div>
+      </div>
+      
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ marginBottom: '5px', color: '#aaa' }}>Hips:</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+          <span>Left:</span>
+          <span>{formatValue(zDepthData.leftHipZ)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+          <span>Right:</span>
+          <span>{formatValue(zDepthData.rightHipZ)}</span>
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          color: getColor(zDepthData.hipDifference),
+          borderTop: '1px dotted #555',
+          paddingTop: '3px',
+          marginTop: '3px'
+        }}>
+          <span>Difference:</span>
+          <span>{getDirectionArrow(zDepthData.hipDifference)} {formatValue(zDepthData.hipDifference)}</span>
+        </div>
+      </div>
+      
+      <div style={{ 
+        marginTop: '10px', 
+        paddingTop: '10px',
+        borderTop: '2px solid #555',
+      }}>
+        <div style={{ marginBottom: '5px', color: '#aaa' }}>Torso Rotation:</div>
+        <div style={{ 
+          fontSize: '22px',
+          color: getColor(zDepthData.torsoRotation),
+          textAlign: 'center',
+          padding: '5px'
+        }}>
+          {getDirectionArrow(zDepthData.torsoRotation)} {formatValue(zDepthData.torsoRotation)}
+        </div>
+        <div style={{ fontSize: '14px', textAlign: 'center', color: '#aaa' }}>
+          {zDepthData.torsoRotation > 0.01 ? 'Rotated Right' : 
+           zDepthData.torsoRotation < -0.01 ? 'Rotated Left' : 
+           'Neutral'}
+        </div>
+      </div>
+      
+      <div style={{ fontSize: '14px', marginTop: '15px', textAlign: 'center', color: '#aaa', borderTop: '1px solid #555', paddingTop: '10px' }}>
+        +Z values are closer to camera
+      </div>
+    </div>
+  );
+};
+
+// Define a default/fallback exercise object structure
+const FALLBACK_EXERCISE = {
+  id: 'no-exercise',
+  name: 'No Exercise Loaded',
+  isTwoSided: false,
+  angles: [],
+  connections: { left: [], right: [], center: [] },
+  stationaryLandmarks: { points: [], connections: [] },
+  landmarks_to_track: [] // Ensure all commonly accessed properties are present
+};
+
 // Get exercise options once outside the component to avoid re-computation
 const exerciseOptions = Object.values(exercises)
   .filter(e => e && e.id && e.name)
   .sort((a, b) => a.name.localeCompare(b.name)); // Pre-sort the options
+
+// Determine a safe default exercise for initialization
+const getDefaultExercise = () => {
+  if (exerciseOptions.length > 0) {
+    return exerciseOptions[0];
+  }
+  console.warn("[MinimalTracker] No exercises loaded or found. Using a fallback exercise definition. Please check 'src/exercises/index.js' or ensure exercises are correctly exported.");
+  return FALLBACK_EXERCISE;
+};
 
 const MinimalTrackerContent = () => {
   // Settings Hook
@@ -36,16 +228,25 @@ const MinimalTrackerContent = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(() => {
     const initialExerciseId = appSettings.selectedExerciseId;
+    let exerciseToSet = getDefaultExercise(); // Start with a safe default from global scope
+
     if (initialExerciseId) {
       const foundExercise = exerciseOptions.find(ex => ex.id === initialExerciseId);
-      if (foundExercise) return foundExercise;
+      if (foundExercise) {
+        exerciseToSet = foundExercise;
+      } else {
+        console.warn(`[MinimalTracker] Initial exercise ID "${initialExerciseId}" from settings not found in current exercise options. Using default exercise: ${exerciseToSet.name}`);
+      }
     }
-    return exerciseOptions[0]; // Default
+    return exerciseToSet;
   });
   const [weight, setWeight] = useState(appSettings.selectedWeights !== null ? appSettings.selectedWeights : 0);
   const [repGoal, setRepGoal] = useState(10);
   const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual', 'session', or 'ladder'
 
+  // State for the Z-depth display
+  const [showZDepthDisplay, setShowZDepthDisplay] = useState(false);
+  
   // Update selectedExerciseRef whenever selectedExercise changes
   useEffect(() => {
     selectedExerciseRef.current = selectedExercise;
@@ -74,6 +275,9 @@ const MinimalTrackerContent = () => {
     stabilityState, 
     averageStationaryLandmarks,
   } = usePoseTracker(selectedExerciseRef, appSettings);
+
+  // Calculate Z-depth data only when display is visible
+  const zDepthData = useZDepthData(landmarksData, showZDepthDisplay);
 
   // Determine if rep counting should be active based on stationary tracking state
   const isRepCountingAllowed = useMemo(() => 
@@ -388,15 +592,27 @@ const MinimalTrackerContent = () => {
   return (
     <div className="minimal-tracker-root">
       {cameraStarted && !isLoading && !errorMessage && (
-        <ActionIcon
-          variant="filled"
-          color="gray"
-          size="lg"
-          onClick={() => setIsSettingsOpen(true)}
-          style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
-        >
-          <Gear size={24} />
-        </ActionIcon>
+        <>
+          <ActionIcon
+            variant="filled"
+            color="gray"
+            size="lg"
+            onClick={() => setIsSettingsOpen(true)}
+            style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
+          >
+            <Gear size={24} />
+          </ActionIcon>
+          
+          <ActionIcon
+            variant="filled"
+            color="blue"
+            size="lg"
+            onClick={() => setShowZDepthDisplay(!showZDepthDisplay)}
+            style={{ position: 'fixed', top: '20px', right: '80px', zIndex: 1300 }}
+          >
+            Z
+          </ActionIcon>
+        </>
       )}
 
       <TrackerControlsBar
@@ -450,7 +666,13 @@ const MinimalTrackerContent = () => {
         <StartButton onClick={handleStartCamera} />
       )}
 
-      <div className="video-canvas-container" style={{ visibility: isLoading || errorMessage ? 'hidden' : 'visible', position: 'relative' }}>
+      <div className="video-canvas-container" style={{ 
+        visibility: isLoading || errorMessage ? 'hidden' : 'visible', 
+        position: 'relative',
+        height: 'calc(100vh - 120px)', // Set explicit height 
+        minHeight: '500px',            // Ensure minimum height
+        overflow: 'hidden',            // Hide overflow
+      }}>
         <VideoCanvas
           videoRef={videoRef} // From hook
           canvasRef={canvasRef} // From hook
@@ -480,56 +702,96 @@ const MinimalTrackerContent = () => {
           />
         )}
         
-        <div className="minimal-tracker-overlay">
-          <div className="minimal-tracker-stack left">
-            <AngleDisplay 
-              displaySide="left"
-              selectedExercise={getActiveExercise} // Use getActiveExercise
-              trackedAngles={trackedAngles} // From hook
-              rawAngles={rawAngles} // From hook
-              smoothingEnabled={appSettings.isSmoothingEnabled} // Pass appSetting for display consistency
-            />
-            <PhaseTrackerDisplay
-              displaySide="left"
-              selectedExercise={getActiveExercise} // Use getActiveExercise
-              trackedAngles={trackedAngles} // From hook
-              landmarksData={landmarksData} // From hook
-              workoutMode={workoutMode}
-              isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
-            />
-            <LandmarkMetricsDisplay2
-              displaySide="left"
-              selectedExercise={getActiveExercise} // Use getActiveExercise
-              landmarksData={landmarksData} // From hook
-              trackedAngles={trackedAngles} // From hook
-            />
-          </div>
-          <div className="minimal-tracker-stack right">
-            <AngleDisplay 
-              displaySide="right"
-              selectedExercise={getActiveExercise} // Use getActiveExercise
-              trackedAngles={trackedAngles} // From hook
-              rawAngles={rawAngles} // From hook
-              smoothingEnabled={appSettings.isSmoothingEnabled} // Pass appSetting for display consistency
-            />
-            <PhaseTrackerDisplay
-              displaySide="right"
-              selectedExercise={getActiveExercise} // Use getActiveExercise
-              trackedAngles={trackedAngles} // From hook
-              landmarksData={landmarksData} // From hook
-              workoutMode={workoutMode}
-              isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
-            />
-            <LandmarkMetricsDisplay2
-              displaySide="right"
-              selectedExercise={getActiveExercise} // Use getActiveExercise
-              landmarksData={landmarksData} // From hook
-              trackedAngles={trackedAngles} // From hook
-            />
-          </div>
-        </div>
+        {/* Only render ZDepthDisplay when showZDepthDisplay is true and we have data */}
+        {cameraStarted && !isLoading && !errorMessage && showZDepthDisplay && (
+          <ZDepthDisplay 
+            zDepthData={zDepthData}
+            onClose={() => setShowZDepthDisplay(false)}
+          />
+        )}
         
-        <BottomControls {...bottomControlsProps} />
+        <div className="minimal-tracker-overlay">
+          {/* Determine if the exercise has angles configured for each side */}
+          {(() => {
+            const hasLeftAngles = getActiveExercise?.logicConfig?.type === 'angle' &&
+                                  Array.isArray(getActiveExercise.logicConfig.anglesToTrack) &&
+                                  getActiveExercise.logicConfig.anglesToTrack.some(a => a.id.toLowerCase().includes('left'));
+                                  
+            const hasRightAngles = getActiveExercise?.logicConfig?.type === 'angle' &&
+                                   Array.isArray(getActiveExercise.logicConfig.anglesToTrack) &&
+                                   getActiveExercise.logicConfig.anglesToTrack.some(a => a.id.toLowerCase().includes('right') || !a.id.toLowerCase().includes('left'));
+
+            return (
+              <>
+                {hasLeftAngles && (
+                  <div className="minimal-tracker-stack left">
+                    <AngleDisplay 
+                      displaySide="left"
+                      selectedExercise={getActiveExercise} // Use getActiveExercise
+                      trackedAngles={trackedAngles} // From hook
+                      rawAngles={rawAngles} // From hook
+                      smoothingEnabled={appSettings.isSmoothingEnabled} // Pass appSetting for display consistency
+                      cameraStarted={cameraStarted} // Pass camera status
+                      hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                    />
+                    <PhaseTrackerDisplay
+                      displaySide="left"
+                      selectedExercise={getActiveExercise} // Use getActiveExercise
+                      trackedAngles={trackedAngles} // From hook
+                      landmarksData={landmarksData} // From hook
+                      workoutMode={workoutMode}
+                      isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
+                      cameraStarted={cameraStarted} // Pass camera status
+                      hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                    />
+                    <LandmarkMetricsDisplay2
+                      displaySide="left"
+                      selectedExercise={getActiveExercise} // Use getActiveExercise
+                      landmarksData={landmarksData} // From hook
+                      trackedAngles={trackedAngles} // From hook
+                      cameraStarted={cameraStarted} // Pass camera status
+                      hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                    />
+                  </div>
+                )}
+
+                {hasRightAngles && (
+                  <div className="minimal-tracker-stack right">
+                    <AngleDisplay 
+                      displaySide="right"
+                      selectedExercise={getActiveExercise} // Use getActiveExercise
+                      trackedAngles={trackedAngles} // From hook
+                      rawAngles={rawAngles} // From hook
+                      smoothingEnabled={appSettings.isSmoothingEnabled} // Pass appSetting for display consistency
+                      cameraStarted={cameraStarted} // Pass camera status
+                      hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                    />
+                    <PhaseTrackerDisplay
+                      displaySide="right"
+                      selectedExercise={getActiveExercise} // Use getActiveExercise
+                      trackedAngles={trackedAngles} // From hook
+                      landmarksData={landmarksData} // From hook
+                      workoutMode={workoutMode}
+                      isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
+                      cameraStarted={cameraStarted} // Pass camera status
+                      hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                    />
+                    <LandmarkMetricsDisplay2
+                      displaySide="right"
+                      selectedExercise={getActiveExercise} // Use getActiveExercise
+                      landmarksData={landmarksData} // From hook
+                      trackedAngles={trackedAngles} // From hook
+                      cameraStarted={cameraStarted} // Pass camera status
+                      hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                    />
+                  </div>
+                )}
+              </>
+            );
+          })()}
+          
+          <BottomControls {...bottomControlsProps} />
+        </div>
       </div>
 
       <SettingsOverlay 

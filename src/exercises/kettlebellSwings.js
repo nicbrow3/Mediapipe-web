@@ -24,6 +24,9 @@ export const kettlebellSwings = {
         }
     },
 
+    // --- Stationary Landmarks ---
+    stationaryLandmarks: ['left_ankle'],
+
     // --- Starting Position Requirements ---
     startPosition: {
         description: "",

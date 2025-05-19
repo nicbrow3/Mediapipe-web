@@ -277,12 +277,12 @@ const PhaseTracker = ({
   
   return (
     <div className="phase-tracker" style={{ textAlign: side === 'right' ? 'right' : 'left' }}>
-      {side && <div className="side-label" style={{ fontSize: '14px', marginBottom: '4px' }}>{side}</div>}
+      {side && <div className="side-label" style={{ fontSize: '14px'}}>{side}</div>}
       <div className="phase-display" style={{ 
         display: 'flex', 
         alignItems: 'center',
         justifyContent: side === 'right' ? 'flex-end' : 'flex-start', 
-        marginBottom: '4px'
+        // marginBottom: '4px'
       }}>
         {getPhaseDisplay()}
       </div>

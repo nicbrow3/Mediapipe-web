@@ -44,6 +44,7 @@ const SettingsOverlayInternal = ({
       padding="xl"
       size="md"
       centered
+      zIndex={999}
     >
       <Box>
         <Title order={3}>Application Settings</Title>
