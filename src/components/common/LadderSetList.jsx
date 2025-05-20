@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Paper, ScrollArea, Text, Group, ThemeIcon, Stack, Box } from '@mantine/core';
-import { ArrowUp, Star, ArrowDown, WarningCircle } from 'phosphor-react';
+import { ArrowUp, Star, ArrowDown, WarningCircle } from '@phosphor-icons/react';
 
 // Helper function to calculate ladder sets
 const getLadderSets = (settings) => {

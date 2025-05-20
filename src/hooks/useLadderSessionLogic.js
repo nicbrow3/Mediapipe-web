@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRepCounter } from '../components/RepCounterContext';
 
 const LADDER_SETTINGS_STORAGE_KEY = 'ladderSessionSettings';
@@ -50,13 +50,27 @@ export const useLadderSessionLogic = (
   };
 
   const [isSessionActive, setIsSessionActive] = useState(false);
-  const [sessionPhase, setSessionPhase] = useState('idle'); // 'idle', 'exercising', 'resting'
+  const [sessionPhase, setSessionPhase] = useState('idle'); // 'idle', 'exercising', 'resting', 'completed'
   const [currentTimerValue, setCurrentTimerValue] = useState(0);
   const [currentExercise, setCurrentExercise] = useState(null);
   const [selectedExercise, setSelectedExercise] = useState(null); // Store the selected exercise
   const [currentReps, setCurrentReps] = useState(loadSettings().startReps);
   const [direction, setDirection] = useState('up'); // 'up' or 'down'
   const [ladderSettings, setLadderSettings] = useState(loadSettings);
+  const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
+  
+  // Session stats
+  const [sessionStats, setSessionStats] = useState({
+    exercise: '',
+    totalReps: 0,
+    totalSets: 0,
+    peakReps: 0,
+    totalTime: 0,
+  });
+  
+  // Reference to track total workout time
+  const sessionStartTimeRef = useRef(null);
+  const totalRepsPerformedRef = useRef(0);
   
   // Get rep count data from context
   const { repCount, resetRepCounts } = useRepCounter();
@@ -163,6 +177,36 @@ export const useLadderSessionLogic = (
     return currentReps * ladderSettings.restTimePerRep;
   }, [currentReps, ladderSettings.restTimePerRep]);
 
+  // Track total reps completed when a set is completed
+  useEffect(() => {
+    if (sessionPhase === 'resting') {
+      // Add the completed reps to the total
+      const isTwoSided = currentExercise?.isTwoSided;
+      const repsToAdd = isTwoSided 
+        ? Math.max(repCount.left, repCount.right) // Use the higher of the two sides
+        : repCount.left;
+        
+      totalRepsPerformedRef.current += repsToAdd;
+    }
+  }, [sessionPhase, currentExercise, repCount]);
+
+  /**
+   * Handle closing the completion modal and ending the session
+   */
+  const handleCompletionModalClose = useCallback(() => {
+    setIsCompletionModalOpen(false);
+    // Now actually end the session
+    setIsSessionActive(false);
+    setSessionPhase('idle');
+    setCurrentExercise(null);
+    setCurrentSetNumber(0);
+    setCurrentReps(ladderSettings.startReps);
+    setDirection('up');
+    // Reset the session stats
+    sessionStartTimeRef.current = null;
+    totalRepsPerformedRef.current = 0;
+  }, [ladderSettings.startReps]);
+
   /**
    * Toggles the session between active and inactive states
    * Initializes session when starting
@@ -181,15 +225,24 @@ export const useLadderSessionLogic = (
         setSessionPhase('exercising');
         setCurrentTimerValue(0); // No timer for exercise phase
         setCurrentSetNumber(1); // Start with the first set
+        // Start tracking workout time
+        sessionStartTimeRef.current = Date.now();
+        totalRepsPerformedRef.current = 0;
         // Don't call resetRepCounts here - moved outside
       } else {
-        setSessionPhase('idle');
-        setCurrentTimerValue(0);
-        setCurrentExercise(null);
-        setCurrentSetNumber(0);
-        // Reset currentReps to startReps from settings when session stops
-        setCurrentReps(ladderSettings.startReps);
-        setDirection('up');
+        // Only end the session if not already in completed phase
+        if (sessionPhase !== 'completed') {
+          setSessionPhase('idle');
+          setCurrentTimerValue(0);
+          setCurrentExercise(null);
+          setCurrentSetNumber(0);
+          // Reset currentReps to startReps from settings when session stops
+          setCurrentReps(ladderSettings.startReps);
+          setDirection('up');
+          // Reset session stats tracking
+          sessionStartTimeRef.current = null;
+          totalRepsPerformedRef.current = 0;
+        }
       }
       return newIsActive;
     });
@@ -199,20 +252,29 @@ export const useLadderSessionLogic = (
       // Only reset when activating the session
       setTimeout(() => resetRepCounts(), 0);
     }
-  }, [selectRandomExercise, ladderSettings.startReps, selectedExercise, resetRepCounts, isSessionActive]);
+  }, [selectRandomExercise, ladderSettings.startReps, selectedExercise, resetRepCounts, isSessionActive, sessionPhase]);
 
   // Function to move to next step in the ladder
   const moveToNextStep = useCallback(() => {
     if (isLadderComplete()) {
-      // End the session
-      console.log('[useLadderSessionLogic] Ladder completed. Ending session.');
-      setIsSessionActive(false);
-      setSessionPhase('idle');
-      setCurrentExercise(null);
-      setCurrentSetNumber(0);
-      // Reset currentReps to startReps from settings after completion
-      setCurrentReps(ladderSettings.startReps);
-      setDirection('up');
+      // Complete the session but don't end it immediately
+      console.log('[useLadderSessionLogic] Ladder completed. Showing completion screen.');
+      
+      // Calculate total session time in seconds
+      const totalTimeSeconds = Math.floor((Date.now() - (sessionStartTimeRef.current || Date.now())) / 1000);
+      
+      // Update session stats
+      setSessionStats({
+        exercise: currentExercise?.name || 'Unknown Exercise',
+        totalReps: totalRepsPerformedRef.current,
+        totalSets: currentSetNumber,
+        peakReps: ladderSettings.topReps,
+        totalTime: totalTimeSeconds
+      });
+      
+      // Show completion phase
+      setSessionPhase('completed');
+      setIsCompletionModalOpen(true);
       return;
     }
     
@@ -232,19 +294,50 @@ export const useLadderSessionLogic = (
     
     // Use setTimeout to avoid state updates during render
     setTimeout(() => resetRepCounts(), 0);
-  }, [isLadderComplete, calculateNextReps, ladderSettings, direction, resetRepCounts]);
+  }, [isLadderComplete, calculateNextReps, ladderSettings, direction, resetRepCounts, currentExercise, currentSetNumber]);
 
   // Handler for completing a set of reps
   const completeCurrentSet = useCallback(() => {
     if (!isSessionActive || sessionPhase !== 'exercising') return;
     
-    // Move to rest phase after completing reps
+    // Check if this is the final set in the ladder
+    if (direction === 'down' && currentReps <= ladderSettings.endReps) {
+      // This is the last set, so skip rest and complete the ladder
+      console.log(`[useLadderSessionLogic] Completed final set with ${currentReps} reps. Completing ladder.`);
+      
+      // Calculate total session time in seconds
+      const totalTimeSeconds = Math.floor((Date.now() - (sessionStartTimeRef.current || Date.now())) / 1000);
+      
+      // Add the completed reps to the total before ending
+      const isTwoSided = currentExercise?.isTwoSided;
+      const repsToAdd = isTwoSided 
+        ? Math.max(repCount.left, repCount.right) // Use the higher of the two sides
+        : repCount.left;
+        
+      totalRepsPerformedRef.current += repsToAdd;
+      
+      // Update session stats
+      setSessionStats({
+        exercise: currentExercise?.name || 'Unknown Exercise',
+        totalReps: totalRepsPerformedRef.current,
+        totalSets: currentSetNumber,
+        peakReps: ladderSettings.topReps,
+        totalTime: totalTimeSeconds
+      });
+      
+      // Show completion phase
+      setSessionPhase('completed');
+      setIsCompletionModalOpen(true);
+      return;
+    }
+    
+    // Otherwise, proceed to rest phase as normal
     setSessionPhase('resting');
     const restTime = calculateRestTime();
     setCurrentTimerValue(restTime);
     
     console.log(`[useLadderSessionLogic] Completed ${currentReps} reps. Resting for ${restTime}s.`);
-  }, [isSessionActive, sessionPhase, currentReps, calculateRestTime]);
+  }, [isSessionActive, sessionPhase, currentReps, direction, ladderSettings.endReps, currentExercise, calculateRestTime, currentSetNumber, repCount]);
 
   // Check if rep count has been reached for auto-advancing
   useEffect(() => {
@@ -326,5 +419,8 @@ export const useLadderSessionLogic = (
     selectedExercise,
     selectExerciseForLadder,
     calculateNextReps, // Expose calculateNextReps for UI display purposes
+    isCompletionModalOpen,
+    handleCompletionModalClose,
+    sessionStats,
   };
 }; 

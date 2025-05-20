@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Paper, Button, Group, Stack, Collapse, ActionIcon, Text } from '@mantine/core'; // Added Text back for fallback
 import TimedSessionSettings from './TimedSessionSettings';
 import CircularProgressTimer from './CircularProgressTimer'; // Import the component
-import { CaretCircleDown, CaretCircleUp } from 'phosphor-react';
+import { CaretCircleDown, CaretCircleUp } from '@phosphor-icons/react';
 
 // formatTime can be kept if needed elsewhere, or CircularProgressTimer can handle its own label formatting
 // const formatTime = (totalSeconds) => { ... };

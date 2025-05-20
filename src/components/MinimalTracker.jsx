@@ -14,7 +14,7 @@ import ErrorDisplay from './common/ErrorDisplay';
 import TrackerControlsBar from './common/TrackerControlsBar';
 import BottomControls from './common/BottomControls';
 import { ActionIcon, Text } from '@mantine/core';
-import { Gear } from 'phosphor-react';
+import { Gear } from '@phosphor-icons/react';
 import SettingsOverlay from './SettingsOverlay';
 import { RepCounterProvider, useRepCounter } from './RepCounterContext';
 import RepGoalDisplayContainer from './RepGoalDisplayContainer';
@@ -406,6 +406,9 @@ const MinimalTrackerContent = () => {
     selectedExercise: selectedLadderExercise,
     selectExerciseForLadder,
     calculateNextReps, // Add the calculateNextReps function for use in UI
+    isCompletionModalOpen, // For completion modal
+    handleCompletionModalClose, // For completion modal
+    sessionStats, // For completion modal
   } = useLadderSessionLogic(selectRandomExercise);
 
   const handleLadderExerciseChange = useCallback((exercise) => {
@@ -535,6 +538,9 @@ const MinimalTrackerContent = () => {
     onLadderExerciseChange: handleLadderExerciseChange,
     enableStationaryTracking: appSettings.enableStationaryTracking,
     stabilityState: stabilityState,
+    isCompletionModalOpen,
+    onCompletionModalClose: handleCompletionModalClose,
+    sessionStats,
   }), [
     cameraStarted,
     isLoading,
@@ -564,9 +570,12 @@ const MinimalTrackerContent = () => {
     ladderSettings,
     direction,
     selectedLadderExercise,
-    handleLadderExerciseChange,
-    appSettings.enableStationaryTracking,
-    stabilityState,
+      handleLadderExerciseChange,
+  appSettings.enableStationaryTracking,
+  stabilityState,
+  isCompletionModalOpen,
+  handleCompletionModalClose,
+  sessionStats,
   ]);
   
   const bottomControlsProps = useMemo(() => ({
@@ -648,6 +657,9 @@ const MinimalTrackerContent = () => {
         onLadderExerciseChange={handleLadderExerciseChange}
         enableStationaryTracking={appSettings.enableStationaryTracking}
         stabilityState={stabilityState}
+        isCompletionModalOpen={isCompletionModalOpen}
+        onCompletionModalClose={handleCompletionModalClose}
+        sessionStats={sessionStats}
       />
 
       {isLoading && cameraStarted && <LoadingDisplay />}

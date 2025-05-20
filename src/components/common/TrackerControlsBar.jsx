@@ -46,6 +46,10 @@ const TrackerControlsBar = ({
   // New props for stability display
   enableStationaryTracking,
   stabilityState,
+  // Completion modal props
+  isCompletionModalOpen,
+  onCompletionModalClose,
+  sessionStats,
 }) => {
   if (!cameraStarted) {
     return null; // Don't render if camera hasn't started
@@ -104,6 +108,9 @@ const TrackerControlsBar = ({
           exerciseOptions={exerciseOptions}
           selectedExercise={selectedLadderExercise}
           onExerciseChange={onLadderExerciseChange}
+          isCompletionModalOpen={isCompletionModalOpen}
+          onCompletionModalClose={onCompletionModalClose}
+          sessionStats={sessionStats}
         />
       );
     }
@@ -132,7 +139,11 @@ const TrackerControlsBar = ({
     ladderSettings,
     direction,
     selectedLadderExercise,
-    onLadderExerciseChange
+    onLadderExerciseChange,
+    // Completion modal dependencies
+    isCompletionModalOpen,
+    onCompletionModalClose,
+    sessionStats
   ]);
 
   // Use consistent styling objects to prevent recreation on each render

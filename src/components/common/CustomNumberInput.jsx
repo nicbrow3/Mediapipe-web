@@ -1,6 +1,6 @@
 import React from 'react';
 import { NumberInput, ActionIcon, Group, Text } from '@mantine/core';
-import { Minus, Plus } from 'phosphor-react';
+import { Minus, Plus } from '@phosphor-icons/react';
 
 const CustomNumberInput = ({
   value,
