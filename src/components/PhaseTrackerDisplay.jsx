@@ -23,7 +23,7 @@ const getDefaultSecondaryLandmarks = (side) => {
   return baseLandmarks;
 };
 
-const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, landmarksData, workoutMode, isRepCountingAllowed, cameraStarted, hasLandmarksData }) => {
+const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, landmarksData, workoutMode, isRepCountingAllowed, cameraStarted, hasLandmarksData, sessionPhase = 'exercising' }) => {
   const [settings] = useAppSettings();
   
   // Use a state to maintain the last valid angleConfigToShow to prevent flickering
@@ -202,6 +202,7 @@ const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, lan
             landmarkVisibility={landmarkVisibilityData}
             workoutMode={workoutMode}
             isRepCountingAllowed={isRepCountingAllowed}
+            sessionPhase={sessionPhase}
           />
         )}
       </div>

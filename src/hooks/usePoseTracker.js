@@ -8,7 +8,7 @@ import { setupCamera, waitForVideoReady } from '../components/VideoCanvas'; // A
 
 // Constants for performance metrics and smoothing
 const MAX_SAMPLES = 150; // samples for fps and inference time
-export const ANGLE_SMOOTHING_WINDOW = 25; // Number of frames to use for angle smoothing
+export const ANGLE_SMOOTHING_WINDOW = 10; // Number of frames to use for angle smoothing
 
 export const usePoseTracker = (selectedExerciseRef, appSettings) => {
   // Refs

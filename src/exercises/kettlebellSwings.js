@@ -34,7 +34,7 @@ export const kettlebellSwings = {
             {
                 id: 'leftShoulderStart',
                 side: 'left',
-                points: ['hip', 'shoulder', 'wrist'],
+                points: ['knee', 'shoulder', 'wrist'],
                 targetAngle: 30, // Kettlebell should be resting below the shoulder straight down.
                 tolerance: 15
             }
@@ -49,7 +49,7 @@ export const kettlebellSwings = {
             {
                 id: 'leftShoulderAngle',
                 side: 'left',
-                points: ['hip', 'shoulder', 'wrist'],
+                points: ['knee', 'shoulder', 'wrist'], // Changed to knee because the hip moves back.
                 minThreshold: 30, // Minimum angle for a valid rep
                 maxThreshold: 80, // Maximum angle for a valid rep
                 isRepCounter: true,

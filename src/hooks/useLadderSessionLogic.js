@@ -325,5 +325,6 @@ export const useLadderSessionLogic = (
     direction,
     selectedExercise,
     selectExerciseForLadder,
+    calculateNextReps, // Expose calculateNextReps for UI display purposes
   };
 }; 

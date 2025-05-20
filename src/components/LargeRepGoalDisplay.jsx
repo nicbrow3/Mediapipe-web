@@ -10,8 +10,9 @@ import { Text, RingProgress, Paper, Group, Stack, Box } from '@mantine/core';
  * @param {number} props.currentReps - Current repetition count
  * @param {number} props.goalReps - Target repetition goal
  * @param {string} props.side - Optional side identifier ('left' or 'right')
+ * @param {boolean} props.showCompleted - Show the display in "completed" mode
  */
-const LargeRepGoalDisplay = ({ currentReps = 0, goalReps = 10, side = null }) => {
+const LargeRepGoalDisplay = ({ currentReps = 0, goalReps = 10, side = null, showCompleted = false }) => {
   // Calculate target progress percentage
   const targetProgress = goalReps > 0 ? Math.min(100, (currentReps / goalReps) * 100) : 0;
   
@@ -69,6 +70,9 @@ const LargeRepGoalDisplay = ({ currentReps = 0, goalReps = 10, side = null }) =>
   
   // Determine color based on progress
   const getColor = () => {
+    // If showing completed state, always use the completed color
+    if (showCompleted) return '#8AFF8A'; // Light green for completed state
+    
     if (animatedProgress >= 100) return '#8AFF8A'; // Light green when complete
     if (animatedProgress >= 75) return '#66CDAA'; // Medium aquamarine
     if (animatedProgress >= 50) return '#20B2AA'; // Light sea green
@@ -107,14 +111,14 @@ const LargeRepGoalDisplay = ({ currentReps = 0, goalReps = 10, side = null }) =>
         {/* Goal display */}
         <Box w={60} h={100}>
           <Text c="white" size="lg" sx={{ lineHeight: 1.2, userSelect: 'none' }}>
-            GOAL
+            {showCompleted ? 'DONE' : 'GOAL'}
           </Text>
           <Text c="white" ta="center" size="h1">
             {goalReps}
           </Text>
           
-          {/* Show complete indicator if goal reached */}
-          {targetProgress >= 100 && (
+          {/* Show complete indicator if goal reached or in completed mode */}
+          {(targetProgress >= 100 || showCompleted) && (
             <Text
               ta="center"
               c="#8AFF8A"
@@ -122,7 +126,7 @@ const LargeRepGoalDisplay = ({ currentReps = 0, goalReps = 10, side = null }) =>
               size="xs"
               sx={{ lineHeight: 1, marginTop: '2px', userSelect: 'none' }}
             >
-              COMPLETE!
+              {showCompleted ? 'COMPLETED!' : 'COMPLETE!'}
             </Text>
           )}
         </Box>

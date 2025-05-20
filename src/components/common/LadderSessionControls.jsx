@@ -82,6 +82,9 @@ const LadderSessionControls = ({
         // currentReps and ladderSettings.restTimePerRep are stable when this effect runs for a phase change.
         const initialRestDuration = currentReps * ladderSettings.restTimePerRep;
         setCurrentRestTotalTime(initialRestDuration);
+        
+        // We don't need to reset rep counts here anymore as the RepGoalDisplayContainer
+        // handles showing the completed reps and then transitions to the new goal
     } else {
         // Reset when not in resting phase, or set to a value that indicates no timer
         setCurrentRestTotalTime(0); 

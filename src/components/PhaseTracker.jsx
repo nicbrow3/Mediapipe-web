@@ -19,7 +19,8 @@ const PhaseTracker = ({
     secondaryLandmarks: { allVisible: true, minVisibility: 100 }
   },
   workoutMode,
-  isRepCountingAllowed = true // Default to true if not provided, for backward compatibility
+  isRepCountingAllowed = true, // Default to true if not provided, for backward compatibility
+  sessionPhase = 'exercising' // Default to exercising phase
 }) => {
   const [phase, setPhase] = useState(0);
   const [repCount, setRepCount] = useState(0);
@@ -117,8 +118,8 @@ const PhaseTracker = ({
   // console.log(`PhaseTracker (${side || 'unknown'}) - config:`, angleConfig);
   
   useEffect(() => {
-    if (!isLocalTrackingEnabled || !isRepCountingAllowed || angle === null || !angleConfig) {
-      // Skip phase tracking if disabled by local visibility, stationary checks, or missing data
+    if (!isLocalTrackingEnabled || !isRepCountingAllowed || angle === null || !angleConfig || sessionPhase === 'resting') {
+      // Skip phase tracking if disabled by local visibility, stationary checks, missing data, or during rest phase
       return;
     }
     
@@ -298,6 +299,15 @@ const PhaseTracker = ({
           marginTop: '2px'
         }}>
           {getVisibilityLabel() || 'Low visibility'}
+        </div>
+      )}
+      {sessionPhase === 'resting' && workoutMode === 'ladder' && (
+        <div style={{ 
+          fontSize: '10px', 
+          color: '#66CDAA',
+          marginTop: '2px'
+        }}>
+          Resting...
         </div>
       )}
     </div>

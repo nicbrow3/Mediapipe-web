@@ -405,6 +405,7 @@ const MinimalTrackerContent = () => {
     direction,
     selectedExercise: selectedLadderExercise,
     selectExerciseForLadder,
+    calculateNextReps, // Add the calculateNextReps function for use in UI
   } = useLadderSessionLogic(selectRandomExercise);
 
   const handleLadderExerciseChange = useCallback((exercise) => {
@@ -694,11 +695,13 @@ const MinimalTrackerContent = () => {
           stationaryLandmarksConfiguration={getActiveExercise?.stationaryLandmarks}
         />
         
-        {cameraStarted && !isLoading && !errorMessage && (
+                  {cameraStarted && !isLoading && !errorMessage && (
           <RepGoalDisplayContainer 
             repGoal={repGoal}
             isTwoSided={getActiveExercise.isTwoSided} // Use getActiveExercise
             ladderReps={workoutMode === 'ladder' && isLadderSessionActive ? currentReps : null}
+            sessionPhase={sessionPhase}
+            nextLadderReps={workoutMode === 'ladder' && sessionPhase === 'resting' ? calculateNextReps() : null}
           />
         )}
         
@@ -743,6 +746,7 @@ const MinimalTrackerContent = () => {
                       isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
                       cameraStarted={cameraStarted} // Pass camera status
                       hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                      sessionPhase={sessionPhase} // Pass current session phase
                     />
                     <LandmarkMetricsDisplay2
                       displaySide="left"
@@ -775,6 +779,7 @@ const MinimalTrackerContent = () => {
                       isRepCountingAllowed={isRepCountingAllowed} // Pass to PhaseTrackerDisplay
                       cameraStarted={cameraStarted} // Pass camera status
                       hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                      sessionPhase={sessionPhase} // Pass current session phase
                     />
                     <LandmarkMetricsDisplay2
                       displaySide="right"
