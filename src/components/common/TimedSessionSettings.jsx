@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Stack, Group, Text, NumberInput, Button, Flex, Switch } from '@mantine/core';
+import { Stack, Group, Flex, Switch } from '@mantine/core';
+import CustomNumberInput from '../common/CustomNumberInput';
 
 /**
  * SessionSettings Component
@@ -42,13 +43,9 @@ const TimedSessionSettings = ({
 
   return (
     <Stack gap="sm" p="md" style={{ maxWidth: '100%' }}>
-      {/* <Text weight={500} size="sm"> Configuration</Text> */}
-      
-      <Flex
-      gap="md"
-      justify='center'
-      >
-        <NumberInput
+      {/* First row: Exercise Time and Rest Time side by side */}
+      <Group grow spacing="md">
+        <CustomNumberInput
           label="Exercise Time"
           value={sessionConfig.exerciseSetDuration}
           onChange={(value) => handleConfigChange('exerciseSetDuration', value)}
@@ -56,10 +53,9 @@ const TimedSessionSettings = ({
           max={300}
           step={5}
           disabled={isSessionActive}
-          style={{ flex: 1 }}
         />
         
-        <NumberInput
+        <CustomNumberInput
           label="Rest Time"
           value={sessionConfig.restPeriodDuration}
           onChange={(value) => handleConfigChange('restPeriodDuration', value)}
@@ -67,10 +63,12 @@ const TimedSessionSettings = ({
           max={120}
           step={5}
           disabled={isSessionActive}
-          style={{ flex: 1 }}
         />
-        
-        <NumberInput
+      </Group>
+      
+      {/* Second row: Total Sets centered */}
+      <Group position="center">
+        <CustomNumberInput
           label="Total Sets"
           value={sessionConfig.totalSets}
           onChange={(value) => handleConfigChange('totalSets', value)}
@@ -78,9 +76,9 @@ const TimedSessionSettings = ({
           max={50}
           step={1}
           disabled={isSessionActive}
-          style={{ flex: 1 }}
+          style={{ width: '180px' }}
         />
-      </Flex>
+      </Group>
 
       <Group position="center" mt="xs">
         <Switch

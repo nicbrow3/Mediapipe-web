@@ -12,18 +12,33 @@ const CustomNumberInput = ({
   description,
   disabled,
   style,
+  precision,
   ...rest
 }) => {
+  // Determine precision based on step if not explicitly provided
+  const effectivePrecision = precision ?? (
+    step < 1 ? String(step).split('.')[1].length : 0
+  );
 
   const handleIncrement = () => {
-    const newValue = Math.min(max !== undefined ? max : Infinity, Number(value) + step);
+    let newValue = Number(value) + step;
+    // Apply precision to fix floating point issues
+    if (effectivePrecision > 0) {
+      newValue = Number(newValue.toFixed(effectivePrecision));
+    }
+    newValue = Math.min(max !== undefined ? max : Infinity, newValue);
     if (onChange) {
       onChange(newValue);
     }
   };
 
   const handleDecrement = () => {
-    const newValue = Math.max(min !== undefined ? min : -Infinity, Number(value) - step);
+    let newValue = Number(value) - step;
+    // Apply precision to fix floating point issues
+    if (effectivePrecision > 0) {
+      newValue = Number(newValue.toFixed(effectivePrecision));
+    }
+    newValue = Math.max(min !== undefined ? min : -Infinity, newValue);
     if (onChange) {
       onChange(newValue);
     }
@@ -59,6 +74,7 @@ const CustomNumberInput = ({
           min={min}
           max={max}
           step={step}
+          precision={effectivePrecision}
           disabled={disabled}
           hideControls
           styles={{ input: { textAlign: 'center' } }}

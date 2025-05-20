@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Modal, Box, Title, Divider, Switch, Stack, NumberInput, ColorPicker, Text, Group, ActionIcon, Popover } from '@mantine/core';
+import { Modal, Box, Title, Divider, Switch, Stack, ColorPicker, Text, Group, ActionIcon, Popover } from '@mantine/core';
+import CustomNumberInput from './common/CustomNumberInput';
 
 const SettingsOverlayInternal = ({ 
   isOpen, 
@@ -81,15 +82,15 @@ const SettingsOverlayInternal = ({
             {requireAllLandmarks && (
               <>
                 <Box mt="sm" ml="md">
-                  <NumberInput
+                  <CustomNumberInput
                     label="Minimum Visibility Threshold (%)"
                     description="Landmarks must have at least this visibility level (0-80%)"
                     value={minimumVisibilityThreshold}
-                    onChange={(value) => onMinimumVisibilityChange(Number(value))}
+                    onChange={onMinimumVisibilityChange}
                     min={0}
                     max={80}
                     step={5}
-                    styles={{ root: { maxWidth: '300px' } }}
+                    style={{ maxWidth: '300px' }}
                   />
                 </Box>
                 
@@ -107,15 +108,15 @@ const SettingsOverlayInternal = ({
           </Box>
 
           <Box>
-            <NumberInput
+            <CustomNumberInput
               label="Camera Feed Opacity (%)"
               description="Adjust the transparency of the live camera feed."
               value={cameraOpacity}
-              onChange={(value) => onCameraOpacityChange(Number(value))}
+              onChange={onCameraOpacityChange}
               min={0}
               max={100}
               step={5}
-              styles={{ root: { maxWidth: '300px' } }}
+              style={{ maxWidth: '300px' }}
             />
           </Box>
 
@@ -199,40 +200,40 @@ const SettingsOverlayInternal = ({
           {enableStationaryTracking && (
             <>
               <Box mt="sm" ml="md">
-                <NumberInput
-                  label="Stationary Deviation Threshold"
-                  description="Maximum allowed deviation (normalized screen distance, e.g., 0.05 = 5% of canvas width) for stationary landmarks."
+                <CustomNumberInput
+                  label="Stationary Landmark Zone Size"
+                  description="Maximum allowed stationary landmark distance (normalized screen distance, e.g., 0.05 = 5% of canvas width)."
                   value={stationaryDeviationThreshold}
-                  onChange={(value) => onStationaryDeviationThresholdChange(Number(value))}
+                  onChange={onStationaryDeviationThresholdChange}
                   min={0.01}
                   max={0.5}
                   step={0.01}
                   precision={2}
-                  styles={{ root: { maxWidth: '300px' } }}
+                  style={{ maxWidth: '300px' }}
                 />
               </Box>
               <Box mt="sm" ml="md">
-                <NumberInput
+                <CustomNumberInput
                   label="Stationary Averaging Window (ms)"
                   description="Time window in milliseconds for averaging landmark positions."
                   value={stationaryAveragingWindowMs}
-                  onChange={(value) => onStationaryAveragingWindowMsChange(Number(value))}
+                  onChange={onStationaryAveragingWindowMsChange}
                   min={100}
                   max={5000}
                   step={100}
-                  styles={{ root: { maxWidth: '300px' } }}
+                  style={{ maxWidth: '300px' }}
                 />
               </Box>
               <Box mt="sm" ml="md">
-                <NumberInput
+                <CustomNumberInput
                   label="Stationary Hold Duration (ms)"
                   description="Time in milliseconds landmarks must remain stable before entering 'exercising' state."
                   value={stationaryHoldDurationMs}
-                  onChange={(value) => onStationaryHoldDurationMsChange(Number(value))}
+                  onChange={onStationaryHoldDurationMsChange}
                   min={100}
                   max={5000}
                   step={100}
-                  styles={{ root: { maxWidth: '300px' } }}
+                  style={{ maxWidth: '300px' }}
                 />
               </Box>
             </>
