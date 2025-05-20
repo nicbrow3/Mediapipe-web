@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Stack, Group, Text, NumberInput, Button, Flex } from '@mantine/core';
+import { Stack, Group, Text, NumberInput, Button, Flex, Switch } from '@mantine/core';
 
 /**
  * SessionSettings Component
@@ -8,6 +8,7 @@ import { Stack, Group, Text, NumberInput, Button, Flex } from '@mantine/core';
  * - Exercise duration (seconds)
  * - Rest duration (seconds)
  * - Total number of sets to perform
+ * - Random exercise toggle (enables/disables random exercise selection)
  * 
  * Settings are disabled during active sessions to prevent mid-session changes.
  * Changes are communicated to parent components via onSettingsChange callback.
@@ -16,6 +17,7 @@ const TimedSessionSettings = ({
   exerciseSetDuration = 30,
   restPeriodDuration = 15,
   totalSets = 10,
+  useRandomExercises = true,
   onSettingsChange,
   onStartSession,
   isSessionActive = false,
@@ -24,6 +26,7 @@ const TimedSessionSettings = ({
     exerciseSetDuration,
     restPeriodDuration,
     totalSets,
+    useRandomExercises,
   });
 
   const handleConfigChange = (key, value) => {
@@ -78,6 +81,15 @@ const TimedSessionSettings = ({
           style={{ flex: 1 }}
         />
       </Flex>
+
+      <Group position="center" mt="xs">
+        <Switch
+          label="Use Random Exercises"
+          checked={sessionConfig.useRandomExercises}
+          onChange={(event) => handleConfigChange('useRandomExercises', event.currentTarget.checked)}
+          disabled={isSessionActive}
+        />
+      </Group>
     </Stack>
   );
 };

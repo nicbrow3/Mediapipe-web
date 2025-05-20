@@ -388,6 +388,7 @@ const MinimalTrackerContent = () => {
     currentSetNumber: timedSessionCurrentSetNumber,
     updateSessionSettings,
     sessionSettings,
+    setSessionExercise, // Get the function to set fixed exercise
   } = useSessionLogic(selectRandomExercise);
   
   const {
@@ -411,21 +412,24 @@ const MinimalTrackerContent = () => {
     sessionStats, // For completion modal
   } = useLadderSessionLogic(selectRandomExercise);
 
-  const handleLadderExerciseChange = useCallback((exercise) => {
-    selectExerciseForLadder(exercise);
-    setSelectedExercise(exercise); // This will update selectedExerciseRef via its useEffect
-    updateAppSettings({ selectedExerciseId: exercise.id });
-    resetRepCounts();
-  }, [selectExerciseForLadder, updateAppSettings, resetRepCounts]);
-
+  // Define handleExerciseChange first so it can be referenced by handleLadderExerciseChange
   const handleExerciseChange = useCallback((newExercise) => {
+    // Update the global selected exercise reference
     setSelectedExercise(newExercise); // This will update selectedExerciseRef via its useEffect
     updateAppSettings({ selectedExerciseId: newExercise.id });
     resetRepCounts();
-    if (workoutMode === 'ladder') {
-      selectExerciseForLadder(newExercise);
+    
+    // Keep all exercise selectors in sync
+    if (workoutMode === 'ladder' || workoutMode === 'session') {
+      selectExerciseForLadder(newExercise); // Update ladder exercise
     }
   }, [updateAppSettings, workoutMode, selectExerciseForLadder, resetRepCounts]);
+
+  // Now define handleLadderExerciseChange which depends on handleExerciseChange
+  const handleLadderExerciseChange = useCallback((exercise) => {
+    // This function is now just an alias for handleExerciseChange to maintain consistent behavior
+    handleExerciseChange(exercise);
+  }, [handleExerciseChange]);
 
   const isSessionActive = useMemo(() => 
     workoutMode === 'session' ? isTimedSessionActive : 
@@ -598,6 +602,18 @@ const MinimalTrackerContent = () => {
     workoutMode,
     handleWeightChange // Added missing dependency
   ]);
+
+  // Effect to update the fixed exercise when selectedExercise changes
+  // and useRandomExercises is false
+  useEffect(() => {
+    if (
+      workoutMode === 'session' && 
+      setSessionExercise && 
+      sessionSettings?.useRandomExercises === false
+    ) {
+      setSessionExercise(selectedExercise);
+    }
+  }, [workoutMode, selectedExercise, sessionSettings?.useRandomExercises, setSessionExercise]);
 
   return (
     <div className="minimal-tracker-root">

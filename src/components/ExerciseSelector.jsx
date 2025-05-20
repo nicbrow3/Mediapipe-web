@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Select } from '@mantine/core';
 
-const ExerciseSelector = ({ exerciseOptions, selectedExercise, onChange }) => {
+const ExerciseSelector = ({ exerciseOptions, selectedExercise, onChange, disabled = false }) => {
   // Memoize the formatted and sorted options to prevent recalculation on every render
   const formattedExerciseOptions = useMemo(() => {
     if (!exerciseOptions || exerciseOptions.length === 0) return [];
@@ -32,6 +32,7 @@ const ExerciseSelector = ({ exerciseOptions, selectedExercise, onChange }) => {
       value={selectedExercise?.id || ''}
       onChange={handleChange}
       style={{ width: '100%' }}
+      disabled={disabled}
     />
   );
 };

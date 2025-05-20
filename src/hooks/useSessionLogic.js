@@ -32,15 +32,18 @@ export const useSessionLogic = (
   const [upcomingExercise, setUpcomingExercise] = useState(null);
   const [totalSets, setTotalSets] = useState(initialTotalSets);
   const [currentSetNumber, setCurrentSetNumber] = useState(0);
+  const [fixedExercise, setFixedExercise] = useState(null); // Store the selected exercise when not using random
   const [sessionSettings, setSessionSettings] = useState({
     exerciseSetDuration: initialExerciseSetDuration,
     restPeriodDuration: initialRestPeriodDuration,
-    totalSets: initialTotalSets
+    totalSets: initialTotalSets,
+    useRandomExercises: true // Default to using random exercises
   });
 
   // Use the current session settings
   const EXERCISE_SET_DURATION = sessionSettings.exerciseSetDuration;
   const REST_PERIOD_DURATION = sessionSettings.restPeriodDuration;
+  const USE_RANDOM_EXERCISES = sessionSettings.useRandomExercises;
 
   /**
    * Updates session configuration settings
@@ -67,10 +70,20 @@ export const useSessionLogic = (
     setIsSessionActive(prevIsActive => {
       const newIsActive = !prevIsActive;
       if (newIsActive) {
-        const exercise = selectRandomExercise();
+        let exercise, nextExercise;
+        
+        if (USE_RANDOM_EXERCISES) {
+          // Use random exercises
+          exercise = selectRandomExercise();
+          nextExercise = selectRandomExercise();
+        } else {
+          // Use the fixed exercise for both current and upcoming
+          exercise = fixedExercise || selectRandomExercise(); // Fallback to random if no fixed exercise
+          nextExercise = exercise;
+        }
+        
         console.log('[useSessionLogic] Setting initial exercise:', exercise?.name);
         setCurrentExercise(exercise);
-        const nextExercise = selectRandomExercise();
         console.log('[useSessionLogic] Setting upcoming exercise:', nextExercise?.name);
         setUpcomingExercise(nextExercise);
         setSessionPhase('exercising');
@@ -85,7 +98,7 @@ export const useSessionLogic = (
       }
       return newIsActive;
     });
-  }, [selectRandomExercise, EXERCISE_SET_DURATION]);
+  }, [selectRandomExercise, EXERCISE_SET_DURATION, fixedExercise, USE_RANDOM_EXERCISES]);
 
   // Timer countdown effect
   useEffect(() => {
@@ -132,7 +145,15 @@ export const useSessionLogic = (
           // Move to next exercise and increment set counter
           console.log('[useSessionLogic] Moving to next exercise:', upcomingExercise?.name);
           setCurrentExercise(upcomingExercise);
-          const nextExercise = selectRandomExercise();
+          
+          // Determine next exercise based on random/fixed setting
+          let nextExercise;
+          if (USE_RANDOM_EXERCISES) {
+            nextExercise = selectRandomExercise();
+          } else {
+            nextExercise = fixedExercise || currentExercise;
+          }
+          
           console.log('[useSessionLogic] Setting new upcoming exercise:', nextExercise?.name);
           setUpcomingExercise(nextExercise);
           setSessionPhase('exercising');
@@ -142,7 +163,15 @@ export const useSessionLogic = (
       }
     }
   }, [isSessionActive, currentTimerValue, sessionPhase, selectRandomExercise, upcomingExercise, 
-      REST_PERIOD_DURATION, EXERCISE_SET_DURATION, currentSetNumber, totalSets]);
+      REST_PERIOD_DURATION, EXERCISE_SET_DURATION, currentSetNumber, totalSets, 
+      USE_RANDOM_EXERCISES, fixedExercise, currentExercise]);
+
+  // Function to set the fixed exercise (called from outside the hook)
+  const setSessionExercise = useCallback((exercise) => {
+    if (!isSessionActive) {
+      setFixedExercise(exercise);
+    }
+  }, [isSessionActive]);
 
   return {
     isSessionActive,
@@ -155,5 +184,6 @@ export const useSessionLogic = (
     currentSetNumber,
     updateSessionSettings,
     sessionSettings,
+    setSessionExercise, // Export the function to set a fixed exercise
   };
 }; 

@@ -1,9 +1,10 @@
 // src/components/common/TimedSessionControls.jsx
 import React, { useState } from 'react';
-import { Paper, Button, Group, Stack, Collapse, ActionIcon, Text } from '@mantine/core'; // Added Text back for fallback
+import { Paper, Button, Group, Stack, Collapse, ActionIcon, Text, Box } from '@mantine/core'; // Added Text back for fallback and Box
 import TimedSessionSettings from './TimedSessionSettings';
 import CircularProgressTimer from './CircularProgressTimer'; // Import the component
 import { CaretCircleDown, CaretCircleUp } from '@phosphor-icons/react';
+import ExerciseSelector from '../ExerciseSelector'; // Import the ExerciseSelector component
 
 // formatTime can be kept if needed elsewhere, or CircularProgressTimer can handle its own label formatting
 // const formatTime = (totalSeconds) => { ... };
@@ -20,6 +21,11 @@ const TimedSessionControls = ({
   totalSets = 10,
   onSettingsChange,
   currentSetNumber = 0,
+  // New props for exercise selection
+  exerciseOptions = [],
+  selectedExercise = null,
+  onExerciseChange = () => {},
+  useRandomExercises = true, // Default to true for backward compatibility
 }) => {
   const [showSettings, setShowSettings] = useState(false);
 
@@ -51,11 +57,22 @@ const TimedSessionControls = ({
           </ActionIcon>
         </Group>
         
+        {/* Exercise selector - always show but disable when using random exercises or session is active */}
+        <Box style={{ width: '100%', padding: '0 10px', marginBottom: '10px' }}>
+          <ExerciseSelector
+            exerciseOptions={exerciseOptions}
+            selectedExercise={selectedExercise}
+            onChange={onExerciseChange}
+            disabled={useRandomExercises || isSessionActive}
+          />
+        </Box>
+        
         <Collapse in={showSettings} style={{ width: '100%' }}>
           <TimedSessionSettings 
             exerciseSetDuration={exerciseSetDuration}
             restPeriodDuration={restPeriodDuration}
             totalSets={totalSets}
+            useRandomExercises={useRandomExercises}
             onSettingsChange={onSettingsChange}
             isSessionActive={isSessionActive}
           />

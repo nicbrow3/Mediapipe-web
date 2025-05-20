@@ -88,6 +88,10 @@ const TrackerControlsBar = ({
           totalSets={totalSets}
           currentSetNumber={currentSetNumber}
           onSettingsChange={onSessionSettingsChange}
+          exerciseOptions={exerciseOptions}
+          selectedExercise={selectedExercise}
+          onExerciseChange={onExerciseChange}
+          useRandomExercises={sessionSettings?.useRandomExercises !== undefined ? sessionSettings.useRandomExercises : true}
         />
       );
     } else if (workoutMode === 'ladder') {

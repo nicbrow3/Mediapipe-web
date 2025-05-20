@@ -5,6 +5,7 @@ import { CaretCircleDown, CaretCircleUp, ListBullets } from '@phosphor-icons/rea
 import LadderSetList from './LadderSetList';
 import CircularProgressTimer from './CircularProgressTimer';
 import SessionCompletionModal from './SessionCompletionModal';
+import ExerciseSelector from '../ExerciseSelector';
 
 /**
  * Helper function to format time from seconds to MM:SS display format
@@ -54,26 +55,6 @@ const LadderSessionControls = ({
   // Check if we're at the peak (top reps)
   const isAtPeak = currentReps === ladderSettings.topReps;
   
-  // Memoize the formatted and sorted options to prevent recalculation on every render
-  const formattedExerciseOptions = useMemo(() => {
-    if (!exerciseOptions || exerciseOptions.length === 0) return [];
-    
-    return [...exerciseOptions]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(exercise => ({
-        value: exercise.id,
-        label: exercise.name
-      }));
-  }, [exerciseOptions]); // Only recalculate when exerciseOptions changes
-  
-  // Memoize the onChange handler to prevent new function creation on every render
-  const handleExerciseChange = useCallback((exerciseId) => {
-    const exercise = exerciseOptions?.find(ex => ex.id === exerciseId);
-    if (exercise) {
-      onExerciseChange(exercise);
-    }
-  }, [exerciseOptions, onExerciseChange]);
-
   // Memoize the toggle settings handler
   const handleToggleSettings = useCallback(() => {
     setShowSettings(prev => !prev);
@@ -142,6 +123,15 @@ const LadderSessionControls = ({
               </Group>
             </Group>
             
+            <Box style={{ width: '100%', marginBottom: '10px' }}>
+              <ExerciseSelector 
+                exerciseOptions={exerciseOptions}
+                selectedExercise={selectedExercise}
+                onChange={onExerciseChange}
+                disabled={isSessionActive}
+              />
+            </Box>
+            
             <Collapse in={showSettings} style={{ width: '100%' }}>
               <LadderSessionSettings 
                 ladderSettings={ladderSettings}
@@ -149,15 +139,6 @@ const LadderSessionControls = ({
                 isSessionActive={isSessionActive}
               />
             </Collapse>
-            
-            <Select
-              placeholder="Choose an exercise"
-              data={formattedExerciseOptions}
-              value={selectedExercise?.id || ''}
-              onChange={handleExerciseChange}
-              style={{ width: '100%', marginBottom: '10px' }}
-              disabled={isSessionActive}
-            />
 
             <Group
               position="center"
