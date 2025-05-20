@@ -247,6 +247,12 @@ const MinimalTrackerContent = () => {
   // State for the Z-depth display
   const [showZDepthDisplay, setShowZDepthDisplay] = useState(false);
   
+  // New state to store visibility data for both sides
+  const [landmarkVisibilityData, setLandmarkVisibilityData] = useState({
+    left: { primaryLandmarks: { allVisible: true, minVisibility: 100 } },
+    right: { primaryLandmarks: { allVisible: true, minVisibility: 100 } }
+  });
+  
   // Update selectedExerciseRef whenever selectedExercise changes
   useEffect(() => {
     selectedExerciseRef.current = selectedExercise;
@@ -510,6 +516,37 @@ const MinimalTrackerContent = () => {
       : selectedExercise;
   }, [workoutMode, isLadderSessionActive, ladderSessionCurrentExercise, selectedExercise]);
 
+  // Handler to receive visibility updates from PhaseTrackerDisplay
+  const handleVisibilityDataUpdate = useCallback((side, data) => {
+    if (!data) return; // Skip if no data
+    
+    // Only update if there's a meaningful change to prevent infinite loops
+    setLandmarkVisibilityData(prev => {
+      const currentSideData = prev[side.toLowerCase()];
+      
+      // Check if primary landmarks data has changed
+      const primaryChanged = 
+        currentSideData?.primaryLandmarks?.allVisible !== data.primaryLandmarks?.allVisible ||
+        Math.abs((currentSideData?.primaryLandmarks?.minVisibility || 0) - (data.primaryLandmarks?.minVisibility || 0)) > 2;
+      
+      // Check if secondary landmarks data has changed  
+      const secondaryChanged =
+        currentSideData?.secondaryLandmarks?.allVisible !== data.secondaryLandmarks?.allVisible ||
+        Math.abs((currentSideData?.secondaryLandmarks?.minVisibility || 0) - (data.secondaryLandmarks?.minVisibility || 0)) > 2;
+      
+      // Only update state if there's a meaningful change
+      if (primaryChanged || secondaryChanged) {
+        return {
+          ...prev,
+          [side.toLowerCase()]: data
+        };
+      }
+      
+      // Return the previous state unchanged if nothing significant changed
+      return prev;
+    });
+  }, []);
+
   const trackerControlsProps = useMemo(() => ({
     cameraStarted: cameraStarted && !isLoading && !errorMessage,
     stats,
@@ -764,6 +801,7 @@ const MinimalTrackerContent = () => {
                       smoothingEnabled={appSettings.isSmoothingEnabled} // Pass appSetting for display consistency
                       cameraStarted={cameraStarted} // Pass camera status
                       hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                      landmarkVisibility={landmarkVisibilityData.left} // Pass the actual landmark visibility data
                     />
                     <PhaseTrackerDisplay
                       displaySide="left"
@@ -775,6 +813,7 @@ const MinimalTrackerContent = () => {
                       cameraStarted={cameraStarted} // Pass camera status
                       hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
                       sessionPhase={sessionPhase} // Pass current session phase
+                      onVisibilityDataUpdate={(data) => handleVisibilityDataUpdate('left', data)} // Add this handler
                     />
                     <LandmarkMetricsDisplay2
                       displaySide="left"
@@ -797,6 +836,7 @@ const MinimalTrackerContent = () => {
                       smoothingEnabled={appSettings.isSmoothingEnabled} // Pass appSetting for display consistency
                       cameraStarted={cameraStarted} // Pass camera status
                       hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
+                      landmarkVisibility={landmarkVisibilityData.right} // Pass the actual landmark visibility data
                     />
                     <PhaseTrackerDisplay
                       displaySide="right"
@@ -808,6 +848,7 @@ const MinimalTrackerContent = () => {
                       cameraStarted={cameraStarted} // Pass camera status
                       hasLandmarksData={!!landmarksData} // Pass boolean indicating data presence
                       sessionPhase={sessionPhase} // Pass current session phase
+                      onVisibilityDataUpdate={(data) => handleVisibilityDataUpdate('right', data)} // Add this handler
                     />
                     <LandmarkMetricsDisplay2
                       displaySide="right"

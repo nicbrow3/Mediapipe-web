@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import PhaseTracker from './PhaseTracker';
 import { LANDMARK_MAP } from '../logic/landmarkUtils.js';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -23,12 +23,45 @@ const getDefaultSecondaryLandmarks = (side) => {
   return baseLandmarks;
 };
 
-const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, landmarksData, workoutMode, isRepCountingAllowed, cameraStarted, hasLandmarksData, sessionPhase = 'exercising' }) => {
+// Helper function to check if visibility data has meaningfully changed
+const hasVisibilityDataChanged = (prev, current) => {
+  if (!prev || !current) return true;
+  
+  // Check primary landmarks
+  if (prev.primaryLandmarks?.allVisible !== current.primaryLandmarks?.allVisible ||
+      Math.abs(prev.primaryLandmarks?.minVisibility - current.primaryLandmarks?.minVisibility) > 2) {
+    return true;
+  }
+  
+  // Check secondary landmarks
+  if (prev.secondaryLandmarks?.allVisible !== current.secondaryLandmarks?.allVisible ||
+      Math.abs(prev.secondaryLandmarks?.minVisibility - current.secondaryLandmarks?.minVisibility) > 2) {
+    return true;
+  }
+  
+  return false;
+};
+
+const PhaseTrackerDisplay = ({ 
+  selectedExercise, 
+  trackedAngles, 
+  displaySide, 
+  landmarksData, 
+  workoutMode, 
+  isRepCountingAllowed, 
+  cameraStarted, 
+  hasLandmarksData, 
+  sessionPhase = 'exercising',
+  onVisibilityDataUpdate = null // New prop to send visibility data to parent
+}) => {
   const [settings] = useAppSettings();
   
   // Use a state to maintain the last valid angleConfigToShow to prevent flickering
   const [lastValidAngleConfig, setLastValidAngleConfig] = useState(null);
   const [lastValidAngle, setLastValidAngle] = useState(null);
+  
+  // Reference to store previous visibility data to avoid unnecessary updates
+  const prevVisibilityDataRef = useRef(null);
   
   // Log when settings change to track updates
   useEffect(() => {
@@ -161,6 +194,17 @@ const PhaseTrackerDisplay = ({ selectedExercise, trackedAngles, displaySide, lan
     }
     return data;
   }, [landmarksData, angleConfigToShow, lastValidAngleConfig, landmarkNamesToCheck, settings.requireAllLandmarks, settings.requireSecondaryLandmarks]);
+
+  // Send visibility data to parent component ONLY when it meaningfully changes
+  useEffect(() => {
+    if (typeof onVisibilityDataUpdate === 'function') {
+      // Check if visibility data has meaningfully changed to avoid infinite loops
+      if (hasVisibilityDataChanged(prevVisibilityDataRef.current, landmarkVisibilityData)) {
+        prevVisibilityDataRef.current = landmarkVisibilityData;
+        onVisibilityDataUpdate(landmarkVisibilityData);
+      }
+    }
+  }, [landmarkVisibilityData, onVisibilityDataUpdate]);
 
   // Determine if we have a valid angle config for this side and tracked angle data
   const hasValidAngleDataForDisplay = angleConfigToShow && trackedAngles && trackedAngles[angleConfigToShow.id] != null;

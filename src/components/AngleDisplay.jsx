@@ -2,8 +2,12 @@ import React, { useMemo } from 'react';
 import AngleIndicator from './AngleIndicator';
 import './AngleDisplay.css';
 import { Paper } from '@mantine/core';
+import { useAppSettings } from '../hooks/useAppSettings';
 
-const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEnabled, displaySide, cameraStarted, hasLandmarksData }) => {
+const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEnabled, displaySide, cameraStarted, hasLandmarksData, landmarkVisibility }) => {
+  // Get app settings to use the visibility threshold value
+  const [appSettings] = useAppSettings();
+
   // console.log(`[AngleDisplay] Side: ${displaySide} - Received selectedExercise:`, JSON.parse(JSON.stringify(selectedExercise))); // Deep log
   if (selectedExercise && selectedExercise.logicConfig && selectedExercise.logicConfig.anglesToTrack && selectedExercise.logicConfig.anglesToTrack.length > 0) {
     // console.log(`[AngleDisplay] Side: ${displaySide} - DIRECT CHECK minThreshold from prop:`, selectedExercise.logicConfig.anglesToTrack[0].minThreshold, "for angle ID:", selectedExercise.logicConfig.anglesToTrack[0].id);
@@ -56,6 +60,18 @@ const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEna
   // Decide which value to show: smoothed (angle) or raw, only if angle is valid
   const displayValue = angle != null ? (smoothingEnabled ? angle : raw) : null;
 
+  // Determine if we should show the indicator line based on landmark visibility
+  const hasAcceptableVisibility = useMemo(() => {
+    if (!landmarkVisibility) return true; // Default to showing if no visibility data
+    
+    const { primaryLandmarks } = landmarkVisibility;
+    if (!primaryLandmarks) return true;
+    
+    // Use the app settings threshold for visibility
+    const threshold = appSettings.minimumVisibilityThreshold || 50;
+    return primaryLandmarks.allVisible && primaryLandmarks.minVisibility >= threshold;
+  }, [landmarkVisibility, appSettings.minimumVisibilityThreshold]);
+
   // Always render the container for consistent layout
   return (
     <Paper>
@@ -72,7 +88,7 @@ const AngleDisplay = ({ selectedExercise, trackedAngles, rawAngles, smoothingEna
               color={indicatorColor}
               backgroundColor={`${indicatorColor}33`} // Add transparency to the background
               angleConfig={angleConfigToShow} // Pass the angleConfig
-              showIndicatorLine={displayValue != null} // Conditionally show the line
+              showIndicatorLine={displayValue != null && hasAcceptableVisibility} // Only show line when visibility is acceptable
               />
             
             {/* Show the angle value only if it's valid */}
