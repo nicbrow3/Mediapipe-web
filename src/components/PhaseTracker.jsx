@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './PhaseTracker.css';
-import { useRepCounter } from './RepCounterContext.jsx';
+import { useRepCounter } from './RepCounterContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 
 // Analyzing angle measurements through different movement phases

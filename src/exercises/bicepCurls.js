@@ -32,7 +32,7 @@ export const bicepCurls = {
     },
 
     // --- Stationary Landmarks ---
-    stationaryLandmarks: ['left_hip', 'right_hip'],
+    stationaryLandmarks: ['left_ankle'],
     
     // --- Starting Position Requirements ---
     startPosition: {

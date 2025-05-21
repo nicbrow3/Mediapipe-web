@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Stack, SegmentedControl, Box } from '@mantine/core'; // Removed Group as it might not be needed directly here now
 import ExerciseSelector from '../ExerciseSelector'; // Assuming path
-import StatsDisplay from '../StatsDisplay';     // Assuming path
 import { globalStyles } from '../../styles/globalStyles';
 import TimedSessionControls from './TimedSessionControls'; // Import the new component
 import LadderSessionControls from './LadderSessionControls'; // Import the ladder session component
@@ -50,6 +49,11 @@ const TrackerControlsBar = ({
   isCompletionModalOpen,
   onCompletionModalClose,
   sessionStats,
+  // New props for circuit mode
+  workoutPlan,
+  onOpenWorkoutBuilder,
+  // Controls visibility
+  showControls = true,
 }) => {
   if (!cameraStarted) {
     return null; // Don't render if camera hasn't started
@@ -60,6 +64,7 @@ const TrackerControlsBar = ({
     { label: 'Manual', value: 'manual' },
     { label: 'Timed', value: 'session' },
     { label: 'Ladder', value: 'ladder' },
+    { label: 'Circuit', value: 'circuit' }, // Add new circuit option
   ], []);
 
   // Memoize mode-specific controls to prevent unnecessary re-renders
@@ -117,6 +122,44 @@ const TrackerControlsBar = ({
           sessionStats={sessionStats}
         />
       );
+    } else if (workoutMode === 'circuit') {
+      // Simple circuit controls - just a button to open the workout builder
+      return (
+        <Box style={{ width: '100%', maxWidth: '400px', display: 'flex', justifyContent: 'center' }}>
+          <Box style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {workoutPlan && workoutPlan.length > 0 ? (
+              <>
+                <Box 
+                  style={{ 
+                    backgroundColor: 'rgba(0, 0, 0, 0.05)', 
+                    padding: '8px 16px', 
+                    borderRadius: '4px',
+                    marginBottom: '8px',
+                    fontSize: '14px'
+                  }}
+                >
+                  {`${workoutPlan.length} item${workoutPlan.length !== 1 ? 's' : ''} in workout`}
+                </Box>
+              </>
+            ) : null}
+            <button 
+              onClick={onOpenWorkoutBuilder} 
+              style={{ 
+                padding: '8px 16px', 
+                backgroundColor: '#228be6', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '4px', 
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              }}
+            >
+              {workoutPlan && workoutPlan.length > 0 ? 'Edit Workout' : 'Create Workout'}
+            </button>
+          </Box>
+        </Box>
+      );
     }
     return null;
   }, [
@@ -147,7 +190,10 @@ const TrackerControlsBar = ({
     // Completion modal dependencies
     isCompletionModalOpen,
     onCompletionModalClose,
-    sessionStats
+    sessionStats,
+    // Circuit mode dependencies
+    workoutPlan,
+    onOpenWorkoutBuilder
   ]);
 
   // Use consistent styling objects to prevent recreation on each render
@@ -160,7 +206,8 @@ const TrackerControlsBar = ({
     padding: `${globalStyles.controlPaddings.md} 0`,
     gap: globalStyles.controlPaddings.md,
     zIndex: 200,
-  }), []);
+    display: showControls ? 'flex' : 'none', // Hide when showControls is false
+  }), [showControls]); // Add showControls to dependencies
 
   const segmentedControlStyle = useMemo(() => ({
     maxWidth: '35%', 
@@ -178,15 +225,6 @@ const TrackerControlsBar = ({
 
   return (
     <Stack style={stackStyle}>
-      {/* Stats display at top */}
-      <StatsDisplay 
-        stats={stats} 
-        cameraStarted={cameraStarted}
-        landmarksData={landmarksData} 
-        smoothingEnabled={smoothingEnabled}
-        smoothingWindow={smoothingWindow}
-      />
-
       {/* Stability Status Display */}
       <StabilityStatusDisplay 
         enableStationaryTracking={enableStationaryTracking} 
@@ -211,4 +249,4 @@ const TrackerControlsBar = ({
   );
 };
 
-export default React.memo(TrackerControlsBar); 
+export default TrackerControlsBar; 

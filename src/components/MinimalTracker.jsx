@@ -13,12 +13,16 @@ import LoadingDisplay from './common/LoadingDisplay';
 import ErrorDisplay from './common/ErrorDisplay';
 import TrackerControlsBar from './common/TrackerControlsBar';
 import BottomControls from './common/BottomControls';
-import { ActionIcon, Text } from '@mantine/core';
+import { ActionIcon, Text, Group, Modal } from '@mantine/core';
 import { Gear } from '@phosphor-icons/react';
+import { RulerIcon } from '@phosphor-icons/react';
+import { ChartBar } from '@phosphor-icons/react';
+import FpsDisplay from './common/FpsDisplay'; // Import FpsDisplay
 import SettingsOverlay from './SettingsOverlay';
 import { RepCounterProvider, useRepCounter } from './RepCounterContext';
 import RepGoalDisplayContainer from './RepGoalDisplayContainer';
 import { usePoseTracker } from '../hooks/usePoseTracker'; // Import the new hook
+import WorkoutBuilder from './WorkoutBuilder'; // Import the new workout builder component
 
 // Create a memoized selector for Z-depth data to avoid calculations when not visible
 const useZDepthData = (landmarksData, showZDepthDisplay) => {
@@ -242,16 +246,26 @@ const MinimalTrackerContent = () => {
   });
   const [weight, setWeight] = useState(appSettings.selectedWeights !== null ? appSettings.selectedWeights : 0);
   const [repGoal, setRepGoal] = useState(10);
-  const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual', 'session', or 'ladder'
+  const [workoutMode, setWorkoutMode] = useState('manual'); // 'manual', 'session', 'ladder', or 'circuit'
+  
+  // Circuit workout state
+  const [workoutPlan, setWorkoutPlan] = useState([]); 
+  const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
 
   // State for the Z-depth display
   const [showZDepthDisplay, setShowZDepthDisplay] = useState(false);
+  
+  // State for showing/hiding angle UI components
+  const [showAngleUI, setShowAngleUI] = useState(true);
   
   // New state to store visibility data for both sides
   const [landmarkVisibilityData, setLandmarkVisibilityData] = useState({
     left: { primaryLandmarks: { allVisible: true, minVisibility: 100 } },
     right: { primaryLandmarks: { allVisible: true, minVisibility: 100 } }
   });
+  
+  // Add state for showing/hiding the tracker controls
+  const [showControls, setShowControls] = useState(true);
   
   // Update selectedExerciseRef whenever selectedExercise changes
   useEffect(() => {
@@ -471,7 +485,7 @@ const MinimalTrackerContent = () => {
     }
   }, [workoutMode, selectedExercise, selectedLadderExercise, selectExerciseForLadder]);
 
-  const handleWorkoutModeChange = useCallback((mode) => {
+    const handleWorkoutModeChange = useCallback((mode) => {
     if (isSessionActive) {
       console.warn("Cannot change workout mode while a session is active. Please stop the session first.");
       return;
@@ -483,13 +497,35 @@ const MinimalTrackerContent = () => {
     if (isLadderSessionActive) {
       handleToggleLadderSession(); // Stop session
     }
+    
+    // If changing to circuit mode and no workout is defined, open the workout builder
+    if (mode === 'circuit' && workoutPlan.length === 0) {
+      setShowWorkoutBuilder(true);
+    }
   }, [
     isSessionActive, 
     isTimedSessionActive, 
-    isLadderSessionActive, 
-    handleToggleTimedSession, 
-    handleToggleLadderSession
+    isLadderSessionActive,
+    handleToggleTimedSession,
+    handleToggleLadderSession,
+    workoutPlan.length
   ]);
+  
+  // Handle opening the workout builder
+  const handleOpenWorkoutBuilder = useCallback(() => {
+    setShowWorkoutBuilder(true);
+  }, []);
+  
+  // Handle saving the workout plan from the builder
+  const handleSaveWorkoutPlan = useCallback((newWorkoutPlan) => {
+    setWorkoutPlan(newWorkoutPlan);
+    setShowWorkoutBuilder(false);
+  }, []);
+  
+  // Handle canceling the workout builder
+  const handleCancelWorkoutBuilder = useCallback(() => {
+    setShowWorkoutBuilder(false);
+  }, []);
 
   // initializePoseLandmarker, addMeasurement, updateStats, renderLoop, smoothAngle are now in usePoseTracker
   // The main useEffect for cleanup is also in usePoseTracker
@@ -582,6 +618,7 @@ const MinimalTrackerContent = () => {
     isCompletionModalOpen,
     onCompletionModalClose: handleCompletionModalClose,
     sessionStats,
+    showControls, // Pass the visibility state
   }), [
     cameraStarted,
     isLoading,
@@ -617,6 +654,7 @@ const MinimalTrackerContent = () => {
   isCompletionModalOpen,
   handleCompletionModalClose,
   sessionStats,
+  showControls, // Add showControls to dependencies
   ]);
   
   const bottomControlsProps = useMemo(() => ({
@@ -656,25 +694,57 @@ const MinimalTrackerContent = () => {
     <div className="minimal-tracker-root">
       {cameraStarted && !isLoading && !errorMessage && (
         <>
-          <ActionIcon
-            variant="filled"
-            color="gray"
-            size="lg"
-            onClick={() => setIsSettingsOpen(true)}
-            style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}
-          >
-            <Gear size={24} />
-          </ActionIcon>
-          
-          <ActionIcon
-            variant="filled"
-            color="blue"
-            size="lg"
-            onClick={() => setShowZDepthDisplay(!showZDepthDisplay)}
-            style={{ position: 'fixed', top: '20px', right: '80px', zIndex: 1300 }}
-          >
-            Z
-          </ActionIcon>
+          <Group spacing="xs" style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1300 }}>
+            {/* FPS Display */}
+            <FpsDisplay 
+              fps={stats.fps} 
+              inferenceTime={stats.inferenceTime} 
+            />
+
+            {/* Settings button */}
+            <ActionIcon
+              variant="filled"
+              color="gray"
+              size="lg"
+              onClick={() => setIsSettingsOpen(true)}
+              title="Settings"
+            >
+              <Gear size={24} />
+            </ActionIcon>
+
+            {/* Controls toggle */}
+            <ActionIcon
+              variant="filled"
+              color={showControls ? 'blue' : 'gray'}
+              size="lg"
+              onClick={() => setShowControls(!showControls)}
+              title={showControls ? "Hide controls" : "Show controls"}
+            >
+              <ChartBar size={24} />
+            </ActionIcon>
+
+            {/* Toggle angles visibility */}
+            <ActionIcon
+              variant="filled"
+              color={showAngleUI ? 'cyan' : 'gray'}
+              size="lg"
+              onClick={() => setShowAngleUI(!showAngleUI)}
+              title={showAngleUI ? "Hide angle display" : "Show angle display"}
+            >
+              <RulerIcon size={24} />
+            </ActionIcon>
+            
+            {/* Z-depth toggle */}
+            <ActionIcon
+              variant="filled"
+              color={showZDepthDisplay ? 'blue' : 'gray'}
+              size="lg"
+              onClick={() => setShowZDepthDisplay(!showZDepthDisplay)}
+              title={showZDepthDisplay ? "Hide depth analysis" : "Show depth analysis"}
+            >
+              Z
+            </ActionIcon>
+          </Group>
         </>
       )}
 
@@ -707,12 +777,15 @@ const MinimalTrackerContent = () => {
         ladderSettings={ladderSettings}
         direction={direction}
         selectedLadderExercise={selectedLadderExercise}
+        workoutPlan={workoutPlan}
+        onOpenWorkoutBuilder={handleOpenWorkoutBuilder}
         onLadderExerciseChange={handleLadderExerciseChange}
         enableStationaryTracking={appSettings.enableStationaryTracking}
         stabilityState={stabilityState}
         isCompletionModalOpen={isCompletionModalOpen}
         onCompletionModalClose={handleCompletionModalClose}
         sessionStats={sessionStats}
+        showControls={showControls} // Pass the visibility state
       />
 
       {isLoading && cameraStarted && <LoadingDisplay />}
@@ -791,7 +864,7 @@ const MinimalTrackerContent = () => {
 
             return (
               <>
-                {hasLeftAngles && (
+                {hasLeftAngles && showAngleUI && (
                   <div className="minimal-tracker-stack left">
                     <AngleDisplay 
                       displaySide="left"
@@ -826,7 +899,7 @@ const MinimalTrackerContent = () => {
                   </div>
                 )}
 
-                {hasRightAngles && (
+                {hasRightAngles && showAngleUI && (
                   <div className="minimal-tracker-stack right">
                     <AngleDisplay 
                       displaySide="right"
@@ -899,6 +972,33 @@ const MinimalTrackerContent = () => {
         stationaryHoldDurationMs={appSettings.stationaryHoldDurationMs}
         onStationaryHoldDurationMsChange={handleStationaryHoldDurationMsChange}
       />
+      
+      {/* Workout Builder Modal */}
+      <Modal
+        opened={showWorkoutBuilder}
+        onClose={handleCancelWorkoutBuilder}
+        size="xl"
+        title="Workout Builder"
+        padding={0}
+        styles={{
+          modal: {
+            maxWidth: '90vw',
+            height: '90vh'
+          },
+          title: {
+            display: 'none'
+          },
+          body: {
+            paddingTop: 0
+          }
+        }}
+      >
+        <WorkoutBuilder
+          initialWorkoutPlan={workoutPlan}
+          onSave={handleSaveWorkoutPlan}
+          onCancel={handleCancelWorkoutBuilder}
+        />
+      </Modal>
     </div>
   );
 };
