@@ -23,6 +23,7 @@ import { RepCounterProvider, useRepCounter } from './RepCounterContext';
 import RepGoalDisplayContainer from './RepGoalDisplayContainer';
 import { usePoseTracker } from '../hooks/usePoseTracker'; // Import the new hook
 import WorkoutBuilder from './WorkoutBuilder'; // Import the new workout builder component
+import useStructuredWorkoutLogic from '../hooks/useStructuredWorkoutLogic'; // Import the structured workout hook
 
 // Create a memoized selector for Z-depth data to avoid calculations when not visible
 const useZDepthData = (landmarksData, showZDepthDisplay) => {
@@ -273,8 +274,28 @@ const MinimalTrackerContent = () => {
   }, [selectedExercise]);
 
   // Access the rep counter functionality
-  const { resetRepCounts } = useRepCounter();
+  const { repCount, resetRepCounts } = useRepCounter();
+  const repCountRef = useRef(repCount); // Create a ref to track the current rep count
 
+  // Update the ref whenever repCount changes
+  useEffect(() => {
+    repCountRef.current = repCount;
+  }, [repCount]);
+
+  // Initialize the structured workout logic
+  const {
+    initializeWorkout,
+    getCurrentExerciseDetails,
+    advanceToNextSet,
+    toggleWorkout,
+    isActive: isStructuredWorkoutActive,
+    isWorkoutComplete,
+    resetWorkout
+  } = useStructuredWorkoutLogic();
+  
+  // Current exercise details from structured workout
+  const [structuredWorkoutDetails, setStructuredWorkoutDetails] = useState(null);
+  
   // Use the new Pose Tracker Hook
   const {
     videoRef,
@@ -453,8 +474,9 @@ const MinimalTrackerContent = () => {
 
   const isSessionActive = useMemo(() => 
     workoutMode === 'session' ? isTimedSessionActive : 
-    workoutMode === 'ladder' ? isLadderSessionActive : false,
-  [workoutMode, isTimedSessionActive, isLadderSessionActive]);
+    workoutMode === 'ladder' ? isLadderSessionActive :
+    workoutMode === 'circuit' ? isStructuredWorkoutActive : false,
+  [workoutMode, isTimedSessionActive, isLadderSessionActive, isStructuredWorkoutActive]);
   
   const sessionPhase = useMemo(() => 
     workoutMode === 'session' ? timedSessionPhase : 
@@ -476,8 +498,16 @@ const MinimalTrackerContent = () => {
       handleToggleTimedSession();
     } else if (workoutMode === 'ladder') {
       handleToggleLadderSession();
+    } else if (workoutMode === 'circuit') {
+      const isNowActive = toggleWorkout(); // Toggle the workout state and get the new state
+      
+      // If the workout is now active, make sure we have current exercise details
+      if (isNowActive && !structuredWorkoutDetails) {
+        const details = getCurrentExerciseDetails();
+        setStructuredWorkoutDetails(details);
+      }
     }
-  }, [workoutMode, handleToggleTimedSession, handleToggleLadderSession]);
+  }, [workoutMode, handleToggleTimedSession, handleToggleLadderSession, toggleWorkout, structuredWorkoutDetails, getCurrentExerciseDetails]);
 
   useEffect(() => {
     if (workoutMode === 'ladder' && selectedLadderExercise && selectedExercise?.id !== selectedLadderExercise?.id) {
@@ -490,7 +520,15 @@ const MinimalTrackerContent = () => {
       console.warn("Cannot change workout mode while a session is active. Please stop the session first.");
       return;
     }
+    
+    // Reset the current structured workout if switching away from it
+    if (workoutMode === 'circuit' && mode !== 'circuit') {
+      resetWorkout();
+      setStructuredWorkoutDetails(null);
+    }
+    
     setWorkoutMode(mode);
+    
     if (isTimedSessionActive) {
       handleToggleTimedSession(); // Stop session
     }
@@ -498,9 +536,14 @@ const MinimalTrackerContent = () => {
       handleToggleLadderSession(); // Stop session
     }
     
-    // If changing to circuit mode and no workout is defined, open the workout builder
-    if (mode === 'circuit' && workoutPlan.length === 0) {
-      setShowWorkoutBuilder(true);
+    // Don't automatically open the workout builder when switching to circuit mode
+    // Only initialize workout logic if we have a plan and we're switching to circuit mode
+    if (mode === 'circuit' && workoutPlan.length > 0) {
+      const success = initializeWorkout(workoutPlan);
+      if (success) {
+        const details = getCurrentExerciseDetails();
+        setStructuredWorkoutDetails(details);
+      }
     }
   }, [
     isSessionActive, 
@@ -508,7 +551,11 @@ const MinimalTrackerContent = () => {
     isLadderSessionActive,
     handleToggleTimedSession,
     handleToggleLadderSession,
-    workoutPlan.length
+    workoutPlan,
+    workoutMode,
+    initializeWorkout,
+    getCurrentExerciseDetails,
+    resetWorkout
   ]);
   
   // Handle opening the workout builder
@@ -520,12 +567,59 @@ const MinimalTrackerContent = () => {
   const handleSaveWorkoutPlan = useCallback((newWorkoutPlan) => {
     setWorkoutPlan(newWorkoutPlan);
     setShowWorkoutBuilder(false);
-  }, []);
+    
+    // If we're in circuit mode, initialize the workout with the new plan
+    if (workoutMode === 'circuit') {
+      const success = initializeWorkout(newWorkoutPlan);
+      if (success) {
+        const details = getCurrentExerciseDetails();
+        setStructuredWorkoutDetails(details);
+      }
+    }
+  }, [workoutMode, initializeWorkout, getCurrentExerciseDetails]);
   
   // Handle canceling the workout builder
   const handleCancelWorkoutBuilder = useCallback(() => {
     setShowWorkoutBuilder(false);
-  }, []);
+    
+    // If we're in circuit mode and there's no workout plan, switch back to manual mode
+    if (workoutMode === 'circuit' && (!workoutPlan || workoutPlan.length === 0)) {
+      setWorkoutMode('manual');
+    }
+  }, [workoutMode, workoutPlan, setWorkoutMode]);
+  
+  // Handle completing a set in structured workout mode
+  const handleCompleteStructuredSet = useCallback(() => {
+    const currentDetails = getCurrentExerciseDetails();
+    
+    if (currentDetails) {
+      // Use the ref to get the current rep count
+      const currentRepCount = repCountRef.current;
+      
+      // Determine if rep goal was met (using the larger count for two-sided exercises)
+      const effectiveCount = Math.max(
+        currentRepCount.left || 0,
+        currentRepCount.right || 0
+      );
+      
+      console.log(`Completed set with ${effectiveCount} reps (target: ${currentDetails.targetReps})`);
+      
+      // Advance to the next set
+      const success = advanceToNextSet();
+      if (success) {
+        // Update exercise details
+        const newDetails = getCurrentExerciseDetails();
+        setStructuredWorkoutDetails(newDetails);
+        
+        // Reset rep counts for the next set
+        resetRepCounts();
+      } else {
+        // Workout is complete
+        console.log('Workout complete!');
+        setStructuredWorkoutDetails(null);
+      }
+    }
+  }, [getCurrentExerciseDetails, advanceToNextSet, resetRepCounts]);
 
   // initializePoseLandmarker, addMeasurement, updateStats, renderLoop, smoothAngle are now in usePoseTracker
   // The main useEffect for cleanup is also in usePoseTracker
@@ -539,18 +633,41 @@ const MinimalTrackerContent = () => {
   };
 
 
-  // Reset rep goal to 10 when exercise changes
+  // Reset rep goal to 10 when exercise changes, or update based on structured workout
   useEffect(() => {
-    setRepGoal(10);
-  }, [selectedExercise]); // selectedExercise (state) is the correct dependency here
+    if (workoutMode === 'circuit' && structuredWorkoutDetails) {
+      // Set rep goal from structured workout details
+      setRepGoal(structuredWorkoutDetails.targetReps);
+      
+      // Update weight if applicable
+      if (structuredWorkoutDetails.weight !== null) {
+        setWeight(structuredWorkoutDetails.weight);
+      }
+    } else {
+      // Default rep goal
+      setRepGoal(10);
+    }
+  }, [selectedExercise, workoutMode, structuredWorkoutDetails]); // Dependencies updated
 
   const getActiveExercise = useMemo(() => {
-    // If ladder session is active and has a current exercise, use that.
-    // Otherwise, use the globally selected exercise.
-    return workoutMode === 'ladder' && isLadderSessionActive && ladderSessionCurrentExercise
-      ? ladderSessionCurrentExercise
-      : selectedExercise;
-  }, [workoutMode, isLadderSessionActive, ladderSessionCurrentExercise, selectedExercise]);
+    if (workoutMode === 'ladder' && isLadderSessionActive && ladderSessionCurrentExercise) {
+      return ladderSessionCurrentExercise;
+    } else if (workoutMode === 'circuit' && isStructuredWorkoutActive && structuredWorkoutDetails) {
+      // Find the exercise by ID from the structured workout details
+      const exerciseId = structuredWorkoutDetails.exerciseId;
+      const structuredExercise = Object.values(exercises).find(ex => ex.id === exerciseId);
+      return structuredExercise || selectedExercise;
+    } else {
+      return selectedExercise;
+    }
+  }, [
+    workoutMode, 
+    isLadderSessionActive, 
+    ladderSessionCurrentExercise, 
+    isStructuredWorkoutActive,
+    structuredWorkoutDetails,
+    selectedExercise
+  ]);
 
   // Handler to receive visibility updates from PhaseTrackerDisplay
   const handleVisibilityDataUpdate = useCallback((side, data) => {
@@ -618,6 +735,11 @@ const MinimalTrackerContent = () => {
     isCompletionModalOpen,
     onCompletionModalClose: handleCompletionModalClose,
     sessionStats,
+    // Circuit/Structured workout props
+    workoutPlan,
+    onOpenWorkoutBuilder: handleOpenWorkoutBuilder,
+    structuredWorkoutDetails,
+    onCompleteStructuredSet: handleCompleteStructuredSet,
     showControls, // Pass the visibility state
   }), [
     cameraStarted,
@@ -654,7 +776,12 @@ const MinimalTrackerContent = () => {
   isCompletionModalOpen,
   handleCompletionModalClose,
   sessionStats,
-  showControls, // Add showControls to dependencies
+  // Circuit/Structured workout dependencies
+  workoutPlan,
+  handleOpenWorkoutBuilder,
+  structuredWorkoutDetails,
+  handleCompleteStructuredSet,
+  showControls
   ]);
   
   const bottomControlsProps = useMemo(() => ({
@@ -779,6 +906,8 @@ const MinimalTrackerContent = () => {
         selectedLadderExercise={selectedLadderExercise}
         workoutPlan={workoutPlan}
         onOpenWorkoutBuilder={handleOpenWorkoutBuilder}
+        structuredWorkoutDetails={structuredWorkoutDetails}
+        onCompleteStructuredSet={handleCompleteStructuredSet}
         onLadderExerciseChange={handleLadderExerciseChange}
         enableStationaryTracking={appSettings.enableStationaryTracking}
         stabilityState={stabilityState}

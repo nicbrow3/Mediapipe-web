@@ -5,6 +5,7 @@ import { globalStyles } from '../../styles/globalStyles';
 import TimedSessionControls from './TimedSessionControls'; // Import the new component
 import LadderSessionControls from './LadderSessionControls'; // Import the ladder session component
 import StabilityStatusDisplay from './StabilityStatusDisplay'; // Import the new stability display
+import StructuredWorkoutControls from './StructuredWorkoutControls'; // Import the structured workout controls
 
 const TrackerControlsBar = ({
   // Props from MinimalTracker that StatsDisplay needs
@@ -49,9 +50,12 @@ const TrackerControlsBar = ({
   isCompletionModalOpen,
   onCompletionModalClose,
   sessionStats,
-  // New props for circuit mode
+  // Props for circuit mode
   workoutPlan,
   onOpenWorkoutBuilder,
+  // Props for structured workout mode
+  structuredWorkoutDetails,
+  onCompleteStructuredSet,
   // Controls visibility
   showControls = true,
 }) => {
@@ -64,7 +68,7 @@ const TrackerControlsBar = ({
     { label: 'Manual', value: 'manual' },
     { label: 'Timed', value: 'session' },
     { label: 'Ladder', value: 'ladder' },
-    { label: 'Circuit', value: 'circuit' }, // Add new circuit option
+    { label: 'Circuit', value: 'circuit' }, // Circuit option for both creating and executing workouts
   ], []);
 
   // Memoize mode-specific controls to prevent unnecessary re-renders
@@ -123,43 +127,58 @@ const TrackerControlsBar = ({
         />
       );
     } else if (workoutMode === 'circuit') {
-      // Simple circuit controls - just a button to open the workout builder
-      return (
-        <Box style={{ width: '100%', maxWidth: '400px', display: 'flex', justifyContent: 'center' }}>
-          <Box style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {workoutPlan && workoutPlan.length > 0 ? (
-              <>
-                <Box 
-                  style={{ 
-                    backgroundColor: 'rgba(0, 0, 0, 0.05)', 
-                    padding: '8px 16px', 
-                    borderRadius: '4px',
-                    marginBottom: '8px',
-                    fontSize: '14px'
-                  }}
-                >
-                  {`${workoutPlan.length} item${workoutPlan.length !== 1 ? 's' : ''} in workout`}
-                </Box>
-              </>
-            ) : null}
-            <button 
-              onClick={onOpenWorkoutBuilder} 
-              style={{ 
-                padding: '8px 16px', 
-                backgroundColor: '#228be6', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '4px', 
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-              }}
-            >
-              {workoutPlan && workoutPlan.length > 0 ? 'Edit Workout' : 'Create Workout'}
-            </button>
+      // Circuit mode - handles both creating and executing workouts
+      if (isSessionActive && workoutPlan && workoutPlan.length > 0) {
+        // When active, show the structured workout controls
+        return (
+          <StructuredWorkoutControls
+            workoutPlan={workoutPlan}
+            currentExerciseDetails={structuredWorkoutDetails}
+            onCompleteSetOrAdvance={onCompleteStructuredSet}
+            onEditWorkout={onOpenWorkoutBuilder}
+            isSessionActive={isSessionActive}
+            onToggleSession={onToggleSession}
+          />
+        );
+      } else {
+        // When not active, show the button to create/edit workout
+        return (
+          <Box style={{ width: '100%', maxWidth: '400px', display: 'flex', justifyContent: 'center' }}>
+            <Box style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {workoutPlan && workoutPlan.length > 0 ? (
+                <>
+                  <Box 
+                    style={{ 
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)', 
+                      padding: '8px 16px', 
+                      borderRadius: '4px',
+                      marginBottom: '8px',
+                      fontSize: '14px'
+                    }}
+                  >
+                    {`${workoutPlan.length} item${workoutPlan.length !== 1 ? 's' : ''} in workout`}
+                  </Box>
+                </>
+              ) : null}
+              <button 
+                onClick={onOpenWorkoutBuilder} 
+                style={{ 
+                  padding: '8px 16px', 
+                  backgroundColor: '#228be6', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                }}
+              >
+                {workoutPlan && workoutPlan.length > 0 ? 'Edit Workout' : 'Create Workout'}
+              </button>
+            </Box>
           </Box>
-        </Box>
-      );
+        );
+      }
     }
     return null;
   }, [
@@ -193,7 +212,10 @@ const TrackerControlsBar = ({
     sessionStats,
     // Circuit mode dependencies
     workoutPlan,
-    onOpenWorkoutBuilder
+    onOpenWorkoutBuilder,
+    // Structured workout mode dependencies
+    structuredWorkoutDetails,
+    onCompleteStructuredSet
   ]);
 
   // Use consistent styling objects to prevent recreation on each render
