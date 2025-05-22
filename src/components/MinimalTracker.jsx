@@ -23,7 +23,8 @@ import { RepCounterProvider, useRepCounter } from './RepCounterContext';
 import RepGoalDisplayContainer from './RepGoalDisplayContainer';
 import { usePoseTracker } from '../hooks/usePoseTracker'; // Import the new hook
 import WorkoutBuilder from './WorkoutBuilder'; // Import the new workout builder component
-import useStructuredWorkoutLogic from '../hooks/useStructuredWorkoutLogic'; // Import the structured workout hook
+import useCircuitSessionLogic from '../hooks/useCircuitSessionLogic'; // Import the circuit session hook
+import SessionCompletionModal from './common/SessionCompletionModal'; // Import SessionCompletionModal
 
 // Create a memoized selector for Z-depth data to avoid calculations when not visible
 const useZDepthData = (landmarksData, showZDepthDisplay) => {
@@ -252,7 +253,16 @@ const MinimalTrackerContent = () => {
   // Circuit workout state
   const [workoutPlan, setWorkoutPlan] = useState([]); 
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
-
+  
+  // State for circuit completion modal
+  const [showCircuitCompletionModal, setShowCircuitCompletionModal] = useState(false);
+  const [circuitStats, setCircuitStats] = useState({
+    exercise: '',
+    totalReps: 0,
+    totalSets: 0,
+    totalTime: 0
+  });
+  
   // State for the Z-depth display
   const [showZDepthDisplay, setShowZDepthDisplay] = useState(false);
   
@@ -288,13 +298,15 @@ const MinimalTrackerContent = () => {
     getCurrentExerciseDetails,
     advanceToNextSet,
     toggleWorkout,
-    isActive: isStructuredWorkoutActive,
+    isActive: isCircuitSessionActive,
     isWorkoutComplete,
-    resetWorkout
-  } = useStructuredWorkoutLogic();
+    hasBeenStarted: hasCircuitBeenStarted,
+    resetWorkout,
+    getCurrentWorkoutStats
+  } = useCircuitSessionLogic();
   
-  // Current exercise details from structured workout
-  const [structuredWorkoutDetails, setStructuredWorkoutDetails] = useState(null);
+  // Current exercise details from circuit workout
+  const [circuitSessionDetails, setCircuitSessionDetails] = useState(null);
   
   // Use the new Pose Tracker Hook
   const {
@@ -475,8 +487,8 @@ const MinimalTrackerContent = () => {
   const isSessionActive = useMemo(() => 
     workoutMode === 'session' ? isTimedSessionActive : 
     workoutMode === 'ladder' ? isLadderSessionActive :
-    workoutMode === 'circuit' ? isStructuredWorkoutActive : false,
-  [workoutMode, isTimedSessionActive, isLadderSessionActive, isStructuredWorkoutActive]);
+    workoutMode === 'circuit' ? isCircuitSessionActive : false,
+  [workoutMode, isTimedSessionActive, isLadderSessionActive, isCircuitSessionActive]);
   
   const sessionPhase = useMemo(() => 
     workoutMode === 'session' ? timedSessionPhase : 
@@ -499,15 +511,79 @@ const MinimalTrackerContent = () => {
     } else if (workoutMode === 'ladder') {
       handleToggleLadderSession();
     } else if (workoutMode === 'circuit') {
-      const isNowActive = toggleWorkout(); // Toggle the workout state and get the new state
-      
-      // If the workout is now active, make sure we have current exercise details
-      if (isNowActive && !structuredWorkoutDetails) {
-        const details = getCurrentExerciseDetails();
-        setStructuredWorkoutDetails(details);
+      // Check if the workout is completed
+      if (isWorkoutComplete) {
+        console.log('[MinimalTracker] Workout was complete, resetting to start a new one');
+        // If workout is complete, reset it and reinitialize
+        resetWorkout();
+        if (workoutPlan.length > 0) {
+          const result = initializeWorkout(workoutPlan);
+          if (result.success) {
+            if (result.initialExerciseDetails) {
+              // Reset data using initialExerciseDetails directly
+              if (angleHistoryRef && angleHistoryRef.current) {
+                console.log('[MinimalTracker] Resetting angle history for circuit restart');
+                angleHistoryRef.current = {}; // Reset angle history to avoid lingering data
+              }
+              console.log('[MinimalTracker] Setting initial exercise details:', result.initialExerciseDetails);
+              setCircuitSessionDetails(result.initialExerciseDetails);
+              resetRepCounts();
+              
+              // Now toggle the workout to start it
+              toggleWorkout();
+            }
+          }
+        }
+      } else if (!hasCircuitBeenStarted) {
+        // Starting a new workout (never been started before)
+        if (workoutPlan.length > 0) {
+          const result = initializeWorkout(workoutPlan);
+          if (result.success) {
+            if (result.initialExerciseDetails) {
+              // Reset data using initialExerciseDetails directly
+              if (angleHistoryRef && angleHistoryRef.current) {
+                console.log('[MinimalTracker] Resetting angle history for circuit start');
+                angleHistoryRef.current = {}; // Reset angle history to avoid lingering data
+              }
+              console.log('[MinimalTracker] Setting initial exercise details:', result.initialExerciseDetails);
+              setCircuitSessionDetails(result.initialExerciseDetails);
+              resetRepCounts();
+              
+              // Now toggle the workout to start it
+              toggleWorkout();
+            }
+          }
+        }
+      } else {
+        // Normal toggle behavior for an ongoing or paused workout (resume/pause)
+        const isNowActive = toggleWorkout(); // Toggle the workout state and get the new state
+        
+        // If the workout is now active, make sure we have current exercise details
+        if (isNowActive) {
+          const details = getCurrentExerciseDetails();
+          if (details) {
+            console.log('[MinimalTracker] Resuming with exercise details:', details);
+            setCircuitSessionDetails(details);
+          }
+        }
       }
     }
-  }, [workoutMode, handleToggleTimedSession, handleToggleLadderSession, toggleWorkout, structuredWorkoutDetails, getCurrentExerciseDetails]);
+  }, [
+    workoutMode, 
+    handleToggleTimedSession, 
+    handleToggleLadderSession, 
+    toggleWorkout, 
+    getCurrentExerciseDetails, 
+    angleHistoryRef,
+    resetRepCounts,
+    setCircuitSessionDetails,
+    isWorkoutComplete,
+    resetWorkout,
+    initializeWorkout,
+    workoutPlan,
+    isCircuitSessionActive,
+    hasCircuitBeenStarted
+  ]);
 
   useEffect(() => {
     if (workoutMode === 'ladder' && selectedLadderExercise && selectedExercise?.id !== selectedLadderExercise?.id) {
@@ -515,16 +591,32 @@ const MinimalTrackerContent = () => {
     }
   }, [workoutMode, selectedExercise, selectedLadderExercise, selectExerciseForLadder]);
 
-    const handleWorkoutModeChange = useCallback((mode) => {
+  // New effect to update selectedExercise when circuit workout active exercise changes
+  useEffect(() => {
+    if (workoutMode === 'circuit' && isCircuitSessionActive && circuitSessionDetails) {
+      // Find the exercise object from the ID in circuitSessionDetails
+      const exerciseId = circuitSessionDetails.exerciseId;
+      const exerciseObj = Object.values(exercises).find(ex => ex.id === exerciseId);
+      
+      // Only update if we found the exercise and it's different from current
+      if (exerciseObj && selectedExercise?.id !== exerciseId) {
+        console.log(`[MinimalTracker] Updating selected exercise to match circuit: ${exerciseObj.name}`);
+        setSelectedExercise(exerciseObj);
+        // Don't need to call resetRepCounts here as the circuit workout has its own counter
+      }
+    }
+  }, [workoutMode, isCircuitSessionActive, circuitSessionDetails, selectedExercise]);
+
+  const handleWorkoutModeChange = useCallback((mode) => {
     if (isSessionActive) {
       console.warn("Cannot change workout mode while a session is active. Please stop the session first.");
       return;
     }
     
-    // Reset the current structured workout if switching away from it
+    // Reset the current circuit workout if switching away from it
     if (workoutMode === 'circuit' && mode !== 'circuit') {
       resetWorkout();
-      setStructuredWorkoutDetails(null);
+      setCircuitSessionDetails(null);
     }
     
     setWorkoutMode(mode);
@@ -539,10 +631,14 @@ const MinimalTrackerContent = () => {
     // Don't automatically open the workout builder when switching to circuit mode
     // Only initialize workout logic if we have a plan and we're switching to circuit mode
     if (mode === 'circuit' && workoutPlan.length > 0) {
-      const success = initializeWorkout(workoutPlan);
-      if (success) {
-        const details = getCurrentExerciseDetails();
-        setStructuredWorkoutDetails(details);
+      const result = initializeWorkout(workoutPlan);
+      if (result.success) {
+        if (result.initialExerciseDetails) {
+          setCircuitSessionDetails(result.initialExerciseDetails);
+        } else {
+          const details = getCurrentExerciseDetails();
+          setCircuitSessionDetails(details);
+        }
       }
     }
   }, [
@@ -565,18 +661,67 @@ const MinimalTrackerContent = () => {
   
   // Handle saving the workout plan from the builder
   const handleSaveWorkoutPlan = useCallback((newWorkoutPlan) => {
+    console.log("[MinimalTracker] Saving workout plan:", newWorkoutPlan);
+    
+    // Validate workout plan content
+    if (newWorkoutPlan && newWorkoutPlan.length > 0) {
+      // Check the first element to see if it has a valid exercise ID
+      const firstItem = newWorkoutPlan[0];
+      console.log("[MinimalTracker] First workout item:", firstItem);
+      
+      if (firstItem.type === 'set') {
+        const exerciseId = firstItem.exerciseId;
+        const exerciseExists = Object.values(exercises).some(e => e.id === exerciseId);
+        console.log(`[MinimalTracker] First set exercise ID: ${exerciseId}, exists: ${exerciseExists}`);
+      } else if (firstItem.type === 'circuit' && firstItem.elements && firstItem.elements.length > 0) {
+        const firstSetInCircuit = firstItem.elements[0];
+        const exerciseId = firstSetInCircuit.exerciseId;
+        const exerciseExists = Object.values(exercises).some(e => e.id === exerciseId);
+        console.log(`[MinimalTracker] First circuit's first exercise ID: ${exerciseId}, exists: ${exerciseExists}`);
+      }
+    }
+    
     setWorkoutPlan(newWorkoutPlan);
     setShowWorkoutBuilder(false);
     
     // If we're in circuit mode, initialize the workout with the new plan
     if (workoutMode === 'circuit') {
-      const success = initializeWorkout(newWorkoutPlan);
-      if (success) {
-        const details = getCurrentExerciseDetails();
-        setStructuredWorkoutDetails(details);
+      console.log("[MinimalTracker] Initializing workout with new plan...");
+      // Simply store the plan and let the useEffect handle the initialization
+      setWorkoutPlan(newWorkoutPlan);
+    }
+  }, [workoutMode, initializeWorkout, getCurrentExerciseDetails, exercises, isCircuitSessionActive]);
+  
+  // Separate useEffect to handle workout initialization after state updates
+  useEffect(() => {
+    if (workoutMode === 'circuit' && workoutPlan && workoutPlan.length > 0 && !isCircuitSessionActive) {
+      console.log("[MinimalTracker] Initializing workout from useEffect...");
+      console.log("[MinimalTracker] Plan has", workoutPlan.length, "items");
+      
+      const result = initializeWorkout(workoutPlan);
+      console.log(`[MinimalTracker] Workout initialization ${result.success ? 'succeeded' : 'failed'}`);
+      
+      if (result.success) {
+        if (result.initialExerciseDetails) {
+          console.log("[MinimalTracker] Using initialExerciseDetails from initialization:", result.initialExerciseDetails);
+          setCircuitSessionDetails(result.initialExerciseDetails);
+        } else {
+          // Fallback to getting details through the standard method
+          setTimeout(() => {
+            const details = getCurrentExerciseDetails();
+            console.log("[MinimalTracker] Exercise details after initialization:", details);
+            
+            if (details) {
+              console.log("[MinimalTracker] Initialized workout with first exercise:", details.exerciseName);
+              setCircuitSessionDetails(details);
+            } else {
+              console.warn("[MinimalTracker] Still couldn't get exercise details after initialization");
+            }
+          }, 10);
+        }
       }
     }
-  }, [workoutMode, initializeWorkout, getCurrentExerciseDetails]);
+  }, [workoutMode, workoutPlan, isCircuitSessionActive, initializeWorkout, getCurrentExerciseDetails]);
   
   // Handle canceling the workout builder
   const handleCancelWorkoutBuilder = useCallback(() => {
@@ -588,11 +733,22 @@ const MinimalTrackerContent = () => {
     }
   }, [workoutMode, workoutPlan, setWorkoutMode]);
   
-  // Handle completing a set in structured workout mode
-  const handleCompleteStructuredSet = useCallback(() => {
+  // Handle completing a set in circuit workout mode
+  const handleCompleteCircuitSet = useCallback(() => {
+    console.log('[MinimalTracker] handleCompleteCircuitSet called');
     const currentDetails = getCurrentExerciseDetails();
     
     if (currentDetails) {
+      // Log detailed debugging info
+      console.log(`[MinimalTracker] Current exercise details:`, {
+        exerciseName: currentDetails.exerciseName,
+        overallSetNumber: currentDetails.overallSetNumber,
+        overallTotalSets: currentDetails.overallTotalSets,
+        inCircuit: currentDetails.inCircuit,
+        circuitSetNumber: currentDetails.circuitSetNumber,
+        circuitTotalSets: currentDetails.circuitTotalSets
+      });
+      
       // Use the ref to get the current rep count
       const currentRepCount = repCountRef.current;
       
@@ -602,24 +758,81 @@ const MinimalTrackerContent = () => {
         currentRepCount.right || 0
       );
       
-      console.log(`Completed set with ${effectiveCount} reps (target: ${currentDetails.targetReps})`);
+      console.log(`[MinimalTracker] Completed set "${currentDetails.exerciseName}" with ${effectiveCount} reps (target: ${currentDetails.targetReps})`);
       
-      // Advance to the next set
-      const success = advanceToNextSet();
-      if (success) {
-        // Update exercise details
-        const newDetails = getCurrentExerciseDetails();
-        setStructuredWorkoutDetails(newDetails);
+      // Advance to the next set with the completed reps count
+      const result = advanceToNextSet(effectiveCount);
+      console.log(`[MinimalTracker] advanceToNextSet result:`, result);
+      
+      // Reset rep counts after advancing to avoid counting reps from previous set
+      resetRepCounts();
+      
+      if (result.success) {
+        console.log('[MinimalTracker] Successfully advanced to next set');
         
-        // Reset rep counts for the next set
-        resetRepCounts();
+        // Use the new exercise details returned directly from advanceToNextSet
+        const newDetails = result.newExerciseDetails;
+        
+        if (newDetails) {
+          console.log(`[MinimalTracker] Next set details:`, {
+            exerciseName: newDetails.exerciseName,
+            overallSetNumber: newDetails.overallSetNumber,
+            overallTotalSets: newDetails.overallTotalSets
+          });
+          
+          // Check if exercise has changed and clear angle history if needed
+          if (newDetails.exerciseId !== currentDetails.exerciseId && angleHistoryRef && angleHistoryRef.current) {
+            console.log(`[MinimalTracker] Clearing angle history for exercise change from ${currentDetails.exerciseName} to ${newDetails.exerciseName}`);
+            angleHistoryRef.current = {}; // Reset angle history to avoid lingering data
+          }
+          
+          // Update the UI with the new exercise details
+          setCircuitSessionDetails(newDetails);
+        } else {
+          console.warn('[MinimalTracker] Unable to get details for next set even though advanceToNextSet returned success');
+        }
       } else {
         // Workout is complete
-        console.log('Workout complete!');
-        setStructuredWorkoutDetails(null);
+        console.log('[MinimalTracker] Workout complete!');
+        
+        // Get workout stats before clearing anything
+        const workoutStats = {
+          exercise: currentDetails.exerciseName,
+          totalReps: 0, // This would be calculated from workout history
+          totalSets: 0, // This would be calculated from workout history
+          totalTime: 0  // This would be calculated from workout history
+        };
+        
+        // Get more complete stats if available
+        if (typeof getCurrentWorkoutStats === 'function') {
+          const stats = getCurrentWorkoutStats();
+          if (stats) {
+            workoutStats.totalReps = stats.totalReps || 0;
+            workoutStats.totalSets = stats.completedSets || 0;
+            workoutStats.totalTime = stats.totalTimeSeconds || 0;
+          }
+        }
+        
+        // Update circuit stats and show the completion modal
+        setCircuitStats(workoutStats);
+        setShowCircuitCompletionModal(true);
+        
+        // Clear circuit session details
+        setCircuitSessionDetails(null);
       }
+    } else {
+      console.warn('[MinimalTracker] handleCompleteCircuitSet called but no current exercise details');
     }
-  }, [getCurrentExerciseDetails, advanceToNextSet, resetRepCounts]);
+  }, [
+    getCurrentExerciseDetails, 
+    advanceToNextSet, 
+    resetRepCounts, 
+    angleHistoryRef, 
+    setCircuitSessionDetails,
+    setCircuitStats,
+    setShowCircuitCompletionModal,
+    getCurrentWorkoutStats
+  ]);
 
   // initializePoseLandmarker, addMeasurement, updateStats, renderLoop, smoothAngle are now in usePoseTracker
   // The main useEffect for cleanup is also in usePoseTracker
@@ -633,30 +846,30 @@ const MinimalTrackerContent = () => {
   };
 
 
-  // Reset rep goal to 10 when exercise changes, or update based on structured workout
+  // Reset rep goal to 10 when exercise changes, or update based on circuit session
   useEffect(() => {
-    if (workoutMode === 'circuit' && structuredWorkoutDetails) {
-      // Set rep goal from structured workout details
-      setRepGoal(structuredWorkoutDetails.targetReps);
+    if (workoutMode === 'circuit' && circuitSessionDetails) {
+      // Set rep goal from circuit session details
+      setRepGoal(circuitSessionDetails.targetReps);
       
       // Update weight if applicable
-      if (structuredWorkoutDetails.weight !== null) {
-        setWeight(structuredWorkoutDetails.weight);
+      if (circuitSessionDetails.weight !== null) {
+        setWeight(circuitSessionDetails.weight);
       }
     } else {
       // Default rep goal
       setRepGoal(10);
     }
-  }, [selectedExercise, workoutMode, structuredWorkoutDetails]); // Dependencies updated
+  }, [selectedExercise, workoutMode, circuitSessionDetails]); // Dependencies updated
 
   const getActiveExercise = useMemo(() => {
     if (workoutMode === 'ladder' && isLadderSessionActive && ladderSessionCurrentExercise) {
       return ladderSessionCurrentExercise;
-    } else if (workoutMode === 'circuit' && isStructuredWorkoutActive && structuredWorkoutDetails) {
-      // Find the exercise by ID from the structured workout details
-      const exerciseId = structuredWorkoutDetails.exerciseId;
-      const structuredExercise = Object.values(exercises).find(ex => ex.id === exerciseId);
-      return structuredExercise || selectedExercise;
+    } else if (workoutMode === 'circuit' && isCircuitSessionActive && circuitSessionDetails) {
+      // Find the exercise by ID from the circuit session details
+      const exerciseId = circuitSessionDetails.exerciseId;
+      const circuitExercise = Object.values(exercises).find(ex => ex.id === exerciseId);
+      return circuitExercise || selectedExercise;
     } else {
       return selectedExercise;
     }
@@ -664,8 +877,8 @@ const MinimalTrackerContent = () => {
     workoutMode, 
     isLadderSessionActive, 
     ladderSessionCurrentExercise, 
-    isStructuredWorkoutActive,
-    structuredWorkoutDetails,
+    isCircuitSessionActive,
+    circuitSessionDetails,
     selectedExercise
   ]);
 
@@ -735,11 +948,12 @@ const MinimalTrackerContent = () => {
     isCompletionModalOpen,
     onCompletionModalClose: handleCompletionModalClose,
     sessionStats,
-    // Circuit/Structured workout props
+    // Circuit session props
     workoutPlan,
     onOpenWorkoutBuilder: handleOpenWorkoutBuilder,
-    structuredWorkoutDetails,
-    onCompleteStructuredSet: handleCompleteStructuredSet,
+    circuitSessionDetails,
+    onCompleteCircuitSet: handleCompleteCircuitSet,
+    hasCircuitBeenStarted,
     showControls, // Pass the visibility state
   }), [
     cameraStarted,
@@ -770,18 +984,19 @@ const MinimalTrackerContent = () => {
     ladderSettings,
     direction,
     selectedLadderExercise,
-      handleLadderExerciseChange,
-  appSettings.enableStationaryTracking,
-  stabilityState,
-  isCompletionModalOpen,
-  handleCompletionModalClose,
-  sessionStats,
-  // Circuit/Structured workout dependencies
-  workoutPlan,
-  handleOpenWorkoutBuilder,
-  structuredWorkoutDetails,
-  handleCompleteStructuredSet,
-  showControls
+    handleLadderExerciseChange,
+    appSettings.enableStationaryTracking,
+    stabilityState,
+    isCompletionModalOpen,
+    handleCompletionModalClose,
+    sessionStats,
+    // Circuit session dependencies
+    workoutPlan,
+    handleOpenWorkoutBuilder,
+    circuitSessionDetails,
+    handleCompleteCircuitSet,
+    hasCircuitBeenStarted,
+    showControls
   ]);
   
   const bottomControlsProps = useMemo(() => ({
@@ -906,14 +1121,15 @@ const MinimalTrackerContent = () => {
         selectedLadderExercise={selectedLadderExercise}
         workoutPlan={workoutPlan}
         onOpenWorkoutBuilder={handleOpenWorkoutBuilder}
-        structuredWorkoutDetails={structuredWorkoutDetails}
-        onCompleteStructuredSet={handleCompleteStructuredSet}
+        circuitSessionDetails={circuitSessionDetails}
+        onCompleteCircuitSet={handleCompleteCircuitSet}
         onLadderExerciseChange={handleLadderExerciseChange}
         enableStationaryTracking={appSettings.enableStationaryTracking}
         stabilityState={stabilityState}
         isCompletionModalOpen={isCompletionModalOpen}
         onCompletionModalClose={handleCompletionModalClose}
         sessionStats={sessionStats}
+        hasCircuitBeenStarted={hasCircuitBeenStarted}
         showControls={showControls} // Pass the visibility state
       />
 
@@ -1128,6 +1344,15 @@ const MinimalTrackerContent = () => {
           onCancel={handleCancelWorkoutBuilder}
         />
       </Modal>
+      
+      {/* Circuit Completion Modal */}
+      <SessionCompletionModal
+        opened={showCircuitCompletionModal}
+        onClose={() => setShowCircuitCompletionModal(false)}
+        sessionStats={circuitStats}
+        title="Circuit Workout Complete!"
+        message="Great job completing your circuit workout!"
+      />
     </div>
   );
 };

@@ -30,6 +30,9 @@ const exerciseOptions = Object.values(exercises).map(exercise => ({
   hasWeight: exercise.hasWeight || false
 }));
 
+// Log available exercises for debugging
+console.log('[WorkoutBuilder] Available exercises:', Object.values(exercises).map(ex => ({id: ex.id, name: ex.name})));
+
 /**
  * WorkoutBuilder Component
  * This component allows users to create structured workouts with exercises, sets, and circuits.
@@ -51,10 +54,19 @@ const WorkoutBuilder = ({
   
   // Add a new exercise set to the workout plan
   const addExerciseSet = (circuitId = null) => {
+    // Ensure we have a valid exercise ID by checking it exists in the exercises object
+    const validExerciseId = exerciseOptions.length > 0 ? exerciseOptions[0].value : '';
+    
+    // Verify the exercise ID is valid
+    if (validExerciseId) {
+      const exerciseExists = Object.values(exercises).some(e => e.id === validExerciseId);
+      console.log(`[WorkoutBuilder] Adding new set with exercise ID: ${validExerciseId}, exists: ${exerciseExists}`);
+    }
+    
     const newSet = {
       type: 'set',
       id: uuidv4(),
-      exerciseId: exerciseOptions[0]?.value || '',
+      exerciseId: validExerciseId,
       reps: 10,
       weight: null,
       notes: ''
@@ -403,10 +415,12 @@ const WorkoutBuilder = ({
               className={cx(classes.item, { [classes.itemDragging]: snapshot.isDragging })}
               style={style}
             >
+              {/* Full height drag handle on the left */}
               <div {...provided.dragHandleProps} className={classes.dragHandle}>
-                <IconGripVertical size={18} stroke={1.5} />
+                <IconGripVertical size={20} stroke={1.5} />
               </div>
               
+              {/* Content area with padding */}
               <div className={classes.itemContent}>
                 <Group position="apart" align="flex-start">
                   <Box style={{ flex: 1 }}>
@@ -493,7 +507,7 @@ const WorkoutBuilder = ({
             >
               <div className={classes.circuitHeader}>
                 <div {...provided.dragHandleProps} className={classes.dragHandle}>
-                  <IconGripVertical size={20} stroke={1.5} />
+                  <IconGripVertical size={22} stroke={1.5} />
                 </div>
                 
                 <TextInput
@@ -646,7 +660,46 @@ const WorkoutBuilder = ({
             )}
             
             <Button 
-              onClick={() => onSave && onSave(workoutPlan)}
+              onClick={() => {
+                // Validate the workout plan before saving
+                if (workoutPlan.length === 0) {
+                  console.warn('[WorkoutBuilder] Cannot save empty workout plan');
+                  return;
+                }
+                
+                // Validate all exercise IDs
+                let isValid = true;
+                let invalidItems = [];
+                
+                // Check each set in the main workout plan
+                workoutPlan.forEach(item => {
+                  if (item.type === 'set') {
+                    const exercise = Object.values(exercises).find(e => e.id === item.exerciseId);
+                    if (!exercise) {
+                      isValid = false;
+                      invalidItems.push(`Set: ${item.id} (exercise: ${item.exerciseId})`);
+                    }
+                  } else if (item.type === 'circuit' && item.elements.length > 0) {
+                    // Check each set in the circuit
+                    item.elements.forEach(set => {
+                      const exercise = Object.values(exercises).find(e => e.id === set.exerciseId);
+                      if (!exercise) {
+                        isValid = false;
+                        invalidItems.push(`Circuit ${item.name}, Set: ${set.id} (exercise: ${set.exerciseId})`);
+                      }
+                    });
+                  }
+                });
+                
+                if (!isValid) {
+                  console.error('[WorkoutBuilder] Invalid workout plan with missing exercise references:', invalidItems);
+                  alert('There are invalid exercises in your workout plan. Please check the console for details.');
+                  return;
+                }
+                
+                console.log('[WorkoutBuilder] Saving valid workout plan:', workoutPlan);
+                onSave && onSave(workoutPlan);
+              }}
               disabled={workoutPlan.length === 0}
             >
               Save & Use Workout
